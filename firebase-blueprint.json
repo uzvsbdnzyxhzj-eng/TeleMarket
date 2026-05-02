@@ -1,0 +1,74 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile containing balances and preferences",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "numericId": { "type": "number", "description": "Auto-incrementing sequential user ID" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "telegramId": { "type": "string" },
+        "balanceUSD": { "type": "number" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "referredBy": { "type": "string" },
+        "referralEarnings": { "type": "number" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["uid", "balanceUSD", "role"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Records user topups, withdrawals, and purchases",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["topup", "withdraw", "purchase"] },
+        "amountUSD": { "type": "number" },
+        "status": { "type": "string", "enum": ["WAIT", "OK", "FAILED"] },
+        "details": { "type": "object" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["userId", "type", "amountUSD", "status", "createdAt"]
+    },
+    "Counter": {
+      "title": "Counter",
+      "description": "Tracks auto-incrementing sequences",
+      "type": "object",
+      "properties": {
+        "lastId": { "type": "number" }
+      },
+      "required": ["lastId"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "App settings like banners",
+      "type": "object",
+      "properties": {
+        "imageUrl": { "type": "string" },
+        "linkUrl": { "type": "string" },
+        "isActive": { "type": "boolean" }
+      }
+    }
+  },
+  "firestore": {
+    "counters/{counterId}": {
+      "schema": { "$ref": "#/entities/Counter" },
+      "description": "Stores sequence counters"
+    },
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles with balances"
+    },
+    "transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/Transaction" },
+      "description": "Global transactions log"
+    },
+    "settings/{settingId}": {
+      "schema": { "$ref": "#/entities/Setting" },
+      "description": "App settings"
+    }
+  }
+}

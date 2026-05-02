@@ -1,0 +1,118 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    match /counters/{counterId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && counterId == 'users' && incoming().lastId == 10000;
+      allow update: if isSignedIn() && counterId == 'users' && incoming().lastId == existing().lastId + 1;
+    }
+
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.token.email == 'uzvsbdnzyxhzj@gmail.com' && request.auth.uid == adminId;
+    }
+
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { return isSignedIn() && (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) || request.auth.token.email == 'uzvsbdnzyxhzj@gmail.com' || request.auth.token.email == 'admin@gmail.com'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    function isValidUser(data) {
+      return data.uid is string &&
+             data.balanceUSD is number &&
+             data.role in ['user', 'admin'] &&
+             (data.keys().hasAll(['email']) == false || data.email is string) &&
+             (data.keys().hasAll(['name']) == false || data.name is string) &&
+             (data.keys().hasAll(['telegramId']) == false || data.telegramId is string) &&
+             (data.keys().hasAll(['referredBy']) == false || data.referredBy == null || data.referredBy is string) &&
+             (data.keys().hasAll(['hasDeposited']) == false || data.hasDeposited is bool) &&
+             (data.keys().hasAll(['referralEarnings']) == false || data.referralEarnings is number) &&
+             (data.keys().hasAll(['numericId']) == false || data.numericId is number) &&
+             (data.keys().hasAll(['createdAt']) == false || data.createdAt is number) &&
+             (data.keys().hasAll(['updatedAt']) == false || data.updatedAt is number) &&
+             (data.keys().hasAll(['lastActiveAt']) == false || data.lastActiveAt is number);
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin() || resource.data.referredBy == request.auth.uid);
+      allow list: if isSignedIn() && (resource.data.referredBy == request.auth.uid || isAdmin());
+      
+      allow create: if isSignedIn() && 
+                    request.auth.uid == userId && 
+                    isValidId(userId) && 
+                    isValidUser(incoming()) && 
+                    incoming().uid == userId && 
+                    incoming().balanceUSD == 0 && 
+                    incoming().role == 'user'; // cannot self-assign admin
+      
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        (
+          request.auth.uid == userId && 
+          isValidUser(incoming()) &&
+          incoming().role == existing().role &&
+          incoming().balanceUSD <= existing().balanceUSD
+        )
+      );
+      
+      allow delete: if isAdmin();
+    }
+
+    function isValidTransaction(data) {
+      return data.userId is string &&
+             data.type in ['topup', 'withdraw', 'purchase', 'deposit', 'referral_bonus', 'fee', 'buy'] &&
+             data.amountUSD is number &&
+             data.status in ['WAIT', 'OK', 'FAILED', 'pending', 'paid'];
+    }
+
+    match /transactions/{transactionId} {
+      allow get: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      allow create: if isSignedIn() && 
+                    isValidId(transactionId) && 
+                    isValidTransaction(incoming()) && 
+                    incoming().userId == request.auth.uid;
+
+      allow update: if isSignedIn() && (isAdmin() || (existing().userId == request.auth.uid && isValidTransaction(incoming()))); 
+      allow delete: if isAdmin();
+    }
+
+    function isValidAccount(data) {
+      return data.title is string &&
+             data.type in ['Channel', 'Group'] &&
+             data.topic is string &&
+             data.subscribers is number &&
+             data.ageDays is number &&
+             data.priceUSD is number &&
+             data.verified is bool &&
+             data.ownerId is string &&
+             data.createdAt is number;
+    }
+
+    match /accounts/{accountId} {
+      allow read: if true; // anyone can list / get accounts
+      
+      allow create: if isSignedIn() && 
+                    isValidAccount(incoming()) &&
+                    incoming().ownerId == request.auth.uid;
+      
+      allow update: if isSignedIn() && 
+                    isValidAccount(incoming()) && 
+                    (existing().ownerId == request.auth.uid || isAdmin());
+                    
+      allow delete: if isSignedIn() && 
+                    (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

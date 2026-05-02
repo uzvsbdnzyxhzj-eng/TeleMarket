@@ -1,0 +1,229 @@
+export type Language = 'en' | 'bn' | 'hi' | 'es' | 'ar' | 'ru' | 'pt' | 'fr' | 'de' | 'zh' | 'ja' | 'ko' | 'tr' | 'id' | 'ur' | 'it' | 'nl' | 'pl' | 'vi' | 'th';
+
+export const t: Record<Language, any> = {
+  en: {
+    landingBadge: '🚀 The Ultimate Auto-Delivery Marketplace',
+    landingHeadline: 'Fresh High Quality Telegram Accounts. Instantly.',
+    landingSub: 'The most advanced, fully automated marketplace for fresh high quality Telegram accounts. Get instant access to top-tier verified accounts with real-time stock updates, ultra-fast SMS delivery, and seamless auto-topups using global cryptocurrency and local mobile banking.',
+    landingCreateBtn: 'Create an Account',
+    landingFeatures: ['Verified Quality', 'Fully Automated'],
+    landingCountryStock: 'Stock:',
+    landingBuyAcc: 'Buy Account',
+    landingFeat1Title: 'Instant Automated Delivery',
+    landingFeat1Desc: 'Our platform is connected directly to seller bots. Once you purchase, the phone number and SMS codes are delivered instantly in your dashboard.',
+    landingFeat2Title: 'Fully Automatic Top-ups',
+    landingFeat2Desc: 'Top up your balance fully automatically 24/7. We support seamless integrations with local Mobile Banking (bKash, Nagad) and major Cryptocurrencies (Bitcoin, USDT, etc.).',
+    landingFeat3Title: 'Affiliate Program',
+    landingFeat3Desc: 'Invite friends and earn 1% lifetime commissions on all their deposits up to $230 per user. Easy passive income.',
+    landingFooter: '© 2024 TeleBot Shop. All rights reserved.',
+    shopTitle: 'Telegram Shop',
+    buyNav: 'Buy Account',
+    sellNav: 'Sell Account',
+    dashboardNav: 'Dashboard',
+    adminNav: 'Admin',
+    liveBuyTitle: 'Buy Live Telegram Accounts',
+    liveBuySub: 'Instant delivery via automated bot system',
+    autoSystem: 'Automated System',
+    stockLbl: 'Stock:',
+    pcs: 'pcs',
+    outOfStock: 'Out of Stock',
+    buyBtn: 'Buy Account',
+    underDevTitle: 'This feature is currently under maintenance',
+    underDevSub: 'We will bring the automated selling option very soon. Sorry for the inconvenience.',
+    dashboardGoBtn: 'Go to Dashboard',
+    dashboardTitle: 'Your Dashboard',
+    availBal: 'Available Balance',
+    addFundsTitle: 'Add Funds',
+    addFundsSub: 'Top-up your balance via bKash, Nagad, or Crypto.',
+    rateLbl: 'Rate: 1 USD =',
+    topupBtn: 'Top-up',
+    withdrawFundsTitle: 'Withdraw Funds',
+    withdrawFundsSub: 'Request manual withdrawal of your available balance.',
+    withdrawBtn: 'Withdraw',
+    paymentGatewayTitle: 'Payment Gateways',
+    paymentlyTxt: 'Paymently API: bKash, Nagad, and Binance payments supported.',
+    oxapayTxt: 'OxaPay API: Cryptocurrency payments supported.',
+    adminPanelTitle: 'Admin Panel',
+    adminPanelSub: 'Special panel for the owner only',
+    markupTitle: 'Price Markup Settings',
+    markupLbl: 'Extra Profit (%)',
+    saveBtn: 'Save',
+    markupHelp: 'This percentage will be added to the live bot base price on the website.',
+    botStatusTitle: 'Bot API Status (Live)',
+    colCountry: 'Country Name',
+    colCode: 'Code',
+    colStock: 'Stock',
+    colBase: 'Bot Base Price',
+    colWeb: 'Website Price',
+    autoSellTitle: 'Auto Sell Settings',
+    autoSellSub: 'Seller scripts or bots will connect here for live sell orders.',
+    topupModalTitle: 'Top-up Balance',
+    amountUsdLbl: 'Amount (USD)',
+    totalPayLbl: 'Total to pay:',
+    bkashNagadBtn: 'bKash / Nagad',
+    cryptoBtn: 'Crypto / Binance',
+    cancelBtn: 'Cancel',
+    withdrawModalTitle: 'Withdraw Funds',
+    availWithdrawLbl: 'Available:',
+    totalGetLbl: 'Total you get:',
+    withdrawSubmitBtn: 'Submit Request',
+    insufficientBalTxt: 'Insufficient balance! Please top-up first.',
+    topupRedirectTxt: 'Redirecting to payment gateway...',
+    buySuccessTxt: 'Account purchased successfully!',
+    withdrawSuccessTxt: 'Withdraw request submitted successfully! Pending manual approval.',
+    buyConfirmTxt: 'Are you sure you want to buy an account from',
+    manualWithdrawNote: 'Withdrawal requests are processed manually within 2 hours. If not received, please contact support.',
+    purchasedModalTitle: 'Purchased Number',
+    waitingForCode: 'Request the login code using the button below. It may take a minute.',
+    getCodeBtn: 'Get SMS Code',
+    closeBtn: 'Close',
+    referralTitle: 'Refer & Earn', referEarnUpTo: 'Invite Friends and earn up to $230 per user!', referDesc: 'Earn 1% lifetime commission on every deposit your friends make, up to a maximum of $230 per friend.', yourRefLink: 'Your Referral Link:', copyBtn: 'Copy Link', totalRefEarn: 'Total Referral Earnings:'
+  },
+  bn: {
+    landingBadge: '🚀 সেরা অটো-ডেলিভারি মার্কেটপ্লেস',
+    landingHeadline: 'ফ্রেশ হাই কোয়ালিটি টেলিগ্রাম অ্যাকাউন্ট। তাৎক্ষণিকভাবে।',
+    landingSub: 'ফ্রেশ হাই কোয়ালিটি টেলিগ্রাম অ্যাকাউন্টের সবচেয়ে উন্নত এবং স্বয়ংক্রিয় প্ল্যাটফর্ম। রিয়েল-টাইম স্টক আপডেট এবং ক্রিপ্টো ও মোবাইল ব্যাংকিংয়ের মাধ্যমে অটো-টপআপ সহ সবচেয়ে দ্রুত অ্যাকাউন্ট এবং এসএমএস পান।',
+    landingCreateBtn: 'অ্যাকাউন্ট তৈরি করুন',
+    landingFeatures: ['ভেরিফাইড কোয়ালিটি', 'সম্পূর্ণ স্বয়ংক্রিয়'],
+    landingCountryStock: 'স্টক:',
+    landingBuyAcc: 'অ্যাকাউন্ট কিনুন',
+    landingFeat1Title: 'তাৎক্ষণিক অটোমেটেড ডেলিভারি',
+    landingFeat1Desc: 'আমাদের প্ল্যাটফর্ম সরাসরি সেলার বটগুলোর সাথে যুক্ত। কেনার সাথে সাথেই ফোন নম্বর এবং এসএমএস কোড আপনার ড্যাশবোর্ডে চলে আসবে।',
+    landingFeat2Title: 'অটোমেটিক ব্যালেন্স অ্যাড',
+    landingFeat2Desc: '২৪/৭ অটোমেটিক টপ-আপ করুন। আমরা বিকাশ, নগদ এবং জনপ্রিয় ক্রিপ্টোকারেন্সি (বিটকয়েন, ইউএসডিটি) সাপোর্ট করি।',
+    landingFeat3Title: 'অ্যাফিলিয়েট প্রোগ্রাম',
+    landingFeat3Desc: 'বন্ধুদের আমন্ত্রণ জানান এবং তাদের ডিপোজিটের উপর সারাজীবন ১% কমিশন আয় করুন (ইউজার প্রতি সর্বোচ্চ $২৩০ পর্যন্ত)।',
+    landingFooter: '© ২০২৪ TeleBot Shop. সর্বস্বত্ব সংরক্ষিত।',
+    shopTitle: 'টেলিগ্রাম শপ',
+    buyNav: 'অ্যাকাউন্ট কিনুন',
+    sellNav: 'অ্যাকাউন্ট বিক্রি করুন',
+    dashboardNav: 'ড্যাশবোর্ড',
+    adminNav: 'অ্যাডমিন',
+    liveBuyTitle: 'লাইভ টেলিগ্রাম অ্যাকাউন্ট কিনুন',
+    liveBuySub: 'অটোমেটিক বট সিস্টেমের মাধ্যমে তাৎক্ষণিক ডেলিভারি',
+    autoSystem: 'অটোমেটিক সিস্টেম',
+    stockLbl: 'স্টক:',
+    pcs: 'পিস',
+    outOfStock: 'স্টক শেষ',
+    buyBtn: 'অ্যাকাউন্ট নিন',
+    underDevTitle: 'বর্তমানে এই ফিচারটির কাজ চলছে',
+    underDevSub: 'খুব দ্রুতই আমাদের সিস্টেমে অটোমেটিক অ্যাকাউন্ট বিক্রির অপশন চালু হবে। সাময়িক অসুবিধার জন্য আমরা আন্তরিকভাবে দুঃখিত।',
+    dashboardGoBtn: 'ড্যাশবোর্ডে যান',
+    dashboardTitle: 'আপনার ড্যাশবোর্ড',
+    availBal: 'অ্যাভেইলঅ্যাবল ব্যালেন্স',
+    addFundsTitle: 'ফান্ড যোগ করুন',
+    addFundsSub: 'বিকাশ, নগদ বা ক্রিপ্টোর মাধ্যমে ব্যালেন্স টপ-আপ করুন।',
+    rateLbl: 'রেট: ১ USD =',
+    topupBtn: 'টপ-আপ করুন',
+    withdrawFundsTitle: 'ফান্ড উইথড্র করুন',
+    withdrawFundsSub: 'আপনার অ্যাভেইলঅ্যাবল ব্যালেন্স ম্যানুয়ালি উত্তোলন করুন।',
+    withdrawBtn: 'উইথড্র করুন',
+    paymentGatewayTitle: 'পেমেন্ট গেটওয়ে সমূহ',
+    paymentlyTxt: 'Paymently API: বিকাশ, নগদ এবং বিন্যান্স পেমেন্ট সমর্থিত।',
+    oxapayTxt: 'OxaPay API: ক্রিপ্টোকারেন্সি পেমেন্ট সমর্থিত।',
+    adminPanelTitle: 'অ্যাডমিন প্যানেল',
+    adminPanelSub: 'শুধুমাত্র মালিকের জন্য স্পেশাল প্যানেল',
+    markupTitle: 'প্রাইস মার্কআপ সেটিংস',
+    markupLbl: 'অতিরিক্ত লাভ (%)',
+    saveBtn: 'সেভ করুন',
+    markupHelp: 'বট থেকে পাওয়া রিয়েল টাইম প্রাইসের উপর এই শতাংশ যোগ হয়ে ওয়েবসাইটে শো করবে।',
+    botStatusTitle: 'বট এপিআই স্ট্যাটাস (লাইভ)',
+    colCountry: 'দেশের নাম',
+    colCode: 'কোড',
+    colStock: 'স্টক',
+    colBase: 'বটের দাম (Base)',
+    colWeb: 'ওয়েবসাইটের দাম',
+    autoSellTitle: 'অটো সেল সেটিংস',
+    autoSellSub: 'এখানে আপনার পিসির সেলার স্ক্রিপ্ট বা বট কানেক্ট করে সেল অর্ডার লাইভ করা হবে।',
+    topupModalTitle: 'টপ-আপ করুন',
+    amountUsdLbl: 'পরিমাণ (USD)',
+    totalPayLbl: 'মোট প্রদেয়:',
+    bkashNagadBtn: 'বিকাশ / নগদ',
+    cryptoBtn: 'Crypto / Binance',
+    cancelBtn: 'বাতিল করুন',
+    withdrawModalTitle: 'উইথড্র করুন',
+    availWithdrawLbl: 'অ্যাভেইলঅ্যাবল:',
+    totalGetLbl: 'মোট পাবেন:',
+    withdrawSubmitBtn: 'উইথড্র রিকোয়েস্ট দিন',
+    insufficientBalTxt: 'পর্যাপ্ত ব্যালেন্স নেই! দয়া করে আগে টপ-আপ করুন।',
+    topupRedirectTxt: 'পেমেন্ট গেটওয়েতে রিডাইরেক্ট হচ্ছে...',
+    buySuccessTxt: 'অ্যাকাউন্ট সফলভাবে কেনা হয়েছে (অটোমেটিক)!',
+    withdrawSuccessTxt: 'উইথড্র রিকোয়েস্ট সফলভাবে জমা হয়েছে! এটি ম্যানুয়ালি প্রসেস হবে।',
+    buyConfirmTxt: 'আপনি কি নিশ্চিত যে অ্যাকাউন্ট কিনতে চান',
+    manualWithdrawNote: 'বিঃদ্রঃ উইথড্র রিকোয়েস্ট ম্যানুয়ালি ২ ঘণ্টার মধ্যে প্রসেস করা হয়। যদি ২ ঘণ্টার মধ্যে না পান তাহলে সাপোর্টে যোগাযোগ করবেন।',
+    purchasedModalTitle: 'কেনা নাম্বার',
+    waitingForCode: 'নিচের বোতাম চেপে লগইন কোড রিকোয়েস্ট করুন। একটু সময় লাগতে পারে।',
+    getCodeBtn: 'SMS কোড পান',
+    closeBtn: 'বন্ধ করুন',
+    referralTitle: 'রেফার এবং ইনকাম', referEarnUpTo: 'Invite Friends and earn up to 230$ per user!', referDesc: 'আপনার বন্ধুরা যতবার ডিপোজিট করবে, তার 1% লাইফটাইম কমিশন পাবেন, প্রতি বন্ধু থেকে সর্বোচ্চ $230 পর্যন্ত।', yourRefLink: 'আপনার রেফারেল লিংক:', copyBtn: 'কপি লিংক', totalRefEarn: 'মোট রেফারেল আয়:'
+  },
+  hi: {
+    shopTitle: 'टेलीग्राम शॉप', buyNav: 'अकाउंट खरीदें', sellNav: 'अकाउंट बेचें', dashboardNav: 'डैशबोर्ड', adminNav: 'एडमिन', liveBuyTitle: 'लाइव टेलीग्राम अकाउंट खरीदें', liveBuySub: 'स्वचालित बॉट सिस्टम के माध्यम से त्वरित वितरण', autoSystem: 'ऑटो सिस्टम', stockLbl: 'स्टॉक:', pcs: 'पीस', outOfStock: 'स्टॉक खत्म', buyBtn: 'अकाउंट लें', underDevTitle: 'यह सुविधा अभी बन रही है', underDevSub: 'हम जल्द ही स्वचालित बिक्री विकल्प लाएंगे।', dashboardGoBtn: 'डैशबोर्ड पर जाएं', dashboardTitle: 'आपका डैशबोर्ड', availBal: 'उपलब्ध बैलेंस', addFundsTitle: 'फंड जोड़ें', addFundsSub: 'bKash, Nagad, या Crypto से टॉप-अप करें।', rateLbl: 'दर: 1 USD =', topupBtn: 'टॉप-अप', withdrawFundsTitle: 'फंड निकालें', withdrawFundsSub: 'अपना उपलब्ध बैलेंस मैन्युअल रूप से निकालें।', withdrawBtn: 'निकालें', paymentGatewayTitle: 'पेमेंट गेटवे', paymentlyTxt: 'Paymently API समर्थित', oxapayTxt: 'OxaPay API समर्थित', adminPanelTitle: 'एडमिन पैनल', adminPanelSub: 'केवल मालिक के लिए', markupTitle: 'मार्कअप सेटिंग्स', markupLbl: 'अतिरिक्त लाभ (%)', saveBtn: 'सहेजें', markupHelp: 'यह प्रतिशत वेबसाइट पर लाइव आधार मूल्य में जोड़ा जाएगा।', botStatusTitle: 'बॉट एपीआई स्थिति (लाइव)', colCountry: 'देश', colCode: 'कोड', colStock: 'स्टॉक', colBase: 'बेस मूल्य', colWeb: 'वेबसाइट मूल्य', autoSellTitle: 'ऑटो सेल सेटिंग्स', autoSellSub: 'विक्रेता स्क्रिप्ट यहां कनेक्ट होगी।', topupModalTitle: 'टॉप-अप बैलेंस', amountUsdLbl: 'रकम (USD)', totalPayLbl: 'कुल देय:', bkashNagadBtn: 'bKash / Nagad', cryptoBtn: 'Crypto / Binance', cancelBtn: 'रद्द करें', withdrawModalTitle: 'फंड निकालें', availWithdrawLbl: 'उपलब्ध:', totalGetLbl: 'आपको मिलेगा:', withdrawSubmitBtn: 'अनुरोध भेजें', insufficientBalTxt: 'अपर्याप्त बैलेंस! टॉप-अप करें।', topupRedirectTxt: 'रीडायरेक्ट कर रहा है...', buySuccessTxt: 'सफलतापूर्वक खरीदा गया!', withdrawSuccessTxt: 'आपका निकासी अनुरोध 24 घंटे में संसाधित किया जाएगा।', buyConfirmTxt: 'क्या आप वाकई खरीदना चाहते हैं', manualWithdrawNote: 'निकासी 24-48 घंटों में होगी।', purchasedModalTitle: 'खरीदा गया नंबर', waitingForCode: 'कोड प्राप्त करने के लिए बटन दबाएं।', getCodeBtn: 'SMS कोड प्राप्त करें', closeBtn: 'बंद करें'
+  },
+  es: {
+    shopTitle: 'Telegram Shop', buyNav: 'Comprar', sellNav: 'Vender', dashboardNav: 'Panel', adminNav: 'Admin', liveBuyTitle: 'Comprar Cuentas de Telegram', liveBuySub: 'Entrega instantánea mediante sistema bot automático', autoSystem: 'Sistema Auto', stockLbl: 'Stock:', pcs: 'unidades', outOfStock: 'Agotado', buyBtn: 'Comprar', underDevTitle: 'Funcionalidad en desarrollo', underDevSub: 'Pronto traeremos la venta automática.', dashboardGoBtn: 'Ir al Panel', dashboardTitle: 'Tu Panel', availBal: 'Saldo Disponible', addFundsTitle: 'Añadir Fondos', addFundsSub: 'Recarga tu saldo con Crypto o métodos locales.', rateLbl: 'Tasa: 1 USD =', topupBtn: 'Recargar', withdrawFundsTitle: 'Retirar Fondos', withdrawFundsSub: 'Solicita retiro manual de tus fondos.', withdrawBtn: 'Retirar', paymentGatewayTitle: 'Métodos de Pago', paymentlyTxt: 'Soporte Paymently', oxapayTxt: 'Soporte OxaPay', adminPanelTitle: 'Panel de Administrador', adminPanelSub: 'Solo para dueños', markupTitle: 'Configuración de Margen', markupLbl: 'Ganancia Extra (%)', saveBtn: 'Guardar', markupHelp: 'Se añadirá este % al precio base del bot en la web.', botStatusTitle: 'Estado del Bot API', colCountry: 'País', colCode: 'Código', colStock: 'Total', colBase: 'Precio Base', colWeb: 'Precio Web', autoSellTitle: 'Venta Automática', autoSellSub: 'Bots vendedores conectarán aquí.', topupModalTitle: 'Recargar Saldo', amountUsdLbl: 'Monto (USD)', totalPayLbl: 'Total a pagar:', bkashNagadBtn: 'Pago Local', cryptoBtn: 'Crypto / Binance', cancelBtn: 'Cancelar', withdrawModalTitle: 'Retirar', availWithdrawLbl: 'Disponible:', totalGetLbl: 'Recibes:', withdrawSubmitBtn: 'Solicitar', insufficientBalTxt: 'Saldo insuficiente. Recarga primero.', topupRedirectTxt: 'Redirigiendo...', buySuccessTxt: '¡Cuenta comprada con éxito!', withdrawSuccessTxt: 'Solicitud de retiro enviada (manual).', buyConfirmTxt: '¿Seguro que quieres comprar de', manualWithdrawNote: 'Los retiros se procesan en 24-48 horas.', purchasedModalTitle: 'Número Comprado', waitingForCode: 'Solicita el código abajo. Toma un momento.', getCodeBtn: 'Obtener Código', closeBtn: 'Cerrar'
+  },
+  ar: {
+    shopTitle: 'متجر تيليجرام', buyNav: 'شراء حساب', sellNav: 'بيع حساب', dashboardNav: 'لوحة القيادة', adminNav: 'المسؤول', liveBuyTitle: 'شراء حسابات تيليجرام', liveBuySub: 'تسليم فوري عبر البوت', autoSystem: 'نظام آلي', stockLbl: 'المخزون:', pcs: 'ق', outOfStock: 'نفد', buyBtn: 'شراء', underDevTitle: 'قيد التطوير', underDevSub: 'قيد العمل وسيتوفر قريباً', dashboardGoBtn: 'لوحة القيادة', dashboardTitle: 'لوحتك', availBal: 'الرصيد المتاح', addFundsTitle: 'إضافة أموال', addFundsSub: 'شحن العملات المشفرة وغيرها', rateLbl: '1 USD =', topupBtn: 'شحن', withdrawFundsTitle: 'سحب الأموال', withdrawFundsSub: 'سحب يدوي للأموال.', withdrawBtn: 'سحب', paymentGatewayTitle: 'بوابات الدفع', paymentlyTxt: 'متوفر', oxapayTxt: 'متوفر', adminPanelTitle: 'لوحة المسؤول', adminPanelSub: 'خاص للمالك', markupTitle: 'إعدادات الأرباح', markupLbl: 'الربح الإضافي (%)', saveBtn: 'حفظ', markupHelp: 'نسبة الإضافة للسعر الافتراضي', botStatusTitle: 'حالة البوت', colCountry: 'البلد', colCode: 'الرمز', colStock: 'المخزون', colBase: 'السعر', colWeb: 'سعر الزائر', autoSellTitle: 'البيع الآلي', autoSellSub: 'للربط الالي للبائعين', topupModalTitle: 'شحن الرصيد', amountUsdLbl: 'الكمية (USD)', totalPayLbl: 'الإجمالي:', bkashNagadBtn: 'محلي', cryptoBtn: 'عملات رقمية', cancelBtn: 'إلغاء', withdrawModalTitle: 'سحب', availWithdrawLbl: 'متاح:', totalGetLbl: 'ستحصل على:', withdrawSubmitBtn: 'تقديم', insufficientBalTxt: 'رصيد غير كاف', topupRedirectTxt: 'جاري التحويل...', buySuccessTxt: 'تم الشراء بنجاح', withdrawSuccessTxt: 'تم تقديم طلب السحب', buyConfirmTxt: 'تأكيد الشراء؟', manualWithdrawNote: 'تتم المعالجة خلال يومين', purchasedModalTitle: 'الرقم الذي تم شراؤه', waitingForCode: 'اضغط لجلب الكود', getCodeBtn: 'جلب الكود SMS', closeBtn: 'إغلاق'
+  },
+  ru: {
+    shopTitle: 'Telegram Магазин', buyNav: 'Купить', sellNav: 'Продать', dashboardNav: 'Панель', adminNav: 'Админ', liveBuyTitle: 'Автопокупка Telegram аккаунтов', liveBuySub: 'Мгновенная доставка через бота', autoSystem: 'Авто система', stockLbl: 'В наличии:', pcs: 'шт', outOfStock: 'Нет в наличии', buyBtn: 'Купить аккаунт', underDevTitle: 'В разработке', underDevSub: 'Эта функция скоро появится', dashboardGoBtn: 'В панель', dashboardTitle: 'Ваша Панель', availBal: 'Доступный Баланс', addFundsTitle: 'Пополнить баланс', addFundsSub: 'Пополнение криптой или локальными картами', rateLbl: 'Курс: 1 USD =', topupBtn: 'Пополнить', withdrawFundsTitle: 'Вывод средств', withdrawFundsSub: 'Ручной вывод баланса', withdrawBtn: 'Вывести', paymentGatewayTitle: 'Платежные шлюзы', paymentlyTxt: 'Поддерживается Paymently', oxapayTxt: 'Поддерживается OxaPay', adminPanelTitle: 'Админ-панель', adminPanelSub: 'Только для владельца', markupTitle: 'Настройка наценки', markupLbl: 'Наценка (%)', saveBtn: 'Сохранить', markupHelp: 'Добавляется к цене бота', botStatusTitle: 'Статус бота (Live)', colCountry: 'Страна', colCode: 'Код', colStock: 'Наличие', colBase: 'Цена бота', colWeb: 'Цена на сайте', autoSellTitle: 'АвтоПродажа', autoSellSub: 'Подключение вашего бота продаж', topupModalTitle: 'Пополнение', amountUsdLbl: 'Сумма (USD)', totalPayLbl: 'К оплате:', bkashNagadBtn: 'Локальная оплата', cryptoBtn: 'Криптовалюта', cancelBtn: 'Отмена', withdrawModalTitle: 'Вывод', availWithdrawLbl: 'Доступно:', totalGetLbl: 'Получите:', withdrawSubmitBtn: 'Отправить заявку', insufficientBalTxt: 'Недостаточно средств!', topupRedirectTxt: 'Перенаправление...', buySuccessTxt: 'Успешно куплено!', withdrawSuccessTxt: 'Заявка на вывод отправлена', buyConfirmTxt: 'Вы уверены, что хотите купить аккаунт', manualWithdrawNote: 'Вывод обрабатывается вручную 24-48ч', purchasedModalTitle: 'Купленный Номер', waitingForCode: 'Запросите код ниже', getCodeBtn: 'Получить SMS', closeBtn: 'Закрыть',
+    referralTitle: 'Refer & Earn', referEarnUpTo: 'Invite Friends and earn up to $230 per user!', referDesc: 'Earn 1% lifetime commission on every deposit your friends make, up to a maximum of $230 per friend.', yourRefLink: 'Your Referral Link:', copyBtn: 'Copy Link', totalRefEarn: 'Total Referral Earnings:'
+  },
+  pt: {
+    shopTitle: 'Loja Telegram', buyNav: 'Comprar', sellNav: 'Vender', dashboardNav: 'Painel', adminNav: 'Admin', liveBuyTitle: 'Comprar Contas Telegram', liveBuySub: 'Entrega instantânea via bot', autoSystem: 'Sistema Auto', stockLbl: 'Estoque:', pcs: 'un', outOfStock: 'Esgotado', buyBtn: 'Comprar Conta', underDevTitle: 'Em desenvolvimento', underDevSub: 'Em breve', dashboardGoBtn: 'Ir ao Painel', dashboardTitle: 'Seu Painel', availBal: 'Saldo Disponível', addFundsTitle: 'Adicionar Fundos', addFundsSub: 'Recarregar via Crypto, etc.', rateLbl: 'Taxa: 1 USD =', topupBtn: 'Recarregar', withdrawFundsTitle: 'Retirar', withdrawFundsSub: 'Retirada manual.', withdrawBtn: 'Retirar', paymentGatewayTitle: 'Gateways de Pagamento', paymentlyTxt: 'Paymently Suportado', oxapayTxt: 'OxaPay Suportado', adminPanelTitle: 'Painel Admin', adminPanelSub: 'Apenas Proprietário', markupTitle: 'Margem de Lucro', markupLbl: 'Lucro Extra (%)', saveBtn: 'Salvar', markupHelp: 'Adicionado ao preço base.', botStatusTitle: 'Status do Bot', colCountry: 'País', colCode: 'Código', colStock: 'Estoque', colBase: 'Preço Base', colWeb: 'Preço Web', autoSellTitle: 'Venda Automática', autoSellSub: 'Bots vendedores conectam aqui.', topupModalTitle: 'Recarregar Saldo', amountUsdLbl: 'Valor (USD)', totalPayLbl: 'Total a pagar:', bkashNagadBtn: 'Local', cryptoBtn: 'Crypto', cancelBtn: 'Cancelar', withdrawModalTitle: 'Retirar', availWithdrawLbl: 'Disponível:', totalGetLbl: 'A receber:', withdrawSubmitBtn: 'Solicitar', insufficientBalTxt: 'Saldo insuficiente!', topupRedirectTxt: 'Redirecionando...', buySuccessTxt: 'Comprado com sucesso!', withdrawSuccessTxt: 'Solicitação de saque enviada.', buyConfirmTxt: 'Confirmar compra?', manualWithdrawNote: 'Processado em 24-48h.', purchasedModalTitle: 'Número Comprado', waitingForCode: 'Aguardando código SMS...', getCodeBtn: 'Obter Código', closeBtn: 'Fechar',
+    referralTitle: 'Indique e Ganhe', referEarnUpTo: 'Convide amigos e ganhe até $230 por usuário!', referDesc: 'Ganhe 1% de comissão vitalícia em cada depósito que seus amigos fizerem, até um máximo de $230 por amigo.', seuLinkRef: 'Seu link de indicação:', yourRefLink: 'Seu Link:', copyBtn: 'Copiar', totalRefEarn: 'Ganhos de Indicação:'
+  },
+  fr: {
+    shopTitle: 'Boutique Telegram', buyNav: 'Acheter', sellNav: 'Vendre', dashboardNav: 'Tableau de bord', adminNav: 'Admin', liveBuyTitle: 'Comptes Telegram', liveBuySub: 'Livraison instantanée par bot', autoSystem: 'Système Auto', stockLbl: 'Stock:', pcs: 'pcs', outOfStock: 'Rupture', buyBtn: 'Acheter', underDevTitle: 'En développement', underDevSub: 'Bientôt disponible.', dashboardGoBtn: 'Aller au tableau', dashboardTitle: 'Votre Tableau', availBal: 'Solde disponible', addFundsTitle: 'Ajouter des fonds', addFundsSub: 'Recharger via Crypto, etc.', rateLbl: 'Taux: 1 USD =', topupBtn: 'Recharger', withdrawFundsTitle: 'Retirer', withdrawFundsSub: 'Retrait manuel.', withdrawBtn: 'Retirer', paymentGatewayTitle: 'Passerelles de paiement', paymentlyTxt: 'Supporté', oxapayTxt: 'Supporté', adminPanelTitle: 'Panel Admin', adminPanelSub: 'Propriétaire uniquement', markupTitle: 'Marge', markupLbl: 'Profit supplémentaire (%)', saveBtn: 'Enregistrer', markupHelp: 'Ajouté au prix de base.', botStatusTitle: 'Statut du Bot', colCountry: 'Pays', colCode: 'Code', colStock: 'Stock', colBase: 'Prix Base', colWeb: 'Prix Web', autoSellTitle: 'Vente Automatique', autoSellSub: 'Connexion des bots vendeurs.', topupModalTitle: 'Recharger', amountUsdLbl: 'Montant (USD)', totalPayLbl: 'Total à payer:', bkashNagadBtn: 'Local', cryptoBtn: 'Crypto', cancelBtn: 'Annuler', withdrawModalTitle: 'Retirer', availWithdrawLbl: 'Disponible:', totalGetLbl: 'Vous recevez:', withdrawSubmitBtn: 'Demander', insufficientBalTxt: 'Solde insuffisant !', topupRedirectTxt: 'Redirection...', buySuccessTxt: 'Acheté avec succès !', withdrawSuccessTxt: 'Demande de retrait envoyée.', buyConfirmTxt: 'Confirmer l\'achat ?', manualWithdrawNote: 'Traité en 24-48h.', purchasedModalTitle: 'Numéro Acheté', waitingForCode: 'Attente du code SMS...', getCodeBtn: 'Obtenir Code', closeBtn: 'Fermer',
+    referralTitle: 'Parrainer', referEarnUpTo: 'Invitez et gagnez jusqu\'à 230$ par utilisateur !', referDesc: 'Gagnez 1% de commission à vie sur chaque dépôt de vos amis, jusqu\'à 230$ par ami.', yourRefLink: 'Votre lien:', copyBtn: 'Copier', totalRefEarn: 'Gains totaux de parrainage:'
+  },
+  de: {
+    shopTitle: 'Telegram Shop', buyNav: 'Kaufen', sellNav: 'Verkaufen', dashboardNav: 'Dashboard', adminNav: 'Admin', liveBuyTitle: 'Telegram Konten Kaufen', liveBuySub: 'Sofortige Lieferung', autoSystem: 'Auto System', stockLbl: 'Lager:', pcs: 'Stk', outOfStock: 'Ausverkauft', buyBtn: 'Kaufen', underDevTitle: 'In Entwicklung', underDevSub: 'Demnächst.', dashboardGoBtn: 'Zum Dashboard', dashboardTitle: 'Dein Dashboard', availBal: 'Verfügbares Guthaben', addFundsTitle: 'Guthaben aufladen', addFundsSub: 'Aufladen via Crypto etc.', rateLbl: 'Kurs: 1 USD =', topupBtn: 'Aufladen', withdrawFundsTitle: 'Auszahlen', withdrawFundsSub: 'Manuelle Auszahlung.', withdrawBtn: 'Auszahlen', paymentGatewayTitle: 'Zahlungsmethoden', paymentlyTxt: 'Unterstützt', oxapayTxt: 'Unterstützt', adminPanelTitle: 'Admin Panel', adminPanelSub: 'Nur Besitzer', markupTitle: 'Marge', markupLbl: 'Extra Profit (%)', saveBtn: 'Speichern', markupHelp: 'Wird zum Basispreis addiert.', botStatusTitle: 'Bot Status', colCountry: 'Land', colCode: 'Code', colStock: 'Lager', colBase: 'Basispreis', colWeb: 'Web Preis', autoSellTitle: 'Auto Verkauf', autoSellSub: 'Verkäufer Bots.', topupModalTitle: 'Aufladen', amountUsdLbl: 'Betrag (USD)', totalPayLbl: 'Zu zahlen:', bkashNagadBtn: 'Lokal', cryptoBtn: 'Krypto', cancelBtn: 'Abbrechen', withdrawModalTitle: 'Auszahlen', availWithdrawLbl: 'Verfügbar:', totalGetLbl: 'Du erhältst:', withdrawSubmitBtn: 'Anfordern', insufficientBalTxt: 'Unzureichendes Guthaben!', topupRedirectTxt: 'Weiterleiten...', buySuccessTxt: 'Erfolgreich gekauft!', withdrawSuccessTxt: 'Auszahlung angefordert.', buyConfirmTxt: 'Kauf bestätigen?', manualWithdrawNote: 'Dauert 24-48h.', purchasedModalTitle: 'Gekaufte Nummer', waitingForCode: 'Warte auf SMS...', getCodeBtn: 'Code abrufen', closeBtn: 'Schließen',
+    referralTitle: 'Werben & Verdienen', referEarnUpTo: 'Lade Freunde ein und verdiene bis zu 230$ pro Nutzer!', referDesc: 'Erhalte 1% lebenslange Provision auf jede Einzahlung deiner Freunde, bis maximal 230$ pro Freund.', yourRefLink: 'Dein Link:', copyBtn: 'Kopieren', totalRefEarn: 'Gesamte Werbeeinnahmen:'
+  },
+  zh: {
+    shopTitle: '电报商店', buyNav: '购买账号', sellNav: '出售账号', dashboardNav: '仪表板', adminNav: '管理', liveBuyTitle: '购买Telegram账号', liveBuySub: '自动机器人秒发货', autoSystem: '自动系统', stockLbl: '库存:', pcs: '个', outOfStock: '缺货', buyBtn: '购买', underDevTitle: '开发中', underDevSub: '即将推出', dashboardGoBtn: '去仪表板', dashboardTitle: '你的仪表板', availBal: '可用余额', addFundsTitle: '充值', addFundsSub: '通过加密货币等充值', rateLbl: '汇率: 1 USD =', topupBtn: '充值', withdrawFundsTitle: '提现', withdrawFundsSub: '手动提现', withdrawBtn: '提现', paymentGatewayTitle: '支付网关', paymentlyTxt: '支持', oxapayTxt: '支持', adminPanelTitle: '管理面板', adminPanelSub: '仅限所有者', markupTitle: '加价设置', markupLbl: '额外利润 (%)', saveBtn: '保存', markupHelp: '将添加到机器人基础价格', botStatusTitle: '机器人状态', colCountry: '国家', colCode: '代码', colStock: '库存', colBase: '底价', colWeb: '售价', autoSellTitle: '自动销售', autoSellSub: '卖家机器人的接口', topupModalTitle: '充值', amountUsdLbl: '金额 (USD)', totalPayLbl: '应付:', bkashNagadBtn: '本地支付', cryptoBtn: '加密货币', cancelBtn: '取消', withdrawModalTitle: '提现', availWithdrawLbl: '可用:', totalGetLbl: '您将获得:', withdrawSubmitBtn: '提交申请', insufficientBalTxt: '余额不足！', topupRedirectTxt: '正在跳转...', buySuccessTxt: '购买成功！', withdrawSuccessTxt: '提现申请已提交！', buyConfirmTxt: '确认购买？', manualWithdrawNote: '24-48小时内处理', purchasedModalTitle: '已购号码', waitingForCode: '等待验证码...', getCodeBtn: '获取验证码', closeBtn: '关闭',
+    referralTitle: '邀请奖励', referEarnUpTo: '邀请好友，每位用户最高可赚$230！', referDesc: '好友每次充值，您将获得1%的终身佣金，每位好友最高奖励$230。', yourRefLink: '您的邀请链接:', copyBtn: '复制', totalRefEarn: '总邀请收益:'
+  },
+  ja: {
+    shopTitle: 'Telegramショップ', buyNav: '購入', sellNav: '販売', dashboardNav: 'ダッシュボード', adminNav: '管理', liveBuyTitle: 'Telegramアカウント購入', liveBuySub: '自動即時納品', autoSystem: '自動', stockLbl: '在庫:', pcs: '個', outOfStock: '在庫切れ', buyBtn: '購入', underDevTitle: '開発中', underDevSub: '近日公開', dashboardGoBtn: 'ダッシュボードへ', dashboardTitle: 'ダッシュボード', availBal: '残高', addFundsTitle: 'チャージ', addFundsSub: '暗号資産等', rateLbl: 'レート: 1 USD =', topupBtn: 'チャージ', withdrawFundsTitle: '出金', withdrawFundsSub: '手動出金', withdrawBtn: '出金', paymentGatewayTitle: '決済方法', paymentlyTxt: '対応', oxapayTxt: '対応', adminPanelTitle: '管理パネル', adminPanelSub: '管理者の', markupTitle: '利益設定', markupLbl: '利益 (%)', saveBtn: '保存', markupHelp: 'ベース価格に追加', botStatusTitle: 'Botステータス', colCountry: '国', colCode: 'コード', colStock: '在庫', colBase: 'ベース', colWeb: '販売額', autoSellTitle: '自動販売', autoSellSub: '販売用', topupModalTitle: 'チャージ', amountUsdLbl: '金額 (USD)', totalPayLbl: '支払額:', bkashNagadBtn: 'ローカル', cryptoBtn: '暗号資産', cancelBtn: 'キャンセル', withdrawModalTitle: '出金', availWithdrawLbl: '可能:', totalGetLbl: '受取額:', withdrawSubmitBtn: '申請', insufficientBalTxt: '残高不足', topupRedirectTxt: '遷移中...', buySuccessTxt: '購入完了！', withdrawSuccessTxt: '出金申請完了', buyConfirmTxt: '購入しますか？', manualWithdrawNote: '24-48時間で処理', purchasedModalTitle: '購入番号', waitingForCode: 'SMS待機中...', getCodeBtn: 'コード取得', closeBtn: '閉じる',
+    referralTitle: '紹介で稼ぐ', referEarnUpTo: '友達を招待して1人につき最大230ドルを獲得！', referDesc: '友達のチャージ額の1%を永久報酬として獲得（最大230ドル/人）', yourRefLink: '紹介リンク:', copyBtn: 'コピー', totalRefEarn: '紹介報酬合計:'
+  },
+  ko: {
+    shopTitle: '텔레그램 샵', buyNav: '구매', sellNav: '판매', dashboardNav: '대시보드', adminNav: '관리자', liveBuyTitle: '계정 구매', liveBuySub: '자동 발송', autoSystem: '자동 시스템', stockLbl: '재고:', pcs: '개', outOfStock: '품절', buyBtn: '구매', underDevTitle: '개발 중', underDevSub: '곧 지원', dashboardGoBtn: '대시보드로', dashboardTitle: '대시보드', availBal: '사용 가능 잔액', addFundsTitle: '충전', addFundsSub: '코인 등 충전', rateLbl: '환율: 1 USD =', topupBtn: '충전', withdrawFundsTitle: '출금', withdrawFundsSub: '수동 출금', withdrawBtn: '출금', paymentGatewayTitle: '결제 지원', paymentlyTxt: '지원', oxapayTxt: '지원', adminPanelTitle: '관리자 패널', adminPanelSub: '소유자 전용', markupTitle: '마진 설정', markupLbl: '추가 이익 (%)', saveBtn: '저장', markupHelp: '기본가에 추가', botStatusTitle: '봇 상태', colCountry: '국가', colCode: '코드', colStock: '재고', colBase: '기본가', colWeb: '판매가', autoSellTitle: '자동 판매', autoSellSub: '판매자 연동', topupModalTitle: '충전', amountUsdLbl: '금액 (USD)', totalPayLbl: '지불할 금액:', bkashNagadBtn: '로컬 결제', cryptoBtn: '암호화폐', cancelBtn: '취소', withdrawModalTitle: '출금', availWithdrawLbl: '출금 가능:', totalGetLbl: '수령액:', withdrawSubmitBtn: '요청', insufficientBalTxt: '잔액 부족!', topupRedirectTxt: '이동 중...', buySuccessTxt: '구매 성공!', withdrawSuccessTxt: '요청됨', buyConfirmTxt: '구매하시겠습니까?', manualWithdrawNote: '24-48시간 내 처리', purchasedModalTitle: '구매한 번호', waitingForCode: '코드 대기 중...', getCodeBtn: '코드 가져오기', closeBtn: '닫기',
+    referralTitle: '친구 초대', referEarnUpTo: '친구를 초대하고 1인당 최대 $230 받기!', referDesc: '친구가 충전할 때마다 1%의 리워드를 받으세요.', yourRefLink: '초대 링크:', copyBtn: '복사', totalRefEarn: '총 초대 수익:'
+  },
+  tr: {
+    shopTitle: 'Telegram Mağazası', buyNav: 'Satın Al', sellNav: 'Sat', dashboardNav: 'Panel', adminNav: 'Admin', liveBuyTitle: 'Hesap Satın Al', liveBuySub: 'Anında teslimat', autoSystem: 'Otomatik', stockLbl: 'Stok:', pcs: 'adet', outOfStock: 'Tükendi', buyBtn: 'Satın Al', underDevTitle: 'Geliştiriliyor', underDevSub: 'Yakında', dashboardGoBtn: 'Panele Git', dashboardTitle: 'Paneliniz', availBal: 'Bakiye', addFundsTitle: 'Bakiye Yükle', addFundsSub: 'Kripto vb.', rateLbl: 'Kur: 1 USD =', topupBtn: 'Yükle', withdrawFundsTitle: 'Çekim', withdrawFundsSub: 'Manuel Çekim', withdrawBtn: 'Çek', paymentGatewayTitle: 'Ödeme', paymentlyTxt: 'Destekli', oxapayTxt: 'Destekli', adminPanelTitle: 'Admin', adminPanelSub: 'Sadece sahip', markupTitle: 'Kar Marjı', markupLbl: 'Kar (%)', saveBtn: 'Kaydet', markupHelp: 'Taban fiyata eklenir', botStatusTitle: 'Bot Durumu', colCountry: 'Ülke', colCode: 'Kod', colStock: 'Stok', colBase: 'Taban', colWeb: 'Satış', autoSellTitle: 'Oto Satış', autoSellSub: 'Satıcılar', topupModalTitle: 'Yükle', amountUsdLbl: 'Tutar (USD)', totalPayLbl: 'Ödenecek:', bkashNagadBtn: 'Yerel', cryptoBtn: 'Kripto', cancelBtn: 'İptal', withdrawModalTitle: 'Çek', availWithdrawLbl: 'Kullanılabilir:', totalGetLbl: 'Alınacak:', withdrawSubmitBtn: 'Talep Et', insufficientBalTxt: 'Bakiye yetersiz!', topupRedirectTxt: 'Yönlendiriliyor...', buySuccessTxt: 'Başarıyla alındı!', withdrawSuccessTxt: 'Talep alındı', buyConfirmTxt: 'Onaylıyor musunuz?', manualWithdrawNote: '24-48 saat sürer.', purchasedModalTitle: 'Numara', waitingForCode: 'Kod bekleniyor...', getCodeBtn: 'Kodu Al', closeBtn: 'Kapat',
+    referralTitle: 'Davet Et ve Kazan', referEarnUpTo: 'Arkadaşlarınızı davet edin 230$ kazanın!', referDesc: 'Her yatırımdan %1 komisyon (Kişi başı max $230)', yourRefLink: 'Referans Linki:', copyBtn: 'Kopyala', totalRefEarn: 'Toplam Kazanç:'
+  },
+  id: {
+    shopTitle: 'Toko Telegram', buyNav: 'Beli', sellNav: 'Jual', dashboardNav: 'Dasbor', adminNav: 'Admin', liveBuyTitle: 'Beli Akun', liveBuySub: 'Otomatis instan', autoSystem: 'Otomatis', stockLbl: 'Stok:', pcs: 'pcs', outOfStock: 'Habis', buyBtn: 'Beli', underDevTitle: 'Dalam pengembangan', underDevSub: 'Segera', dashboardGoBtn: 'Ke Dasbor', dashboardTitle: 'Dasbor Anda', availBal: 'Saldo', addFundsTitle: 'Isi Saldo', addFundsSub: 'Kripto dll', rateLbl: 'Kurs: 1 USD =', topupBtn: 'Topup', withdrawFundsTitle: 'Tarik', withdrawFundsSub: 'Tarik manual', withdrawBtn: 'Tarik', paymentGatewayTitle: 'Metode', paymentlyTxt: 'Didukung', oxapayTxt: 'Didukung', adminPanelTitle: 'Admin', adminPanelSub: 'Pemilik', markupTitle: 'Keuntungan', markupLbl: 'Ekstra (%)', saveBtn: 'Simpan', markupHelp: 'Ditambahkan ke harga dasar', botStatusTitle: 'Status Bot', colCountry: 'Negara', colCode: 'Kode', colStock: 'Stok', colBase: 'Harga Dasar', colWeb: 'Harga Jual', autoSellTitle: 'Jual Otomatis', autoSellSub: 'Koneksi API', topupModalTitle: 'Topup', amountUsdLbl: 'Jumlah (USD)', totalPayLbl: 'Dibayar:', bkashNagadBtn: 'Lokal', cryptoBtn: 'Kripto', cancelBtn: 'Batal', withdrawModalTitle: 'Tarik', availWithdrawLbl: 'Tersedia:', totalGetLbl: 'Diterima:', withdrawSubmitBtn: 'Ajukan', insufficientBalTxt: 'Saldo tidak cukup', topupRedirectTxt: 'Mengarahkan...', buySuccessTxt: 'Berhasil dibeli!', withdrawSuccessTxt: 'Pengajuan selesai', buyConfirmTxt: 'Konfirmasi beli?', manualWithdrawNote: 'Proses 24-48 jam', purchasedModalTitle: 'Nomor', waitingForCode: 'Tunggu kode...', getCodeBtn: 'Dapat Kode', closeBtn: 'Tutup',
+    referralTitle: 'Ajak & Hasilkan', referEarnUpTo: 'Undang teman dan dapatkan hingga $230 per pengguna!', referDesc: 'Dapatkan komisi seumur hidup 1% dari setiap deposit. Max $230 per teman.', yourRefLink: 'Link Referral Anda:', copyBtn: 'Salin', totalRefEarn: 'Total Pendapatan:'
+  },
+  ur: {
+    shopTitle: 'ٹیلیگرام دکان', buyNav: 'اکاؤنٹ خریدیں', sellNav: 'اکاؤنٹ بیچیں', dashboardNav: 'ڈیش بورڈ', adminNav: 'ایڈمن', liveBuyTitle: 'براہ راست ٹیلیگرام اکاؤنٹ', liveBuySub: 'خودکار بوٹ فوری ترسیل', autoSystem: 'خودکار نظام', stockLbl: 'اسٹاک:', pcs: 'عدد', outOfStock: 'ختم', buyBtn: 'خریدیں', underDevTitle: 'ترقی کے مراحل میں', underDevSub: 'بہت جلد آرہا ہے', dashboardGoBtn: 'ڈیش بورڈ پر جائیں', dashboardTitle: 'آپ کا ڈیش بورڈ', availBal: 'دستیاب بیلنس', addFundsTitle: 'فنڈز شامل کریں', addFundsSub: 'کرپٹو وغیرہ', rateLbl: 'ریٹ: 1 USD =', topupBtn: 'ٹاپ اپ', withdrawFundsTitle: 'رقم نکالیں', withdrawFundsSub: 'ادائیگی دستی', withdrawBtn: 'نکالیں', paymentGatewayTitle: 'ادائیگی کے طریقے', paymentlyTxt: 'Paymently فعال', oxapayTxt: 'OxaPay فعال', adminPanelTitle: 'ایڈمن پینل', adminPanelSub: 'صرف مالک کے لئے', markupTitle: 'منافع کی ترتیب', markupLbl: 'اضافی منافع (%)', saveBtn: 'محفوظ کریں', markupHelp: 'بیس قیمت میں شامل', botStatusTitle: 'بوٹ اسٹیٹس', colCountry: 'ملک', colCode: 'کوڈ', colStock: 'اسٹاک', colBase: 'بیس قیمت', colWeb: 'ویب قیمت', autoSellTitle: 'آٹو سیل', autoSellSub: 'سیلر بوٹس', topupModalTitle: 'ٹاپ اپ بیلنس', amountUsdLbl: 'رقم (USD)', totalPayLbl: 'کل ادائیگی:', bkashNagadBtn: 'لوکل ادائیگی', cryptoBtn: 'کرپٹو', cancelBtn: 'منسوخ کریں', withdrawModalTitle: 'رقم نکالیں', availWithdrawLbl: 'دستیاب:', totalGetLbl: 'موصول:', withdrawSubmitBtn: 'درخواست دیں', insufficientBalTxt: 'ناکافی بیلنس', topupRedirectTxt: 'منتقل کیا جارہا ہے...', buySuccessTxt: 'کامیابی سے خریدا گیا!', withdrawSuccessTxt: 'درخواست موصول', buyConfirmTxt: 'کیا آپ خریدنا چاہتے ہیں', manualWithdrawNote: '24-48 گھنٹے میں عمل ہوگا', purchasedModalTitle: 'خریدا گیا نمبر', waitingForCode: 'کوڈ کا انتظار ہے...', getCodeBtn: 'کوڈ حاصل کریں', closeBtn: 'بند کریں',
+    referralTitle: 'حوالہ دیں اور کمائیں', referEarnUpTo: 'دوستوں کو مدعو کریں اور فی صارف 230$ تک کمائیں!', referDesc: 'ہر ڈپازٹ پر 1% لائف ٹائم کمیشن، زیادہ سے زیادہ $230', yourRefLink: 'آپ کا لنک:', copyBtn: 'کاپی کریں', totalRefEarn: 'کل کمائی:'
+  },
+  it: {
+    shopTitle: 'Negozio Telegram', buyNav: 'Acquista', sellNav: 'Vendi', dashboardNav: 'Dashboard', adminNav: 'Admin', liveBuyTitle: 'Acquista Account', liveBuySub: 'Consegna immediata vian bot', autoSystem: 'Sistema Auto', stockLbl: 'Scorte:', pcs: 'pz', outOfStock: 'Esaurito', buyBtn: 'Acquista', underDevTitle: 'In Sviluppo', underDevSub: 'Presto disponibile', dashboardGoBtn: 'Vai alla Dashboard', dashboardTitle: 'La tua Dashboard', availBal: 'Saldo', addFundsTitle: 'Aggiungi Fondi', addFundsSub: 'Crypto, ecc.', rateLbl: 'Tasso: 1 USD =', topupBtn: 'Ricarica', withdrawFundsTitle: 'Preleva Fondi', withdrawFundsSub: 'Prelievo manuale', withdrawBtn: 'Preleva', paymentGatewayTitle: 'Metodi di Pagamento', paymentlyTxt: 'Supportato', oxapayTxt: 'Supportato', adminPanelTitle: 'Pannello Admin', adminPanelSub: 'Solo proprietario', markupTitle: 'Margine di Profitto', markupLbl: 'Profitto (%)', saveBtn: 'Salva', markupHelp: 'Aggiunto al base', botStatusTitle: 'Stato Bot', colCountry: 'Paese', colCode: 'Codice', colStock: 'Scorte', colBase: 'Base', colWeb: 'Web', autoSellTitle: 'Vendita Auto', autoSellSub: 'Bot venditori', topupModalTitle: 'Ricarica', amountUsdLbl: 'Importo (USD)', totalPayLbl: 'Da pagare:', bkashNagadBtn: 'Locale', cryptoBtn: 'Crypto', cancelBtn: 'Annulla', withdrawModalTitle: 'Preleva', availWithdrawLbl: 'Disponibile:', totalGetLbl: 'Riceverai:', withdrawSubmitBtn: 'Invia', insufficientBalTxt: 'Saldo insufficiente!', topupRedirectTxt: 'Reindirizzamento...', buySuccessTxt: 'Acquisto completato!', withdrawSuccessTxt: 'Richiesta inviata!', buyConfirmTxt: 'Confermi l\'acquisto?', manualWithdrawNote: 'Elaborato in 24-48h', purchasedModalTitle: 'Numero', waitingForCode: 'In attesa di SMS...', getCodeBtn: 'Ottieni Codice', closeBtn: 'Chiudi',
+    referralTitle: 'Invita e Guadagna', referEarnUpTo: 'Invita e guadagna', referDesc: 'Guadagna 1% di commissioni a vita.', yourRefLink: 'Tuo Link:', copyBtn: 'Copia', totalRefEarn: 'Guadagni Inviti:'
+  },
+  nl: {
+    shopTitle: 'Telegram Shop', buyNav: 'Kopen', sellNav: 'Verkopen', dashboardNav: 'Dashboard', adminNav: 'Admin', liveBuyTitle: 'Accounts Kopen', liveBuySub: 'Directe levering', autoSystem: 'Auto Systeem', stockLbl: 'Voorraad:', pcs: 'st', outOfStock: 'Uitverkocht', buyBtn: 'Kopen', underDevTitle: 'In ontwikkeling', underDevSub: 'Binnenkort', dashboardGoBtn: 'Naar Dashboard', dashboardTitle: 'Jouw Dashboard', availBal: 'Saldo', addFundsTitle: 'Geld toevoegen', addFundsSub: 'Crypto, etc.', rateLbl: 'Koers: 1 USD =', topupBtn: 'Opwaarderen', withdrawFundsTitle: 'Opnemen', withdrawFundsSub: 'Handmatige opname', withdrawBtn: 'Opnemen', paymentGatewayTitle: 'Betaalmethoden', paymentlyTxt: 'Ondersteund', oxapayTxt: 'Ondersteund', adminPanelTitle: 'Admin Paneel', adminPanelSub: 'Alleen eigenaar', markupTitle: 'Winstmarge', markupLbl: 'Winst (%)', saveBtn: 'Opslaan', markupHelp: 'Toegevoegd aan basis', botStatusTitle: 'Bot Status', colCountry: 'Land', colCode: 'Code', colStock: 'Voorraad', colBase: 'Basis', colWeb: 'Web', autoSellTitle: 'Auto Verkoop', autoSellSub: 'Verkopers', topupModalTitle: 'Opwaarderen', amountUsdLbl: 'Bedrag (USD)', totalPayLbl: 'Betalen:', bkashNagadBtn: 'Lokaal', cryptoBtn: 'Crypto', cancelBtn: 'Annuleren', withdrawModalTitle: 'Opnemen', availWithdrawLbl: 'Beschikbaar:', totalGetLbl: 'Te ontvangen:', withdrawSubmitBtn: 'Aanvragen', insufficientBalTxt: 'Onvoldoende saldo!', topupRedirectTxt: 'Doorsturen...', buySuccessTxt: 'Succesvol gekocht!', withdrawSuccessTxt: 'Aanvraag verstuurd!', buyConfirmTxt: 'Kopen bevestigen?', manualWithdrawNote: 'Verwerkt in 24-48u', purchasedModalTitle: 'Nummer', waitingForCode: 'Wacht op SMS...', getCodeBtn: 'Krijg Code', closeBtn: 'Sluiten',
+    referralTitle: 'Verwijs en Verdien', referEarnUpTo: 'Nodig uit en verdien', referDesc: 'Krijg 1% levenslange commissie.', yourRefLink: 'Jouw Link:', copyBtn: 'Kopiëren', totalRefEarn: 'Verdiensten:'
+  },
+  pl: {
+    shopTitle: 'Sklep Telegram', buyNav: 'Kup', sellNav: 'Sprzedaj', dashboardNav: 'Panel', adminNav: 'Admin', liveBuyTitle: 'Kup Konta', liveBuySub: 'Szybka dostawa', autoSystem: 'Auto System', stockLbl: 'Stan:', pcs: 'szt', outOfStock: 'Brak', buyBtn: 'Kup', underDevTitle: 'W rozwoju', underDevSub: 'Wkrótce', dashboardGoBtn: 'Do Panelu', dashboardTitle: 'Twój Panel', availBal: 'Saldo', addFundsTitle: 'Dodaj Środki', addFundsSub: 'Krypto itp.', rateLbl: 'Kurs: 1 USD =', topupBtn: 'Doładuj', withdrawFundsTitle: 'Wypłać', withdrawFundsSub: 'Ręczna wypłata', withdrawBtn: 'Wypłać', paymentGatewayTitle: 'Metody Płatności', paymentlyTxt: 'Obsługiwane', oxapayTxt: 'Obsługiwane', adminPanelTitle: 'Panel Admina', adminPanelSub: 'Tylko właściciel', markupTitle: 'Marża', markupLbl: 'Zysk (%)', saveBtn: 'Zapisz', markupHelp: 'Dodane do bazy', botStatusTitle: 'Status Bota', colCountry: 'Kraj', colCode: 'Kod', colStock: 'Stan', colBase: 'Baza', colWeb: 'Web', autoSellTitle: 'Auto Sprzedaż', autoSellSub: 'Boty sprzedawców', topupModalTitle: 'Doładuj', amountUsdLbl: 'Kwota (USD)', totalPayLbl: 'Do zapłaty:', bkashNagadBtn: 'Lokalne', cryptoBtn: 'Krypto', cancelBtn: 'Anuluj', withdrawModalTitle: 'Wypłać', availWithdrawLbl: 'Dostępne:', totalGetLbl: 'Otrzymasz:', withdrawSubmitBtn: 'Wyślij', insufficientBalTxt: 'Brak środków!', topupRedirectTxt: 'Przekierowanie...', buySuccessTxt: 'Zakupiono!', withdrawSuccessTxt: 'Wniosek wysłany!', buyConfirmTxt: 'Potwierdzić zakup?', manualWithdrawNote: 'Przetwarzanie 24-48h', purchasedModalTitle: 'Numer', waitingForCode: 'Czekam na SMS...', getCodeBtn: 'Pobierz Kod', closeBtn: 'Zamknij',
+    referralTitle: 'Zaproś i Zarabiaj', referEarnUpTo: 'Zaproś i zarabiaj', referDesc: 'Zarabiaj 1% dożywotniej prowizji.', yourRefLink: 'Twój Link:', copyBtn: 'Kopiuj', totalRefEarn: 'Zarobki z Zaproszeń:'
+  },
+  vi: {
+    shopTitle: 'Cửa hàng Telegram', buyNav: 'Mua', sellNav: 'Bán', dashboardNav: 'Bảng ĐK', adminNav: 'Admin', liveBuyTitle: 'Mua Tài Khoản', liveBuySub: 'Giao ngay', autoSystem: 'Hệ thống Auto', stockLbl: 'Kho:', pcs: 'cái', outOfStock: 'Hết hàng', buyBtn: 'Mua', underDevTitle: 'Đang phát triển', underDevSub: 'Sắp ra mắt', dashboardGoBtn: 'Đến Bảng ĐK', dashboardTitle: 'Bảng ĐK', availBal: 'Số dư', addFundsTitle: 'Nạp tiền', addFundsSub: 'Tiền điện tử, v.v.', rateLbl: 'Tỷ giá: 1 USD =', topupBtn: 'Nạp', withdrawFundsTitle: 'Rút tiền', withdrawFundsSub: 'Rút thủ công', withdrawBtn: 'Rút', paymentGatewayTitle: 'Cổng TT', paymentlyTxt: 'Hỗ trợ', oxapayTxt: 'Hỗ trợ', adminPanelTitle: 'Bảng Admin', adminPanelSub: 'Chỉ chủ sở hữu', markupTitle: 'Lợi nhuận', markupLbl: 'Lãi (%)', saveBtn: 'Lưu', markupHelp: 'Thêm vào giá gốc', botStatusTitle: 'Trạng thái Bot', colCountry: 'Quốc gia', colCode: 'Mã', colStock: 'Kho', colBase: 'Giá gốc', colWeb: 'Giá Web', autoSellTitle: 'Bán Auto', autoSellSub: 'Bots của người bán', topupModalTitle: 'Nạp tiền', amountUsdLbl: 'Số lượng (USD)', totalPayLbl: 'Phải trả:', bkashNagadBtn: 'Nội địa', cryptoBtn: 'Tiền điện tử', cancelBtn: 'Hủy', withdrawModalTitle: 'Rút tiền', availWithdrawLbl: 'Có sẵn:', totalGetLbl: 'Nhận được:', withdrawSubmitBtn: 'Gửi', insufficientBalTxt: 'Không đủ số dư!', topupRedirectTxt: 'Đang chuyển hướng...', buySuccessTxt: 'Đã mua thành công!', withdrawSuccessTxt: 'Đã gửi yêu cầu!', buyConfirmTxt: 'Xác nhận mua?', manualWithdrawNote: 'Xử lý 24-48h', purchasedModalTitle: 'Số điện thoại', waitingForCode: 'Đang chờ SMS...', getCodeBtn: 'Lấy Mã', closeBtn: 'Đóng',
+    referralTitle: 'Mời & Kiếm Tiền', referEarnUpTo: 'Mời bạn bè và kiếm', referDesc: 'Nhận 1% hoa hồng trọn đời.', yourRefLink: 'Liên kết:', copyBtn: 'Sao chép', totalRefEarn: 'Thu nhập giới thiệu:'
+  },
+  th: {
+    shopTitle: 'ร้านเทเลแกรม', buyNav: 'ซื้อ', sellNav: 'ขาย', dashboardNav: 'แดชบอร์ด', adminNav: 'แอดมิน', liveBuyTitle: 'ซื้อบัญชี', liveBuySub: 'ส่งทันที', autoSystem: 'ระบบอัตโนมัติ', stockLbl: 'สต๊อก:', pcs: 'ชิ้น', outOfStock: 'หมด', buyBtn: 'ซื้อ', underDevTitle: 'กำลังพัฒนา', underDevSub: 'เร็วๆนี้', dashboardGoBtn: 'ไปที่แดชบอร์ด', dashboardTitle: 'แดชบอร์ดของคุณ', availBal: 'ยอดเงินคงเหลือ', addFundsTitle: 'เติมเงิน', addFundsSub: 'คริปโต ฯลฯ', rateLbl: 'อัตรา: 1 USD =', topupBtn: 'เติมเงิน', withdrawFundsTitle: 'ถอนเงิน', withdrawFundsSub: 'ถอนด้วยตนเอง', withdrawBtn: 'ถอน', paymentGatewayTitle: 'ช่องทางชำระเงิน', paymentlyTxt: 'รองรับ', oxapayTxt: 'รองรับ', adminPanelTitle: 'แผงควบคุม', adminPanelSub: 'เฉพาะเจ้าของ', markupTitle: 'ตั้งค่ากำไร', markupLbl: 'กำไร (%)', saveBtn: 'บันทึก', markupHelp: 'เพิ่มจากราคาฐาน', botStatusTitle: 'สถานะบอท', colCountry: 'ประเทศ', colCode: 'รหัส', colStock: 'สต๊อก', colBase: 'ฐาน', colWeb: 'เว็บ', autoSellTitle: 'ขายอัตโนมัติ', autoSellSub: 'บอทผู้ขาย', topupModalTitle: 'เติมเงิน', amountUsdLbl: 'จำนวน (USD)', totalPayLbl: 'ยอดชำระ:', bkashNagadBtn: 'ในประเทศ', cryptoBtn: 'คริปโต', cancelBtn: 'ยกเลิก', withdrawModalTitle: 'ถอนเงิน', availWithdrawLbl: 'มีอยู่:', totalGetLbl: 'จะได้รับ:', withdrawSubmitBtn: 'ส่งคำร้อง', insufficientBalTxt: 'ยอดเงินไม่พอ!', topupRedirectTxt: 'กำลังไปหน้าชำระเงิน...', buySuccessTxt: 'ซื้อสำเร็จ!', withdrawSuccessTxt: 'ส่งคำร้องถอนแล้ว!', buyConfirmTxt: 'ยืนยันการซื้อ?', manualWithdrawNote: 'ดำเนินการ 24-48 ชม', purchasedModalTitle: 'เบอร์ของคุณ', waitingForCode: 'รอ SMS...', getCodeBtn: 'รับรหัส', closeBtn: 'ปิด',
+    referralTitle: 'เชิญและรับเงิน', referEarnUpTo: 'เชิญเพื่อนและรับสิทธิ์จับรางวัล', referDesc: 'รับค่าคอมมิชชั่น 1%', yourRefLink: 'ลิงก์ของคุณ:', copyBtn: 'คัดลอก', totalRefEarn: 'รายได้จากการแนะนำ:'
+  }
+};
