@@ -19,7 +19,7 @@ async function startServer() {
   app.use(express.json());
 
   // API Routes
-  app.get("/api/provider/countries", async (req, res) => {
+  app.get("/api/proxy/countries", async (req, res) => {
     try {
       const url = `${TG_LION_BASE}?action=available_countries&apiKey=${TG_LION_API_KEY}&YourID=${TG_LION_ID}`;
       let data: any;
@@ -168,7 +168,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/provider/buy", async (req, res) => {
+  app.post("/api/proxy/buy", async (req, res) => {
     const { country_code } = req.body;
     try {
       const url = `${TG_LION_BASE}?action=getNumber&apiKey=${TG_LION_API_KEY}&YourID=${TG_LION_ID}&country_code=${country_code}`;
@@ -181,7 +181,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/provider/code", async (req, res) => {
+  app.post("/api/proxy/code", async (req, res) => {
     const { number } = req.body;
     try {
       const url = `${TG_LION_BASE}?action=getCode&apiKey=${TG_LION_API_KEY}&YourID=${TG_LION_ID}&number=${encodeURIComponent(number)}`;
@@ -194,7 +194,7 @@ async function startServer() {
     }
   });
 
-  app.get("/api/provider/balance", async (req, res) => {
+  app.get("/api/proxy/balance", async (req, res) => {
     try {
       const url = `${TG_LION_BASE}?action=get_balance&apiKey=${TG_LION_API_KEY}&YourID=${TG_LION_ID}`;
       const response = await fetch(url);

@@ -2,8 +2,69 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Telemarket</title>
+    <!-- Suppress annoying warning logs from external SDKs -->
+    <script>
+      const methods = ['log', 'warn', 'error', 'info', 'debug'];
+      methods.forEach(method => {
+        const original = console[method];
+        console[method] = function(...args) {
+          try {
+            for (let i = 0; i < args.length; i++) {
+              let str = '';
+              if (typeof args[i] === 'string') {
+                str = args[i];
+              } else if (args[i] && typeof args[i].message === 'string') {
+                str = args[i].message;
+              } else {
+                try { str = JSON.stringify(args[i]); } catch(e) { str = String(args[i]); }
+              }
+              
+              if (str && (str.includes("CloudStorage is not supported") || str.includes("adex timeout"))) {
+                return;
+              }
+            }
+          } catch (e) {}
+          original.apply(console, args);
+        };
+      });
+
+      window.addEventListener('unhandledrejection', function(event) {
+        const msg = event.reason && event.reason.message ? event.reason.message : String(event.reason);
+        if (msg.includes("CloudStorage is not supported") || msg.includes("adex timeout")) {
+          event.preventDefault();
+        }
+      });
+
+      window.addEventListener('error', function(event) {
+        const msg = event.message || String(event.error);
+        if (msg.includes("CloudStorage is not supported") || msg.includes("adex timeout")) {
+          event.preventDefault();
+        }
+      });
+    </script>
+    <!-- Telegram Mini App Script -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+      // Automatically expand the Telegram Mini App to full height if opened inside Telegram
+      if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.expand();
+        
+        // Suppress CloudStorage error thrown by Telegram SDK when accessed by external scripts (like Monetag)
+        if (window.Telegram.WebApp.CloudStorage) {
+           const mock = function(cb, res) { if (typeof cb === 'function') cb(null, res); return Promise.resolve(res); };
+           window.Telegram.WebApp.CloudStorage.setItem = (k,v,cb) => mock(cb, true);
+           window.Telegram.WebApp.CloudStorage.getItem = (k,cb) => mock(cb, "");
+           window.Telegram.WebApp.CloudStorage.getItems = (k,cb) => mock(cb, {});
+           window.Telegram.WebApp.CloudStorage.removeItem = (k,cb) => mock(cb, true);
+           window.Telegram.WebApp.CloudStorage.removeItems = (k,cb) => mock(cb, true);
+           window.Telegram.WebApp.CloudStorage.getKeys = (cb) => mock(cb, []);
+        }
+      }
+    </script>
+    <!-- Monetag Ads Script -->
+    <script src="//libtl.com/sdk.js" data-zone="10960656" data-sdk="show_10960656"></script>
   </head>
   <body>
     <div id="root"></div>

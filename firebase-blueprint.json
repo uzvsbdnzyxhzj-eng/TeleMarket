@@ -11,9 +11,13 @@
         "name": { "type": "string" },
         "telegramId": { "type": "string" },
         "balanceUSD": { "type": "number" },
+        "total_deposited": { "type": "number" },
+        "total_spent": { "type": "number" },
         "role": { "type": "string", "enum": ["user", "admin"] },
+        "status": { "type": "string", "enum": ["active", "suspended", "banned"] },
         "referredBy": { "type": "string" },
         "referralEarnings": { "type": "number" },
+        "lastActiveAt": { "type": "number" },
         "createdAt": { "type": "number" },
         "updatedAt": { "type": "number" }
       },
@@ -25,22 +29,69 @@
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
-        "type": { "type": "string", "enum": ["topup", "withdraw", "purchase"] },
+        "type": { "type": "string", "enum": ["topup", "withdraw", "purchase", "transfer", "refund"] },
+        "txType": { "type": "string", "enum": ["Credit", "Debit"] },
         "amountUSD": { "type": "number" },
-        "status": { "type": "string", "enum": ["WAIT", "OK", "FAILED"] },
+        "status": { "type": "string", "enum": ["WAIT", "OK", "FAILED", "pending", "paid"] },
         "details": { "type": "object" },
         "createdAt": { "type": "number" }
       },
       "required": ["userId", "type", "amountUSD", "status", "createdAt"]
+    },
+    "Advertisement": {
+      "title": "Advertisement",
+      "description": "User generated banner advertisements",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "linkUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "expired", "rejected", "pending_review"] },
+        "planMonths": { "type": "number" },
+        "price": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "expiresAt": { "type": "number" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["userId", "imageUrl", "isActive", "expiresAt", "createdAt"]
     },
     "Counter": {
       "title": "Counter",
       "description": "Tracks auto-incrementing sequences",
       "type": "object",
       "properties": {
-        "lastId": { "type": "number" }
+        "lastId": { "type": "number" },
+        "totalUsers": { "type": "number" },
+        "totalTransactions": { "type": "number" }
       },
       "required": ["lastId"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "User notifications",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["userId", "title", "message", "read", "createdAt"]
+    },
+    "SupportTicket": {
+      "title": "SupportTicket",
+      "description": "Customer support tickets",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "subject": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "in_progress", "resolved", "closed"] },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["userId", "subject", "description", "status", "createdAt"]
     },
     "Setting": {
       "title": "Setting",
@@ -49,7 +100,8 @@
       "properties": {
         "imageUrl": { "type": "string" },
         "linkUrl": { "type": "string" },
-        "isActive": { "type": "boolean" }
+        "isActive": { "type": "boolean" },
+        "banners": { "type": "array" }
       }
     }
   },
@@ -65,6 +117,18 @@
     "transactions/{transactionId}": {
       "schema": { "$ref": "#/entities/Transaction" },
       "description": "Global transactions log"
+    },
+    "ads/{adId}": {
+      "schema": { "$ref": "#/entities/Advertisement" },
+      "description": "User advertisements"
+    },
+    "notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "System and user notifications"
+    },
+    "support_tickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/SupportTicket" },
+      "description": "User support tickets"
     },
     "settings/{settingId}": {
       "schema": { "$ref": "#/entities/Setting" },

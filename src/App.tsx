@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { CountryData } from "./types";
 import { t, Language } from "./i18n";
@@ -31,6 +31,10 @@ import {
   Users,
   Calendar,
   Heart,
+  Plus,
+  Trash2,
+  Landmark,
+  CircleDollarSign,
 } from "lucide-react";
 import { auth, db } from "./firebase";
 
@@ -48,6 +52,9 @@ import {
   User as FirebaseUser,
   signOut,
   sendEmailVerification,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile
 } from "firebase/auth";
 import {
   doc,
@@ -68,6 +75,9 @@ import Login from "./Login";
 import Landing from "./Landing";
 import TopTicker from "./TopTicker";
 import AdvertisementBanner from "./AdvertisementBanner";
+import PostAd from "./PostAd";
+import MyAdsProfile from "./MyAdsProfile";
+import AdminUserManagement from "./AdminUserManagement";
 
 type View =
   | "buy"
@@ -76,7 +86,8 @@ type View =
   | "admin"
   | "records"
   | "profile"
-  | "wallet-history";
+  | "wallet-history"
+  | "post-ad";
 
 import {
   getFlag,
@@ -168,6 +179,8 @@ export default function App() {
   // User Dashboard State
   const [balanceUSD, setBalanceUSD] = useState(0);
   const [numericId, setNumericId] = useState<number | null>(null);
+  const [customReferralCode, setCustomReferralCode] = useState<string | null>(null);
+  const [userReferredBy, setUserReferredBy] = useState<string | null>(null);
   const [mockCheckout, setMockCheckout] = useState<{
     method: string;
     amount: string;
@@ -199,13 +212,14 @@ export default function App() {
 
 
   const [transactions, setTransactions] = useState<any[]>([]);
-  const [adminWithdrawals, setAdminWithdrawals] = useState<any[]>([]);
+  const [adminTxs, setAdminTxs] = useState<any[]>([]);
+  const [adminSearchTxId, setAdminSearchTxId] = useState("");
+
   const [adminAddBalanceUid, setAdminAddBalanceUid] = useState("");
   const [adminAddBalanceAmount, setAdminAddBalanceAmount] = useState<
     number | ""
   >("");
-  const [bannerData, setBannerData] = useState({ imageUrl: "", linkUrl: "", isActive: false });
-  const [adminBannerSettings, setAdminBannerSettings] = useState({ imageUrl: "", linkUrl: "", isActive: false });
+  const [adminBannerSettings, setAdminBannerSettings] = useState<{ banners: { imageUrl: string, linkUrl: string }[], isActive: boolean }>({ banners: [], isActive: false });
   const [isPublishingBanner, setIsPublishingBanner] = useState(false);
   const [activeUsersStats, setActiveUsersStats] = useState({
     live: 0,
@@ -220,19 +234,18 @@ export default function App() {
   const [topupError, setTopupError] = useState("");
   const [withdrawError, setWithdrawError] = useState("");
 
+
   // Load global banner data
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "settings", "banner"), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        setBannerData({
-          imageUrl: data.imageUrl || "",
-          linkUrl: data.linkUrl || "",
-          isActive: data.isActive || false,
-        });
+        let loadedBanners = data.banners || [];
+        if (loadedBanners.length === 0 && data.imageUrl) {
+          loadedBanners = [{ imageUrl: data.imageUrl, linkUrl: data.linkUrl || "" }];
+        }
         setAdminBannerSettings({
-          imageUrl: data.imageUrl || "",
-          linkUrl: data.linkUrl || "",
+          banners: loadedBanners,
           isActive: data.isActive || false,
         });
       }
@@ -268,35 +281,69 @@ export default function App() {
     return () => document.removeEventListener("click", handleInteraction);
   }, []);
 
+  // Monetag Popunder Ad Initialization
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    let clickCount = 0;
+    let targetClicks = 5;
+
+    const triggerPop = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const isInteractive = target.closest('button') || target.closest('a') || target.closest('[role="button"]') || target.closest('input') || target.closest('[class*="cursor-pointer"]');
+      
+      if (!isInteractive) return;
+
+      clickCount++;
+      if (clickCount >= targetClicks) {
+        try {
+          // @ts-ignore
+          if (typeof window !== "undefined" && typeof show_10960656 === "function") {
+            // Monetag popunder function
+            // @ts-ignore
+            show_10960656('pop').catch(() => {});
+          }
+        } catch (err) {
+          console.error(err);
+        }
+        clickCount = 0;
+        targetClicks = 5;
+      }
+    };
+    
+    document.addEventListener("click", triggerPop);
+    return () => document.removeEventListener("click", triggerPop);
+  }, [currentUser]);
+
   // Load admin data
   useEffect(() => {
     if (currentView !== "admin") return;
 
     let isInitialAdminLoad = true;
     // Pending withdrawals
-    const qWithdrawals = query(
+    const qAdminTxs = query(
       collection(db, "transactions"),
-      where("type", "==", "withdraw"),
-      orderBy("createdAt", "asc"),
+      orderBy("createdAt", "desc"),
     );
-    const unsubWithdrawals = onSnapshot(qWithdrawals, (snapshot) => {
+
+    const unsubAdminTxs = onSnapshot(qAdminTxs, (snapshot) => {
       if (!isInitialAdminLoad) {
         snapshot.docChanges().forEach((change) => {
           if (change.type === "added") {
             const tx = change.doc.data();
-            if (tx.status === "pending") {
-              sendNotification("New Withdrawal Request", {
-                body: `User requested a withdrawal of $${tx.amountUSD?.toFixed(2)}`,
+            if (tx.status === "pending" && (tx.type === "withdraw" || tx.type === "topup")) {
+              sendNotification(`New ${tx.type === 'withdraw' ? 'Withdrawal' : 'Topup'} Request`, {
+                body: `User requested a ${tx.type} of \$${tx.amountUSD?.toFixed(2)}`,
               });
             }
           }
         });
       }
-      setAdminWithdrawals(
-        snapshot.docs.map((d) => ({ id: d.id, ...d.data() })),
+      setAdminTxs(
+        snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) })).filter((tx: any) => tx.type === "withdraw" || tx.type === "topup")
       );
       isInitialAdminLoad = false;
-    }, (error) => console.error("admin withdrawals query error", error));
+    }, (error) => console.error("admin transactions query error", error));
 
     // Active users
     const qUsers = query(collection(db, "users"));
@@ -317,7 +364,7 @@ export default function App() {
     }, (error) => console.error("users stats query error", error));
 
     return () => {
-      unsubWithdrawals();
+      unsubAdminTxs();
       unsubUsers();
     };
   }, [currentView]);
@@ -330,14 +377,31 @@ export default function App() {
 
   // Fetch bot countries from backend
   useEffect(() => {
-    fetch("/api/provider/countries?t=" + Date.now())
-      .then((res) => res.json())
+    fetch("/api/proxy/countries?t=" + Date.now())
+      .then(async (res) => {
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error("HTTP " + res.status + " " + text);
+        }
+        return res.json();
+      })
       .then((data) => {
         setCountries(data);
         setLoading(false);
       })
       .catch((err) => {
-        console.error("Failed to fetch bot data:", err);
+        const msg = err.message || String(err);
+        if (!msg.includes("Failed to fetch")) {
+          console.error("Failed to fetch bot data:", msg);
+        }
+        // Fallback data in case of complete network failure
+        setCountries([
+          { id: "1", country: "Bangladesh", code: "+880", flag: "🇧🇩", stock: "500", basePrice: 0.20 },
+          { id: "2", country: "India", code: "+91", flag: "🇮🇳", stock: "1000", basePrice: 0.15 },
+          { id: "3", country: "USA", code: "+1", flag: "🇺🇸", stock: "200", basePrice: 0.50 },
+          { id: "4", country: "Indonesia", code: "+62", flag: "🇮🇩", stock: "1500", basePrice: 0.18 },
+          { id: "5", country: "Russia", code: "+7", flag: "🇷🇺", stock: "800", basePrice: 0.12 }
+        ]);
         setLoading(false);
       });
   }, []);
@@ -397,6 +461,8 @@ export default function App() {
         if (docSnap.exists()) {
           setBalanceUSD(docSnap.data().balanceUSD || 0);
           setNumericId(docSnap.data().numericId || 10000);
+          setUserReferredBy(docSnap.data().referredBy || null);
+          setCustomReferralCode(docSnap.data().customReferralCode || null);
         }
       },
       (error) => console.error("user doc error", error)
@@ -429,7 +495,8 @@ export default function App() {
   // Auth Listener
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const refParam = urlParams.get("ref");
+    const tgStartParam = (window as any).Telegram?.WebApp?.initDataUnsafe?.start_param;
+    const refParam = urlParams.get("ref") || tgStartParam;
     const mockCheckoutParam = urlParams.get("mock_checkout");
     if (mockCheckoutParam) {
       setMockCheckout({
@@ -447,6 +514,38 @@ export default function App() {
           const docSnap = await getDoc(userRef);
           let assignedNumericId = 10000;
           if (!docSnap.exists()) {
+            // Resolve refParam to a uid
+            let finalReferredBy = refParam || null;
+            if (finalReferredBy) {
+              try {
+                const qCustom = query(collection(db, "users"), where("customReferralCode", "==", finalReferredBy));
+                const qCustomSnap = await getDocs(qCustom);
+                if (!qCustomSnap.empty) {
+                  finalReferredBy = qCustomSnap.docs[0].id;
+                } else if (!isNaN(Number(finalReferredBy))) {
+                  const qRef = query(collection(db, "users"), where("numericId", "==", Number(finalReferredBy)));
+                  const qSnap = await getDocs(qRef);
+                  if (!qSnap.empty) {
+                    finalReferredBy = qSnap.docs[0].id;
+                  } else {
+                    const uDoc = await getDoc(doc(db, "users", finalReferredBy));
+                    finalReferredBy = uDoc.exists() ? uDoc.id : null;
+                  }
+                } else {
+                  const uDoc = await getDoc(doc(db, "users", finalReferredBy));
+                  finalReferredBy = uDoc.exists() ? uDoc.id : null;
+                }
+              } catch(e) {
+                console.error("Referral lookup error", e);
+                finalReferredBy = null;
+              }
+            }
+
+            // Prevent self-referral
+            if (finalReferredBy === user.uid) {
+               finalReferredBy = null;
+            }
+
             // Create user profile
             try {
               await runTransaction(db, async (transaction) => {
@@ -469,7 +568,7 @@ export default function App() {
                   name: user.displayName || "",
                   balanceUSD: 0,
                   role: "user",
-                  referredBy: refParam || null,
+                  referredBy: finalReferredBy,
                   referralEarnings: 0,
                   createdAt: Date.now(),
                   updatedAt: Date.now(),
@@ -488,7 +587,7 @@ export default function App() {
                 name: user.displayName || "",
                 balanceUSD: 0,
                 role: "user",
-                referredBy: refParam || null,
+                referredBy: finalReferredBy,
                 referralEarnings: 0,
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
@@ -498,14 +597,105 @@ export default function App() {
         } catch (error) {
           console.error("Error setting up user:", error);
         }
+        setAuthLoading(false);
       } else {
         setCurrentUser(null);
+        if (localStorage.getItem("skip_auto_login") === "true") {
+           setAuthLoading(false);
+           return;
+        }
+        // Automatic Guest / Telegram Login
+        let deviceId = localStorage.getItem("device_id");
+        if (!deviceId) {
+            deviceId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+            localStorage.setItem("device_id", deviceId);
+        }
+        
+        const tgData = (window as any).Telegram?.WebApp?.initDataUnsafe;
+        const autoId = tgData?.user?.id || deviceId;
+        const guestEmail = `guest_${autoId}@telemarket.app`;
+        const guestPass = `telemarket_guest_auto_${autoId}`;
+        
+        try {
+          await signInWithEmailAndPassword(auth, guestEmail, guestPass);
+        } catch(err: any) {
+          if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+             try {
+                const cred = await createUserWithEmailAndPassword(auth, guestEmail, guestPass);
+                await updateProfile(cred.user, { displayName: tgData?.user?.first_name || (tgData?.user?.id ? 'Telegram User' : 'Guest User') });
+             } catch(createErr) {
+                console.error("Failed to create guest user:", createErr);
+                setAuthLoading(false);
+             }
+          } else {
+             setAuthLoading(false);
+          }
+        }
       }
-      setAuthLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const checkPaymentSuccess = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get("payment") === "success" && currentUser) {
+        const q = query(
+          collection(db, "transactions"),
+          where("userId", "==", currentUser.uid),
+          where("type", "==", "topup"),
+          where("status", "==", "pending")
+        );
+        try {
+          const snapshot = await getDocs(q);
+          if (!snapshot.empty) {
+             for (const docSnap of snapshot.docs) {
+                const txData = docSnap.data();
+                const amt = txData.amountUSD;
+                await updateDoc(doc(db, "transactions", docSnap.id), { status: "paid" });
+                await updateDoc(doc(db, "users", currentUser.uid), {
+                   balanceUSD: increment(amt),
+                   total_deposited: increment(amt),
+                   last_update: Date.now()
+                });
+                
+                const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+                if (userDoc.exists() && userDoc.data().referredBy) {
+                    const referrerId = userDoc.data().referredBy;
+                    const referrerRef = doc(db, "users", referrerId);
+                    const referrerDoc = await getDoc(referrerRef);
+                    if (referrerDoc.exists()) {
+                        const bonusAmount = amt * 0.01;
+                        await updateDoc(referrerRef, {
+                            balanceUSD: increment(bonusAmount),
+                            total_deposited: increment(bonusAmount),
+                            referralEarnings: increment(bonusAmount),
+                            last_update: Date.now()
+                        });
+                        const refTxRef = doc(collection(db, "transactions"));
+                        await setDoc(refTxRef, {
+                            userId: referrerId,
+                            type: "referral_bonus",
+                            txType: "Credit",
+                            amountUSD: bonusAmount,
+                            status: "paid",
+                            details: { fromUserId: currentUser.uid },
+                            createdAt: Date.now(),
+                        });
+                    }
+                }
+             }
+             alert("Topup Successful and Credited to your account!");
+             window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        } catch (e) {
+          console.error("Auto topup error", e);
+        }
+      }
+    };
+    checkPaymentSuccess();
+  }, [currentUser]);
 
   // Conversion Rates
   const TOPUP_RATE = 129;
@@ -521,6 +711,86 @@ export default function App() {
     if (amt < 5) return 0.1 + amt * 0.02;
     if (amt < 10) return 0.08 + amt * 0.018;
     return 0.05 + amt * 0.015;
+  };
+
+  const handleSetCustomReferralCode = async (code: string) => {
+    if (!currentUser) return;
+    const cleanCode = code.trim().toLowerCase();
+    if (!cleanCode) return alert("Please enter a valid code.");
+    if (cleanCode.length < 3 || cleanCode.length > 20) return alert("Code must be between 3 and 20 characters.");
+    if (!/^[a-z0-9_]+$/.test(cleanCode)) return alert("Code can only contain letters, numbers, and underscores.");
+
+    try {
+      // Check if it's already taken
+      const qCustom = query(collection(db, "users"), where("customReferralCode", "==", cleanCode));
+      const qCustomSnap = await getDocs(qCustom);
+      if (!qCustomSnap.empty) {
+        // If it's taken by someone else
+        if (qCustomSnap.docs[0].id !== currentUser.uid) {
+          return alert("This referral code is already taken. Please choose another.");
+        }
+      }
+      
+      await updateDoc(doc(db, "users", currentUser.uid), {
+        customReferralCode: cleanCode,
+        updatedAt: Date.now()
+      });
+      alert("Custom referral code set successfully!");
+    } catch (e: any) {
+      console.error(e);
+      alert("Failed to set your referral code.");
+    }
+  };
+
+  const handleBindReferral = async (code: string) => {
+    if (!currentUser) return;
+    if (!code.trim()) return alert(i18n.errorInvalidRefCode || "Please enter a valid referral code.");
+    if (userReferredBy) return alert(i18n.errorAlreadyReferred || "You have already bound a referral code.");
+
+    let finalReferredBy: string | null = null;
+    
+    try {
+      const qCustom = query(collection(db, "users"), where("customReferralCode", "==", code));
+      const qCustomSnap = await getDocs(qCustom);
+      if (!qCustomSnap.empty) {
+        finalReferredBy = qCustomSnap.docs[0].id;
+      } else if (!isNaN(Number(code))) {
+        const qRef = query(collection(db, "users"), where("numericId", "==", Number(code)));
+        const qSnap = await getDocs(qRef);
+        if (!qSnap.empty) {
+          finalReferredBy = qSnap.docs[0].id;
+        } else {
+          const uDoc = await getDoc(doc(db, "users", code));
+          if (uDoc.exists()) finalReferredBy = uDoc.id;
+        }
+      } else {
+        const uDoc = await getDoc(doc(db, "users", code));
+        if (uDoc.exists()) finalReferredBy = uDoc.id;
+      }
+    } catch (e) {
+      console.error(e);
+      return alert("Error looking up referral code.");
+    }
+
+    if (!finalReferredBy) {
+      return alert(i18n.errorRefCodeNotFound || "Referral code not found.");
+    }
+
+    if (finalReferredBy === currentUser.uid) {
+      return alert(i18n.errorSelfReferral || "You cannot use your own referral code.");
+    }
+
+    try {
+      await updateDoc(doc(db, "users", currentUser.uid), {
+        referredBy: finalReferredBy,
+        updatedAt: Date.now()
+      });
+      setUserReferredBy(finalReferredBy);
+      alert(i18n.successRefCodeBound || "Referral code bound successfully!");
+    } catch (e: any) {
+      console.error(e);
+      alert("Failed to bind referral code.");
+    }
   };
 
   const handleAdminAddBalance = async () => {
@@ -557,6 +827,8 @@ export default function App() {
       const currentTargetBalance = targetUserDoc.data().balanceUSD || 0;
       await updateDoc(targetUserRef, {
         balanceUSD: increment(amount),
+        total_deposited: increment(amount),
+        last_update: Date.now()
       });
 
       // optionally add a transaction record
@@ -566,6 +838,7 @@ export default function App() {
         userNumericId: targetUserDoc.data().numericId,
         userEmail: targetUserDoc.data().email || "N/A",
         type: "deposit",
+        txType: "Credit",
         amountUSD: amount,
         status: "paid",
         details: { method: "admin_topup", txId: "ADMIN-" + Date.now() },
@@ -582,6 +855,8 @@ export default function App() {
       alert("Error adding balance: " + error.message);
     }
   };
+
+
 
   const handleTopup = async (method: string, overrideAmount?: number) => {
     const finalAmount =
@@ -605,6 +880,7 @@ export default function App() {
           await setDoc(txRef, {
             userId: currentUser.uid,
             type: "topup",
+            txType: "Credit",
             amountUSD: finalAmount,
             status: "pending",
             details: { method, paymentUrl: data.payment_url },
@@ -624,6 +900,7 @@ export default function App() {
           await setDoc(txRef, {
             userId: currentUser.uid,
             type: "topup",
+            txType: "Credit",
             amountUSD: finalAmount,
             status: "pending",
             details: { method },
@@ -656,14 +933,13 @@ export default function App() {
       )
     ) {
       try {
-          const res = await fetch("/api/provider/buy", {
+          const res = await fetch("/api/proxy/buy", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ country_code: country.id }),
           });
           const data = await res.json();
           if (data.status === "ok") {
-            setBalanceUSD((prev) => prev - finalPrice);
             setCountries((prev) =>
               prev.map((c) =>
                 c.id === country.id ? { ...c, stock: c.stock - 1 } : c,
@@ -673,12 +949,15 @@ export default function App() {
             if (currentUser) {
               await updateDoc(doc(db, "users", currentUser.uid), {
                 balanceUSD: increment(-finalPrice),
+                total_spent: increment(finalPrice),
+                last_update: Date.now()
               });
 
               const txRef = doc(collection(db, "transactions"));
               await setDoc(txRef, {
                 userId: currentUser.uid,
                 type: "purchase",
+                txType: "Debit",
                 amountUSD: finalPrice,
                 status: "WAIT",
                 details: { phone: data.Number, country: country.country },
@@ -706,7 +985,7 @@ export default function App() {
     if (!numberToCheck) return;
 
     try {
-      const res = await fetch("/api/provider/code", {
+      const res = await fetch("/api/proxy/code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ number: numberToCheck }),
@@ -793,19 +1072,20 @@ export default function App() {
                 try {
                   await updateDoc(doc(db, "users", currentUser.uid), {
                     balanceUSD: increment(-totalToPay),
+                    total_spent: increment(totalToPay),
+                    last_update: Date.now()
                   });
 
                   const txRef = doc(collection(db, "transactions"));
                   await setDoc(txRef, {
                     userId: currentUser.uid,
                     type: "p2p_buy",
+                    txType: "Debit",
                     amountUSD: totalToPay,
                     status: "OK",
                     details: { accountId: p2pModal.id, title: p2pModal.title },
                     createdAt: Date.now(),
                   });
-
-                  setBalanceUSD((prev) => prev - totalToPay);
 
                   // Mock transferring the money to the seller
                   if (p2pModal.ownerId) {
@@ -815,6 +1095,8 @@ export default function App() {
                       if (sellerSnap.exists()) {
                         await updateDoc(sellerRef, {
                           balanceUSD: increment(price),
+                          total_deposited: increment(price),
+                          last_update: Date.now()
                         });
                       }
                     } catch (e) {
@@ -1147,7 +1429,7 @@ export default function App() {
                   <div className="bg-blue-50 border-l-4 border-blue-500 p-3 mb-4 rounded-r-lg">
                     <p className="text-sm text-blue-800 font-medium leading-relaxed">
                       <span className="font-bold">Important Instruction:</span>{" "}
-                      {topupMethod === "binance" ? "In Paymently, choose Global and select Binance Pay to complete your transaction in USD." : "You will be redirected directly to the Crypto gateway to complete your transaction securely."}
+                      {topupMethod === "binance" ? "In Paymently, choose Global and select Binance Pay to complete your transaction in USDT." : "You will be redirected directly to the Crypto gateway to complete your transaction securely."}
                     </p>
                   </div>
 
@@ -1347,16 +1629,25 @@ export default function App() {
                   return;
                 }
                 if (currentUser) {
+                  if (!window.confirm(`Are you sure you want to withdraw $${amountObj.toFixed(2)} to ${withdrawMethod}?`)) {
+                    return;
+                  }
                   try {
                     await updateDoc(doc(db, "users", currentUser.uid), {
                       balanceUSD: increment(-amountObj),
+                      total_spent: increment(amountObj),
+                      last_update: Date.now()
                     });
-                    const txRef = doc(collection(db, "transactions"));
+                    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+                    let wId = "W-";
+                    for(let i=0; i<36; i++) wId += chars.charAt(Math.floor(Math.random() * chars.length));
+                    const txRef = doc(db, "transactions", wId);
                     await setDoc(txRef, {
                       userId: currentUser.uid,
                       userNumericId: numericId,
                       userEmail: currentUser.email || "N/A",
                       type: "withdraw",
+                      txType: "Debit",
                       amountUSD: amountObj,
                       status: "pending",
                       details: {
@@ -1368,7 +1659,6 @@ export default function App() {
                       createdAt: Date.now(),
                     });
                     alert(i18n.withdrawSuccessTxt);
-                    setBalanceUSD((prev) => prev - amountObj);
                     setWithdrawModal(false);
                   } catch (e: any) {
                     alert("Error during withdrawal: " + e.message);
@@ -1409,8 +1699,20 @@ export default function App() {
                         <p className="font-bold text-gray-800">
                           ${tx.amountUSD.toFixed(2)} USD
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-gray-500 mb-1">
                           {new Date(tx.createdAt).toLocaleDateString()}
+                        </p>
+                        <p 
+                          onClick={() => {
+                            if (tx.id) {
+                              navigator.clipboard.writeText(tx.id);
+                              alert("Transaction ID copied to clipboard: " + tx.id);
+                            }
+                          }}
+                          className="text-[10px] font-mono text-gray-400 cursor-pointer hover:text-gray-600 transition truncate max-w-[120px] bg-gray-200/50 px-1.5 py-0.5 rounded"
+                          title="Click to copy Transaction ID"
+                        >
+                          ID: {tx.id}
                         </p>
                       </div>
                       <div>
@@ -1463,7 +1765,8 @@ export default function App() {
     );
   }
 
-  if (!currentUser.emailVerified) {
+   // Email verification requirement removed to allow instant sign in
+  /* if (!currentUser.emailVerified) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-sans">
         <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 max-w-md w-full text-center">
@@ -1507,7 +1810,7 @@ export default function App() {
         </div>
       </div>
     );
-  }
+  } */
 
   if (mockCheckout) {
     return (
@@ -1555,18 +1858,52 @@ export default function App() {
                 if (!currentUser) return;
                 try {
                   const txRef = doc(collection(db, "transactions"));
+                  const topupAmountVal = Number(mockCheckout.amount);
                   await setDoc(txRef, {
                     userId: currentUser.uid,
                     type: "topup",
-                    amountUSD: Number(mockCheckout.amount),
-                    status: "pending",
+                    txType: "Credit",
+                    amountUSD: topupAmountVal,
+                    status: "paid", // Instant success
                     details: { method: mockCheckout.method },
                     createdAt: Date.now(),
                   });
+                  // Update balance
+                  await updateDoc(doc(db, "users", currentUser.uid), {
+                     balanceUSD: increment(topupAmountVal),
+                     total_deposited: increment(topupAmountVal),
+                     last_update: Date.now()
+                  });
+                  // Check referral bonus
+                  const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+                  if (userDoc.exists() && userDoc.data().referredBy) {
+                     const referrerId = userDoc.data().referredBy;
+                     const referrerRef = doc(db, "users", referrerId);
+                     const referrerDoc = await getDoc(referrerRef);
+                     if (referrerDoc.exists()) {
+                         const bonusAmount = topupAmountVal * 0.01;
+                         await updateDoc(referrerRef, {
+                             balanceUSD: increment(bonusAmount),
+                             total_deposited: increment(bonusAmount),
+                             referralEarnings: increment(bonusAmount),
+                             last_update: Date.now()
+                         });
+                         const refTxRef = doc(collection(db, "transactions"));
+                         await setDoc(refTxRef, {
+                             userId: referrerId,
+                             type: "referral_bonus",
+                             txType: "Credit",
+                             amountUSD: bonusAmount,
+                             status: "paid",
+                             details: { fromUserId: currentUser.uid },
+                             createdAt: Date.now(),
+                         });
+                     }
+                  }
                 } catch (e) {
                   console.error("Mock checkout error", e);
                 }
-                window.location.href = "/?payment=success&msg=Waiting for Admin Approval";
+                window.location.href = "/?payment=success&msg=Topup Successful";
               }}
               className="flex-[2] py-3 bg-[#2AABEE] text-white font-bold rounded-lg shadow-lg hover:bg-blue-500 transition"
             >
@@ -1577,6 +1914,40 @@ export default function App() {
       </div>
     );
   }
+
+  const nowMsLocal = Date.now();
+  const oneDay = 24 * 60 * 60 * 1000;
+  const oneWeek = 7 * oneDay;
+  const oneMonth = 30 * oneDay;
+
+  const adminTxStats = adminTxs.reduce(
+    (acc, tx) => {
+      if (tx.status !== "paid" && tx.status !== "success" && tx.status !== "completed") return acc;
+      let timeMs = 0;
+      if (tx.createdAt) {
+        timeMs = tx.createdAt.toMillis ? tx.createdAt.toMillis() : (typeof tx.createdAt === 'number' ? tx.createdAt : Date.parse(tx.createdAt));
+      }
+
+      if (tx.type === "withdraw") {
+        if (nowMsLocal - timeMs < oneDay) acc.withdrawDaily += tx.amountUSD || 0;
+        if (nowMsLocal - timeMs < oneWeek) acc.withdrawWeekly += tx.amountUSD || 0;
+        if (nowMsLocal - timeMs < oneMonth) acc.withdrawMonthly += tx.amountUSD || 0;
+      } else if (tx.type === "topup") {
+        if (nowMsLocal - timeMs < oneDay) acc.topupDaily += tx.amountUSD || 0;
+        if (nowMsLocal - timeMs < oneWeek) acc.topupWeekly += tx.amountUSD || 0;
+        if (nowMsLocal - timeMs < oneMonth) acc.topupMonthly += tx.amountUSD || 0;
+      }
+      return acc;
+    },
+    {
+      withdrawDaily: 0,
+      withdrawWeekly: 0,
+      withdrawMonthly: 0,
+      topupDaily: 0,
+      topupWeekly: 0,
+      topupMonthly: 0,
+    }
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-900 flex flex-col">
@@ -1651,30 +2022,33 @@ export default function App() {
                   onChange={(e) => setLang(e.target.value as Language)}
                   className="bg-transparent border-none text-white outline-none cursor-pointer text-xs font-medium appearance-none"
                 >
-                  <option value="en" className="text-gray-900">EN</option>
-                  <option value="bn" className="text-gray-900">BN</option>
-                  <option value="hi" className="text-gray-900">HI</option>
-                  <option value="es" className="text-gray-900">ES</option>
-                  <option value="ar" className="text-gray-900">AR</option>
-                  <option value="ru" className="text-gray-900">RU</option>
-                  <option value="pt" className="text-gray-900">PT</option>
-                  <option value="fr" className="text-gray-900">FR</option>
-                  <option value="de" className="text-gray-900">DE</option>
-                  <option value="zh" className="text-gray-900">ZH</option>
-                  <option value="ja" className="text-gray-900">JA</option>
-                  <option value="ko" className="text-gray-900">KO</option>
-                  <option value="tr" className="text-gray-900">TR</option>
-                  <option value="id" className="text-gray-900">ID</option>
-                  <option value="ur" className="text-gray-900">UR</option>
-                  <option value="it" className="text-gray-900">IT</option>
-                  <option value="nl" className="text-gray-900">NL</option>
+                  <option value="en" className="text-gray-900">English</option>
+                  <option value="bn" className="text-gray-900">Bengali (বাংলা)</option>
+                  <option value="hi" className="text-gray-900">Hindi (हिन्दी)</option>
+                  <option value="es" className="text-gray-900">Spanish (Español)</option>
+                  <option value="ar" className="text-gray-900">Arabic (العربية)</option>
+                  <option value="ru" className="text-gray-900">Russian (Русский)</option>
+                  <option value="pt" className="text-gray-900">Portuguese (Português)</option>
+                  <option value="fr" className="text-gray-900">French (Français)</option>
+                  <option value="de" className="text-gray-900">German (Deutsch)</option>
+                  <option value="zh" className="text-gray-900">Chinese (中文)</option>
+                  <option value="ja" className="text-gray-900">Japanese (日本語)</option>
+                  <option value="ko" className="text-gray-900">Korean (한국어)</option>
+                  <option value="tr" className="text-gray-900">Turkish (Türkçe)</option>
+                  <option value="id" className="text-gray-900">Indonesian (Bahasa Indonesia)</option>
+                  <option value="ur" className="text-gray-900">Urdu (اردو)</option>
+                  <option value="it" className="text-gray-900">Italian (Italiano)</option>
+                  <option value="nl" className="text-gray-900">Dutch (Nederlands)</option>
                   <option value="pl" className="text-gray-900">PL</option>
                   <option value="vi" className="text-gray-900">VI</option>
                   <option value="th" className="text-gray-900">TH</option>
                 </select>
               </div>
               <button
-                onClick={() => signOut(auth)}
+                onClick={() => {
+                  localStorage.setItem("skip_auto_login", "true");
+                  signOut(auth);
+                }}
                 className="flex items-center justify-center bg-red-500/80 hover:bg-red-500 text-white p-2 rounded-lg text-xs font-bold transition"
                 title="Sign Out"
               >
@@ -1858,22 +2232,22 @@ export default function App() {
                   className="bg-transparent border-none text-white outline-none cursor-pointer text-xs md:text-sm font-medium"
                 >
                   <option value="en" className="text-gray-900">English</option>
-                  <option value="bn" className="text-gray-900">বাংলা (Bengali)</option>
-                  <option value="hi" className="text-gray-900">हिन्दी (Hindi)</option>
-                  <option value="es" className="text-gray-900">Español (Spanish)</option>
-                  <option value="ar" className="text-gray-900">العربية (Arabic)</option>
-                  <option value="ru" className="text-gray-900">Русский (Russian)</option>
-                  <option value="pt" className="text-gray-900">Português (Portuguese)</option>
-                  <option value="fr" className="text-gray-900">Français (French)</option>
-                  <option value="de" className="text-gray-900">Deutsch (German)</option>
-                  <option value="zh" className="text-gray-900">中文 (Chinese)</option>
-                  <option value="ja" className="text-gray-900">日本語 (Japanese)</option>
-                  <option value="ko" className="text-gray-900">한국어 (Korean)</option>
-                  <option value="tr" className="text-gray-900">Türkçe (Turkish)</option>
-                  <option value="id" className="text-gray-900">Bahasa Indonesia</option>
-                  <option value="ur" className="text-gray-900">اردو (Urdu)</option>
-                  <option value="it" className="text-gray-900">Italiano (Italian)</option>
-                  <option value="nl" className="text-gray-900">Nederlands (Dutch)</option>
+                  <option value="bn" className="text-gray-900">Bengali (বাংলা)</option>
+                  <option value="hi" className="text-gray-900">Hindi (हिन्दी)</option>
+                  <option value="es" className="text-gray-900">Spanish (Español)</option>
+                  <option value="ar" className="text-gray-900">Arabic (العربية)</option>
+                  <option value="ru" className="text-gray-900">Russian (Русский)</option>
+                  <option value="pt" className="text-gray-900">Portuguese (Português)</option>
+                  <option value="fr" className="text-gray-900">French (Français)</option>
+                  <option value="de" className="text-gray-900">German (Deutsch)</option>
+                  <option value="zh" className="text-gray-900">Chinese (中文)</option>
+                  <option value="ja" className="text-gray-900">Japanese (日本語)</option>
+                  <option value="ko" className="text-gray-900">Korean (한국어)</option>
+                  <option value="tr" className="text-gray-900">Turkish (Türkçe)</option>
+                  <option value="id" className="text-gray-900">Indonesian (Bahasa Indonesia)</option>
+                  <option value="ur" className="text-gray-900">Urdu (اردو)</option>
+                  <option value="it" className="text-gray-900">Italian (Italiano)</option>
+                  <option value="nl" className="text-gray-900">Dutch (Nederlands)</option>
                   <option value="pl" className="text-gray-900">Polski (Polish)</option>
                   <option value="vi" className="text-gray-900">Tiếng Việt (Vietnamese)</option>
                   <option value="th" className="text-gray-900">ไทย (Thai)</option>
@@ -1882,7 +2256,10 @@ export default function App() {
             </div>
 
             <button
-              onClick={() => signOut(auth)}
+              onClick={() => {
+                localStorage.setItem("skip_auto_login", "true");
+                signOut(auth);
+              }}
               className="flex items-center gap-1 bg-red-500/80 hover:bg-red-500 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition ml-2"
               title="Sign Out"
             >
@@ -1893,10 +2270,17 @@ export default function App() {
         </div>
       </header>
 
-      <AdvertisementBanner />
+      <AdvertisementBanner onPostAdClick={() => setCurrentView("post-ad")} />
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
+        {currentView === "post-ad" && (
+          <PostAd
+            balanceUSD={balanceUSD}
+            onNavigate={setCurrentView}
+            uid={currentUser?.uid || ""}
+          />
+        )}
         {/* BUY VIEW */}
         {currentView === "buy" && (
           <div className="space-y-6">
@@ -2088,6 +2472,19 @@ export default function App() {
                               Account: {tx.details.account}
                             </p>
                           )}
+                          <p 
+                            className="text-xs font-mono text-gray-400 mt-1 cursor-pointer hover:text-gray-600 transition inline-block bg-gray-100 px-1.5 py-0.5 rounded"
+                            title="Click to copy Transaction ID"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (tx.id) {
+                                navigator.clipboard.writeText(tx.id);
+                                alert("Transaction ID copied to clipboard: " + tx.id);
+                              }
+                            }}
+                          >
+                            ID: {tx.id}
+                          </p>
                         </div>
                       </div>
                       <div className="text-left sm:text-right">
@@ -2217,7 +2614,10 @@ export default function App() {
                 {i18n.profileTitle || "My Profile"}
               </h2>
               <button
-                onClick={() => signOut(auth)}
+                onClick={() => {
+                  localStorage.setItem("skip_auto_login", "true");
+                  signOut(auth);
+                }}
                 className="flex items-center gap-2 bg-red-100 text-red-600 hover:bg-red-200 px-4 py-2 rounded-lg text-sm font-bold transition"
                 title="Sign Out"
               >
@@ -2275,14 +2675,17 @@ export default function App() {
                     <p className="text-xs text-orange-100 uppercase tracking-wider font-bold mb-2">
                       {i18n.yourRefLink || "Your Link"}
                     </p>
-                    <div className="flex items-center gap-2">
+                    <p className="text-xs mb-2 text-white/80">
+                      Inside Telegram, format your bot link like: <br/> <code>https://t.me/your_bot_name/app_name?startapp={customReferralCode || numericId || currentUser?.uid}</code>
+                    </p>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                       <code className="bg-black/20 px-3 py-2 rounded-lg font-mono text-sm flex-1 overflow-x-auto whitespace-nowrap">
-                        {window.location.origin}/?ref={currentUser?.uid}
+                        {window.location.origin}/?ref={customReferralCode || numericId || currentUser?.uid}
                       </code>
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(
-                            `${window.location.origin}/?ref=${currentUser?.uid}`,
+                            `${window.location.origin}/?ref=${customReferralCode || numericId || currentUser?.uid}`,
                           );
                           alert("Copied!");
                         }}
@@ -2292,6 +2695,62 @@ export default function App() {
                       </button>
                     </div>
                   </div>
+
+                  {!customReferralCode && (
+                     <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 mt-4 mb-4">
+                       <p className="text-xs text-orange-100 uppercase tracking-wider font-bold mb-2">
+                         Create Custom Referral Code
+                       </p>
+                       <form onSubmit={(e) => {
+                         e.preventDefault();
+                         const data = new FormData(e.currentTarget);
+                         handleSetCustomReferralCode(data.get("customCode") as string);
+                       }} className="flex gap-2">
+                         <input
+                           type="text"
+                           name="customCode"
+                           placeholder="my_code_123"
+                           className="flex-1 bg-white/20 border border-white/30 rounded-lg px-3 py-2 text-sm text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50"
+                           required
+                           minLength={3}
+                           maxLength={20}
+                         />
+                         <button type="submit" className="bg-white text-orange-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-orange-50 transition">
+                           Create
+                         </button>
+                       </form>
+                     </div>
+                  )}
+
+                  {!userReferredBy ? (
+                    <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 mt-4">
+                      <p className="text-xs text-orange-100 uppercase tracking-wider font-bold mb-2">
+                        {i18n.enterRefCode || "Enter Invite Code"}
+                      </p>
+                      <form onSubmit={(e) => {
+                        e.preventDefault();
+                        const data = new FormData(e.currentTarget);
+                        handleBindReferral(data.get("refCode") as string);
+                      }} className="flex gap-2">
+                        <input
+                          type="text"
+                          name="refCode"
+                          placeholder="e.g. 10005"
+                          className="flex-1 bg-white/20 border border-white/30 rounded-lg px-3 py-2 text-sm text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50"
+                          required
+                        />
+                        <button type="submit" className="bg-white text-orange-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-orange-50 transition">
+                          Bind
+                        </button>
+                      </form>
+                    </div>
+                  ) : (
+                    <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 mt-4">
+                       <p className="text-xs text-orange-100 uppercase tracking-wider font-bold mb-1">Invited By</p>
+                       <p className="text-sm font-bold">You were invited by a friend.</p>
+                    </div>
+                  )}
+
                 </div>
                 <div className="absolute right-[-10%] top-[-20%] w-64 h-64 bg-white/10 rounded-full blur-3xl outline-none"></div>
               </div>
@@ -2353,6 +2812,11 @@ export default function App() {
                 </div>
               )}
             </div>
+
+            <AdvertisementBanner onPostAdClick={() => setCurrentView("post-ad")} />
+
+            {/* My Advertisements Component */}
+            <MyAdsProfile currentUser={currentUser} onNavigate={setCurrentView} />
 
             {/* Quick Actions / Settings */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -2462,8 +2926,21 @@ export default function App() {
                           {tx.type === "withdraw" ? "-" : "+"}$
                           {tx.amountUSD?.toFixed(2)}
                         </p>
-                        <p className="text-xs font-mono text-gray-400 max-w-[120px] truncate">
+                        <p className="text-xs font-mono text-gray-400 max-w-[120px] truncate mb-0.5">
                           {tx.details?.method || tx.details?.account || ""}
+                        </p>
+                        <p 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (tx.id) {
+                              navigator.clipboard.writeText(tx.id);
+                              alert("Transaction ID copied to clipboard: " + tx.id);
+                            }
+                          }}
+                          className="text-[10px] font-mono text-gray-400 cursor-pointer hover:text-gray-600 transition truncate max-w-[120px] bg-gray-100 px-1.5 py-0.5 rounded inline-block"
+                          title="Click to copy Transaction ID"
+                        >
+                          ID: {tx.id}
                         </p>
                       </div>
                     </div>
@@ -2574,9 +3051,14 @@ export default function App() {
                 onClick={() => setTopupModal(true)}
                 className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col"
               >
-                <div className="relative bg-gradient-to-br from-green-500 to-green-600 h-28 flex flex-col items-center justify-center p-4">
-                  <Wallet className="w-12 h-12 text-white opacity-90 mb-1" />
-                  <div className="text-white font-bold text-lg leading-tight tracking-tight">FUNDS</div>
+                <div className="relative bg-gradient-to-br from-indigo-600 to-indigo-700 h-28 flex flex-col items-center justify-center p-4">
+                  <div className="relative mb-1 text-white">
+                    <Wallet className="w-12 h-12 text-white/90" />
+                    <div className="absolute -bottom-1 -left-1 bg-white rounded-full text-indigo-700 p-0.5">
+                      <Plus className="w-5 h-5 flex-shrink-0 stroke-[4]" />
+                    </div>
+                  </div>
+                  <div className="text-white font-bold text-lg leading-tight tracking-tight mt-1">FUNDS</div>
                 </div>
                 <div className="p-3 flex-1 flex flex-col justify-center text-center">
                   <h3 className="font-bold text-gray-900 mb-0.5 text-sm sm:text-base leading-tight">
@@ -2592,9 +3074,37 @@ export default function App() {
                 onClick={() => setWithdrawModal(true)}
                 className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col"
               >
-                <div className="relative bg-gradient-to-br from-amber-500 to-amber-600 h-28 flex flex-col items-center justify-center p-4">
-                  <ArrowRight className="w-12 h-12 text-white transform -rotate-45 opacity-90 mb-1" />
-                  <div className="text-white font-bold text-lg leading-tight tracking-tight">CASH OUT</div>
+                <div className="relative bg-gradient-to-br from-sky-500 to-blue-600 h-28 flex flex-col items-center justify-center p-4">
+                  <div className="relative mb-1">
+                    <svg
+                      className="w-14 h-14 drop-shadow-md"
+                      viewBox="0 0 64 64"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      {/* Roof Base */}
+                      <path d="M4 26H60V30H4V26Z" fill="#4B5563" />
+                      {/* Roof Triangle */}
+                      <path d="M32 6L4 26H60L32 6Z" fill="#6B7280" />
+                      {/* Pillars - Blue */}
+                      <rect x="8" y="30" width="8" height="20" fill="#3B82F6" />
+                      <rect x="28" y="30" width="8" height="20" fill="#3B82F6" />
+                      <rect x="48" y="30" width="8" height="20" fill="#3B82F6" />
+                      {/* Base Steps */}
+                      <path d="M4 50H60V54H4V50Z" fill="#6B7280" />
+                      <path d="M2 54H62V58H2V54Z" fill="#4B5563" />
+                      {/* Gold Coin in the middle of Roof */}
+                      <circle cx="32" cy="18" r="7" fill="#FBBF24" />
+                      <path
+                        d="M32 13V23M29 16.5C29 16.5 30 15 32 15C34 15 34.5 16.5 34.5 17.5C34.5 18.5 32.5 19 32 19C31.5 19 29.5 19.5 29.5 20.5C29.5 21.5 30 23 32 23C34 23 35 21 35 21"
+                        stroke="#B45309"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
+                  <div className="text-white font-bold text-lg leading-tight tracking-tight mt-1">CASH OUT</div>
                 </div>
                 <div className="p-3 flex-1 flex flex-col justify-center text-center">
                   <h3 className="font-bold text-gray-900 mb-0.5 text-sm sm:text-base leading-tight">
@@ -2606,6 +3116,8 @@ export default function App() {
                 </div>
               </div>
             </div>
+
+
 
             {/* Invite & Earn Banner */}
             <div
@@ -2658,7 +3170,7 @@ export default function App() {
                     {i18n.rateLbl} {TOPUP_RATE} BDT
                   </div>
                   <p className="text-xs text-gray-500 mb-4">
-                    Crypto & Binance: 1 USD = 1 USD
+                    Crypto & Binance: 1 USD = 1 USDT
                   </p>
                 </div>
                 <button
@@ -2682,7 +3194,7 @@ export default function App() {
                     {i18n.rateLbl} {WITHDRAW_RATE} BDT
                   </div>
                   <p className="text-xs text-gray-500 mb-4">
-                    BSC-USDT / Binance: 1 USD = 1 USD
+                    BSC-USDT / Binance: 1 USD = 1 USDT
                   </p>
                 </div>
                 <button
@@ -2817,48 +3329,89 @@ export default function App() {
 
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
               <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <Globe className="w-5 h-5 text-indigo-500" /> Advertisement Banner
+                <Globe className="w-5 h-5 text-indigo-500" /> Advertisement Banners
               </h3>
-              <div className="flex flex-col gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Upload Banner Image (Max 500KB)</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        if (file.size > 500000) {
-                          alert("Image is too large. Please upload an image smaller than 500KB.");
-                          return;
-                        }
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                          setAdminBannerSettings({...adminBannerSettings, imageUrl: reader.result as string});
-                        };
-                        reader.readAsDataURL(file);
-                      }
-                    }}
-                    className="w-full p-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#2AABEE] bg-gray-50 text-sm"
-                  />
-                  {adminBannerSettings.imageUrl && (
-                    <div className="mt-4">
-                      <p className="text-sm text-gray-500 mb-2">Image Preview:</p>
-                      <img src={adminBannerSettings.imageUrl} alt="Banner Preview" className="max-h-32 rounded-lg border border-gray-200 object-cover" />
+              <div className="flex flex-col gap-6">
+                {/* Banner List */}
+                <div className="space-y-4">
+                  {adminBannerSettings.banners.map((banner, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-4 relative bg-gray-50">
+                      <div className="absolute top-2 right-2">
+                        <button
+                          onClick={() => {
+                            const newBanners = [...adminBannerSettings.banners];
+                            newBanners.splice(index, 1);
+                            setAdminBannerSettings({ ...adminBannerSettings, banners: newBanners });
+                          }}
+                          className="text-red-500 hover:text-red-700 bg-white border border-red-200 p-1 rounded-md"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      
+                      {banner.imageUrl ? (
+                        <div className="mb-4">
+                          <p className="text-sm font-medium text-gray-700 mb-2">Banner {index + 1} Image Preview:</p>
+                          <img src={banner.imageUrl} alt={`Banner ${index + 1}`} className="max-h-32 rounded-lg border border-gray-200 object-cover" />
+                        </div>
+                      ) : (
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Upload Banner {index + 1} Image (Max 500KB)</label>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                if (file.size > 500000) {
+                                  alert("Image is too large. Please upload an image smaller than 500KB.");
+                                  return;
+                                }
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  const newBanners = [...adminBannerSettings.banners];
+                                  newBanners[index].imageUrl = reader.result as string;
+                                  setAdminBannerSettings({...adminBannerSettings, banners: newBanners});
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                            className="w-full p-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#2AABEE] bg-white text-sm"
+                          />
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Target Link URL</label>
+                        <input
+                          type="text"
+                          placeholder="https://example.com/promotion"
+                          value={banner.linkUrl}
+                          onChange={(e) => {
+                            const newBanners = [...adminBannerSettings.banners];
+                            newBanners[index].linkUrl = e.target.value;
+                            setAdminBannerSettings({...adminBannerSettings, banners: newBanners});
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#2AABEE] bg-white"
+                        />
+                      </div>
                     </div>
-                  )}
+                  ))}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Target Link URL</label>
-                  <input
-                    type="text"
-                    placeholder="https://example.com/promotion"
-                    value={adminBannerSettings.linkUrl}
-                    onChange={(e) => setAdminBannerSettings({...adminBannerSettings, linkUrl: e.target.value})}
-                    className="w-full p-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#2AABEE]"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
+
+                <button
+                  onClick={() => {
+                    setAdminBannerSettings({
+                      ...adminBannerSettings,
+                      banners: [...adminBannerSettings.banners, { imageUrl: "", linkUrl: "" }]
+                    });
+                  }}
+                  className="w-full md:w-auto self-start border border-[#2AABEE] text-[#2AABEE] px-4 py-2 rounded-lg font-medium hover:bg-blue-50 transition flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" /> Add Another Banner
+                </button>
+
+                <div className="flex items-center gap-2 border-t border-gray-200 pt-4">
                   <input
                     type="checkbox"
                     id="bannerActive"
@@ -2866,8 +3419,8 @@ export default function App() {
                     onChange={(e) => setAdminBannerSettings({...adminBannerSettings, isActive: e.target.checked})}
                     className="w-4 h-4 text-[#2AABEE] rounded focus:ring-[#2AABEE]"
                   />
-                  <label htmlFor="bannerActive" className="text-sm font-medium text-gray-700 cursor-pointer">
-                    Enable Banner
+                  <label htmlFor="bannerActive" className="text-sm font-bold text-gray-800 cursor-pointer">
+                    Enable Banners on Application
                   </label>
                 </div>
                 <button
@@ -2875,7 +3428,17 @@ export default function App() {
                   onClick={async () => {
                     setIsPublishingBanner(true);
                     try {
-                      await setDoc(doc(db, "settings", "banner"), adminBannerSettings);
+                      // Remove empty banners
+                      const cleanBanners = adminBannerSettings.banners.filter(b => b.imageUrl.trim() !== "");
+                      
+                      const finalConfig = {
+                        ...adminBannerSettings,
+                        banners: cleanBanners,
+                      };
+                      
+                      setAdminBannerSettings({...adminBannerSettings, banners: cleanBanners}); // Update local state
+                      
+                      await setDoc(doc(db, "settings", "banner"), finalConfig);
                       alert("Banner settings updated successfully! It is now live.");
                     } catch (e: any) {
                       alert("Error updating banner: " + e.message);
@@ -2885,10 +3448,12 @@ export default function App() {
                   }}
                   className={`w-full md:w-auto self-start bg-indigo-500 text-white px-6 py-2 rounded-lg font-bold transition shadow-sm ${isPublishingBanner ? "opacity-70 cursor-not-allowed" : "hover:bg-indigo-600"}`}
                 >
-                  {isPublishingBanner ? "Publishing..." : "Publish Banner"}
+                  {isPublishingBanner ? "Publishing..." : "Publish Banners"}
                 </button>
               </div>
             </div>
+
+            <AdminUserManagement />
 
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
               <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
@@ -2924,7 +3489,7 @@ export default function App() {
             </div>
 
             {/* Active Users Analytics */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
                 <div className="text-sm text-gray-500 font-medium mb-1">
                   Live Users
@@ -2960,48 +3525,129 @@ export default function App() {
               </div>
             </div>
 
+            {/* Financial Stats Analytics */}
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+               <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
+                <div className="text-sm text-gray-500 font-medium mb-1">
+                  Daily Top Up / Withdraw
+                </div>
+                <div className="flex flex-col items-center justify-center">
+                  <span className="text-lg font-bold text-blue-600">+${adminTxStats.topupDaily.toFixed(2)}</span>
+                  <span className="text-sm font-bold text-orange-500">-${adminTxStats.withdrawDaily.toFixed(2)}</span>
+                </div>
+              </div>
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
+                <div className="text-sm text-gray-500 font-medium mb-1">
+                  Weekly Top Up / Withdraw
+                </div>
+                 <div className="flex flex-col items-center justify-center">
+                  <span className="text-lg font-bold text-blue-600">+${adminTxStats.topupWeekly.toFixed(2)}</span>
+                  <span className="text-sm font-bold text-orange-500">-${adminTxStats.withdrawWeekly.toFixed(2)}</span>
+                </div>
+              </div>
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
+                <div className="text-sm text-gray-500 font-medium mb-1">
+                  Monthly Top Up / Withdraw
+                </div>
+                 <div className="flex flex-col items-center justify-center">
+                  <span className="text-lg font-bold text-blue-600">+${adminTxStats.topupMonthly.toFixed(2)}</span>
+                  <span className="text-sm font-bold text-orange-500">-${adminTxStats.withdrawMonthly.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Transactions Search & Management */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden p-4 mb-6">
+              <input 
+                type="text" 
+                placeholder="Search transactions by ID, UID, or Email..." 
+                value={adminSearchTxId}
+                onChange={(e) => setAdminSearchTxId(e.target.value)}
+                className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#2AABEE]"
+              />
+            </div>
+
             {/* Pending Withdrawals Management */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
               <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
                 <h3 className="font-bold text-gray-800">Pending Withdrawals</h3>
               </div>
               <div className="divide-y divide-gray-100">
-                {adminWithdrawals.filter((tx) => tx.status === "pending")
+                {adminTxs
+                  .filter((tx) => tx.status === "pending" && tx.type === "withdraw")
+                  .filter((tx) => 
+                     !adminSearchTxId || 
+                     tx.id?.toLowerCase().includes(adminSearchTxId.toLowerCase()) ||
+                     tx.userNumericId?.toString().includes(adminSearchTxId) ||
+                     tx.userId?.toLowerCase().includes(adminSearchTxId.toLowerCase()) ||
+                     tx.userEmail?.toLowerCase().includes(adminSearchTxId.toLowerCase())
+                  )
                   .length === 0 ? (
                   <div className="p-4 text-center text-gray-500 italic">
-                    No pending withdrawals
+                    No pending withdrawals found
                   </div>
                 ) : (
-                  adminWithdrawals
-                    .filter((tx) => tx.status === "pending")
+                  adminTxs
+                    .filter((tx) => tx.status === "pending" && tx.type === "withdraw")
+                    .filter((tx) => 
+                       !adminSearchTxId || 
+                       tx.id?.toLowerCase().includes(adminSearchTxId.toLowerCase()) ||
+                       tx.userNumericId?.toString().includes(adminSearchTxId) ||
+                       tx.userId?.toLowerCase().includes(adminSearchTxId.toLowerCase()) ||
+                       tx.userEmail?.toLowerCase().includes(adminSearchTxId.toLowerCase())
+                    )
                     .map((adminTx) => (
                       <div
                         key={adminTx.id}
                         className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:bg-gray-50 transition-colors"
                       >
                         <div>
-                          <p className="font-bold text-gray-900">
-                            Req: ${adminTx.amountUSD.toFixed(2)} USD
-                            <span className="text-sm font-bold text-green-600 ml-2">
-                              Payout:{" "}
-                              {adminTx.details?.method === "Binance" ||
-                              adminTx.details?.method === "BSC-USDT" ||
-                              adminTx.details?.method === "crypto"
-                                ? `$${(adminTx.details?.payoutUsd || adminTx.amountUSD).toFixed(2)}`
-                                : `${(adminTx.details?.payoutBdt || adminTx.amountUSD * WITHDRAW_RATE).toLocaleString()} BDT`}
-                            </span>
+                          <p className="font-bold text-gray-900 border-b border-gray-100 pb-2 mb-2 flex flex-wrap items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded text-xs font-bold text-white uppercase ${adminTx.type === 'topup' ? 'bg-blue-500' : 'bg-orange-500'}`}>{adminTx.type}</span>
+                            <span className="text-gray-500">Req:</span> ${adminTx.amountUSD.toFixed(2)} USD
+                            {adminTx.type === 'withdraw' && (
+                              <span className="text-base font-black text-green-600 block sm:inline sm:ml-4 bg-green-50 px-2 py-1 rounded inline-block mt-1 sm:mt-0">
+                                Payout:{" "}
+                                {adminTx.details?.method === "Binance" ||
+                                adminTx.details?.method === "BSC-USDT" ||
+                                adminTx.details?.method === "crypto"
+                                  ? `$${(adminTx.details?.payoutUsd || adminTx.amountUSD).toFixed(2)}`
+                                  : `${(adminTx.details?.payoutBdt || adminTx.amountUSD * WITHDRAW_RATE).toLocaleString()} BDT`}
+                              </span>
+                            )}
                           </p>
                           {adminTx.details && (
                             <div className="flex gap-2 items-center mt-1">
-                              <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-bold uppercase">
+                              <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-bold uppercase transition">
                                 {adminTx.details.method}
                               </span>
-                              <span className="text-sm font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 select-all">
+                              <span 
+                                onClick={() => {
+                                  if(adminTx.details?.account) {
+                                      navigator.clipboard.writeText(adminTx.details.account);
+                                      alert("Copied to clipboard: " + adminTx.details.account);
+                                  }
+                                }}
+                                className="text-sm font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 cursor-pointer hover:bg-gray-200 transition"
+                                title="Click to copy account details"
+                              >
                                 {adminTx.details.account}
                               </span>
                             </div>
                           )}
                           <div className="flex flex-wrap gap-2 items-center mt-3">
+                            <span 
+                              className="font-bold text-gray-600 bg-gray-100 px-2 py-0.5 rounded text-xs cursor-pointer hover:bg-gray-200 transition"
+                              title="Click to copy Transaction ID"
+                              onClick={() => {
+                                if (adminTx.id) {
+                                  navigator.clipboard.writeText(adminTx.id);
+                                  alert("Transaction ID copied: " + adminTx.id);
+                                }
+                              }}
+                            >
+                              ID: {adminTx.id}
+                            </span>
                             <span className="font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded text-xs">
                               {adminTx.userNumericId
                                 ? `UID: ${adminTx.userNumericId}`
@@ -3020,11 +3666,59 @@ export default function App() {
                         <div>
                           <button
                             onClick={async () => {
-                              await updateDoc(
-                                doc(db, "transactions", adminTx.id),
-                                { status: "paid" },
-                              );
-                              alert("Marked as paid");
+                              try {
+                                if (adminTx.type === "topup") {
+                                  // Credit balance to user
+                                  const targetUserRef = doc(db, "users", adminTx.userId);
+                                  const targetUserDoc = await getDoc(targetUserRef);
+                                  if (targetUserDoc.exists()) {
+                                    await updateDoc(targetUserRef, {
+                                      balanceUSD: increment(adminTx.amountUSD),
+                                      total_deposited: increment(adminTx.amountUSD),
+                                      last_update: Date.now()
+                                    });
+
+                                    // Referral Bonus logic
+                                    const referredBy = targetUserDoc.data().referredBy;
+                                    if (referredBy) {
+                                      try {
+                                        const referrerRef = doc(db, "users", referredBy);
+                                        const referrerDoc = await getDoc(referrerRef);
+                                        if (referrerDoc.exists()) {
+                                          const bonusAmount = adminTx.amountUSD * 0.01;
+                                          await updateDoc(referrerRef, {
+                                            balanceUSD: increment(bonusAmount),
+                                            total_deposited: increment(bonusAmount),
+                                            referralEarnings: increment(bonusAmount),
+                                            last_update: Date.now()
+                                          });
+                                          const refTxRef = doc(collection(db, "transactions"));
+                                          await setDoc(refTxRef, {
+                                            userId: referredBy,
+                                            type: "referral_bonus",
+                                            txType: "Credit",
+                                            amountUSD: bonusAmount,
+                                            status: "paid",
+                                            details: { fromUserId: targetUserDoc.id },
+                                            createdAt: Date.now(),
+                                          });
+                                        }
+                                      } catch (e) {
+                                        console.error("Error processing referral bonus", e);
+                                      }
+                                    }
+                                  }
+                                }
+                                
+                                await updateDoc(
+                                  doc(db, "transactions", adminTx.id),
+                                  { status: "paid" },
+                                );
+                                alert("Marked as paid");
+                              } catch(err) {
+                                console.error(err);
+                                alert("Error marking as paid");
+                              }
                             }}
                             className="bg-green-500 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-600 transition shadow-sm"
                           >
@@ -3037,50 +3731,188 @@ export default function App() {
               </div>
             </div>
 
-            {/* Paid Withdrawals History */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            {/* Paid Topups History */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
               <div className="p-4 border-b border-gray-200 bg-gray-50">
                 <h3 className="font-bold text-gray-800">
-                  Paid Withdrawals History
+                  Paid Topups History
                 </h3>
               </div>
               <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
-                {adminWithdrawals.filter((tx) => tx.status === "paid")
+                {adminTxs
+                  .filter((tx) => (tx.status === "paid" || tx.status === "completed" || tx.status === "success") && tx.type === "topup")
+                  .filter((tx) => 
+                     !adminSearchTxId || 
+                     tx.id?.toLowerCase().includes(adminSearchTxId.toLowerCase()) ||
+                     tx.userNumericId?.toString().includes(adminSearchTxId) ||
+                     tx.userId?.toLowerCase().includes(adminSearchTxId.toLowerCase()) ||
+                     tx.userEmail?.toLowerCase().includes(adminSearchTxId.toLowerCase())
+                  )
                   .length === 0 ? (
                   <div className="p-4 text-center text-gray-500 italic">
-                    No paid withdrawals
+                    No paid topups found
                   </div>
                 ) : (
-                  adminWithdrawals
-                    .filter((tx) => tx.status === "paid")
+                  adminTxs
+                    .filter((tx) => (tx.status === "paid" || tx.status === "completed" || tx.status === "success") && tx.type === "topup")
+                    .filter((tx) => 
+                       !adminSearchTxId || 
+                       tx.id?.toLowerCase().includes(adminSearchTxId.toLowerCase()) ||
+                       tx.userNumericId?.toString().includes(adminSearchTxId) ||
+                       tx.userId?.toLowerCase().includes(adminSearchTxId.toLowerCase()) ||
+                       tx.userEmail?.toLowerCase().includes(adminSearchTxId.toLowerCase())
+                    )
                     .map((adminTx) => (
                       <div
                         key={adminTx.id}
                         className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4"
                       >
                         <div>
-                          <p className="font-bold text-gray-900">
-                            Req: ${adminTx.amountUSD.toFixed(2)} USD
-                            <span className="text-sm font-bold text-green-600 ml-2">
-                              Payout:{" "}
-                              {adminTx.details?.method === "Binance" ||
-                              adminTx.details?.method === "BSC-USDT" ||
-                              adminTx.details?.method === "crypto"
-                                ? `$${(adminTx.details?.payoutUsd || adminTx.amountUSD).toFixed(2)}`
-                                : `${(adminTx.details?.payoutBdt || adminTx.amountUSD * WITHDRAW_RATE).toLocaleString()} BDT`}
-                            </span>
+                          <p className="font-bold text-gray-900 border-b border-gray-100 pb-2 mb-2 flex flex-wrap items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded text-xs font-bold text-white uppercase bg-blue-500`}>{adminTx.type}</span>
+                            <span className="text-gray-500">Req:</span> ${adminTx.amountUSD.toFixed(2)} USD
                           </p>
                           {adminTx.details && (
                             <div className="flex gap-2 items-center mt-1">
-                              <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-bold uppercase">
+                              <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-bold uppercase transition">
                                 {adminTx.details.method}
                               </span>
-                              <span className="text-sm font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 select-all">
+                              <span 
+                                onClick={() => {
+                                  if(adminTx.details?.account) {
+                                      navigator.clipboard.writeText(adminTx.details.account);
+                                      alert("Copied to clipboard: " + adminTx.details.account);
+                                  }
+                                }}
+                                className="text-sm font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 cursor-pointer hover:bg-gray-200 transition"
+                                title="Click to copy account details"
+                              >
                                 {adminTx.details.account}
                               </span>
                             </div>
                           )}
                           <div className="flex flex-wrap gap-2 items-center mt-3">
+                            <span 
+                              className="font-bold text-gray-600 bg-gray-100 px-2 py-0.5 rounded text-xs border border-gray-200 cursor-pointer hover:bg-gray-200 transition"
+                              title="Click to copy Transaction ID"
+                              onClick={() => {
+                                if (adminTx.id) {
+                                  navigator.clipboard.writeText(adminTx.id);
+                                  alert("Transaction ID copied: " + adminTx.id);
+                                }
+                              }}
+                            >
+                              ID: {adminTx.id}
+                            </span>
+                            <span className="font-bold text-gray-600 bg-gray-200 px-2 py-0.5 rounded text-xs">
+                              {adminTx.userNumericId
+                                ? `UID: ${adminTx.userNumericId}`
+                                : "UID: N/A"}
+                            </span>
+                            <span className="text-xs font-medium text-gray-500">
+                              {adminTx.userEmail ||
+                                adminTx.userId.slice(0, 8) + "..."}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              Created:{" "}
+                              {new Date(adminTx.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-sm font-bold text-green-600 bg-green-50 px-3 py-1.5 rounded-lg border border-green-200">
+                            Completed
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                )}
+              </div>
+            </div>
+
+            {/* Paid Withdrawals History */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+              <div className="p-4 border-b border-gray-200 bg-gray-50">
+                <h3 className="font-bold text-gray-800">
+                  Paid Withdrawals History
+                </h3>
+              </div>
+              <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
+                {adminTxs
+                  .filter((tx) => (tx.status === "paid" || tx.status === "success" || tx.status === "completed") && tx.type === "withdraw")
+                  .filter((tx) => 
+                     !adminSearchTxId || 
+                     tx.id?.toLowerCase().includes(adminSearchTxId.toLowerCase()) ||
+                     tx.userNumericId?.toString().includes(adminSearchTxId) ||
+                     tx.userId?.toLowerCase().includes(adminSearchTxId.toLowerCase()) ||
+                     tx.userEmail?.toLowerCase().includes(adminSearchTxId.toLowerCase())
+                  )
+                  .length === 0 ? (
+                  <div className="p-4 text-center text-gray-500 italic">
+                    No paid withdrawals found
+                  </div>
+                ) : (
+                  adminTxs
+                    .filter((tx) => (tx.status === "paid" || tx.status === "success" || tx.status === "completed") && tx.type === "withdraw")
+                    .filter((tx) => 
+                       !adminSearchTxId || 
+                       tx.id?.toLowerCase().includes(adminSearchTxId.toLowerCase()) ||
+                       tx.userNumericId?.toString().includes(adminSearchTxId) ||
+                       tx.userId?.toLowerCase().includes(adminSearchTxId.toLowerCase()) ||
+                       tx.userEmail?.toLowerCase().includes(adminSearchTxId.toLowerCase())
+                    )
+                    .map((adminTx) => (
+                      <div
+                        key={adminTx.id}
+                        className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4"
+                      >
+                        <div>
+                          <p className="font-bold text-gray-900 border-b border-gray-100 pb-2 mb-2 flex flex-wrap items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded text-xs font-bold text-white uppercase ${adminTx.type === 'topup' ? 'bg-blue-500' : 'bg-orange-500'}`}>{adminTx.type}</span>
+                            <span className="text-gray-500">Req:</span> ${adminTx.amountUSD.toFixed(2)} USD
+                            {adminTx.type === 'withdraw' && (
+                              <span className="text-base font-black text-green-600 block sm:inline sm:ml-4 bg-green-50 px-2 py-1 rounded inline-block mt-1 sm:mt-0">
+                                Payout:{" "}
+                                {adminTx.details?.method === "Binance" ||
+                                adminTx.details?.method === "BSC-USDT" ||
+                                adminTx.details?.method === "crypto"
+                                  ? `$${(adminTx.details?.payoutUsd || adminTx.amountUSD).toFixed(2)}`
+                                  : `${(adminTx.details?.payoutBdt || adminTx.amountUSD * WITHDRAW_RATE).toLocaleString()} BDT`}
+                              </span>
+                            )}
+                          </p>
+                          {adminTx.details && (
+                            <div className="flex gap-2 items-center mt-1">
+                              <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-bold uppercase transition">
+                                {adminTx.details.method}
+                              </span>
+                              <span 
+                                onClick={() => {
+                                  if(adminTx.details?.account) {
+                                      navigator.clipboard.writeText(adminTx.details.account);
+                                      alert("Copied to clipboard: " + adminTx.details.account);
+                                  }
+                                }}
+                                className="text-sm font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 cursor-pointer hover:bg-gray-200 transition"
+                                title="Click to copy account details"
+                              >
+                                {adminTx.details.account}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex flex-wrap gap-2 items-center mt-3">
+                            <span 
+                              className="font-bold text-gray-600 bg-gray-100 px-2 py-0.5 rounded text-xs border border-gray-200 cursor-pointer hover:bg-gray-200 transition"
+                              title="Click to copy Transaction ID"
+                              onClick={() => {
+                                if (adminTx.id) {
+                                  navigator.clipboard.writeText(adminTx.id);
+                                  alert("Transaction ID copied: " + adminTx.id);
+                                }
+                              }}
+                            >
+                              ID: {adminTx.id}
+                            </span>
                             <span className="font-bold text-gray-600 bg-gray-200 px-2 py-0.5 rounded text-xs">
                               {adminTx.userNumericId
                                 ? `UID: ${adminTx.userNumericId}`

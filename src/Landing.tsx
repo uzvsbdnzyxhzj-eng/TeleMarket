@@ -37,20 +37,22 @@ export default function Landing({ onGetStarted, lang, setLang, countries = [], m
                 className="bg-transparent border-none text-gray-700 outline-none cursor-pointer text-xs md:text-sm font-medium"
               >
                 <option value="en">English</option>
-                <option value="bn">বাংলা (Bengali)</option>
-                <option value="hi">हिन्दी (Hindi)</option>
-                <option value="es">Español (Spanish)</option>
-                <option value="ar">العربية (Arabic)</option>
-                <option value="ru">Русский (Russian)</option>
-                <option value="pt">Português (Portuguese)</option>
-                <option value="fr">Français (French)</option>
-                <option value="de">Deutsch (German)</option>
-                <option value="zh">中文 (Chinese)</option>
-                <option value="ja">日本語 (Japanese)</option>
-                <option value="ko">한국어 (Korean)</option>
-                <option value="tr">Türkçe (Turkish)</option>
-                <option value="id">Bahasa Indonesia</option>
-                <option value="ur">اردو (Urdu)</option>
+                <option value="bn">Bengali (বাংলা)</option>
+                <option value="hi">Hindi (हिन्दी)</option>
+                <option value="es">Spanish (Español)</option>
+                <option value="ar">Arabic (العربية)</option>
+                <option value="ru">Russian (Русский)</option>
+                <option value="pt">Portuguese (Português)</option>
+                <option value="fr">French (Français)</option>
+                <option value="de">German (Deutsch)</option>
+                <option value="zh">Chinese (中文)</option>
+                <option value="ja">Japanese (日本語)</option>
+                <option value="ko">Korean (한국어)</option>
+                <option value="tr">Turkish (Türkçe)</option>
+                <option value="id">Indonesian (Bahasa Indonesia)</option>
+                <option value="ur">Urdu (اردو)</option>
+                <option value="it">Italian (Italiano)</option>
+                <option value="nl">Dutch (Nederlands)</option>
               </select>
             </div>
             <button 
