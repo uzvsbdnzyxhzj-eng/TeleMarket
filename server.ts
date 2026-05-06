@@ -15,6 +15,9 @@ const TG_LION_BASE = "https://TG-Lion.net";
 async function startServer() {
   const app = express();
   const PORT = 3000;
+  const APP_URL = process.env.APP_URL || `http://localhost:${PORT}`;
+  const PAYMENTLY_API_KEY = process.env.PAYMENTLY_API_KEY || "tmK3Qhnqo38AvMetmNAXv3cVvQR2P0weO9OqJqDg";
+
 
   app.use(express.json());
 
@@ -205,9 +208,120 @@ async function startServer() {
     }
   });
 
+  app.post("/api/proxy/chat", async (req, res) => {
+    try {
+      if (!process.env.GEMINI_API_KEY) {
+         return res.status(500).json({ reply: "I'm offline right now because my AI brain (API Key) is not connected!" });
+      }
+      
+      // We will lazy-initialize Gemini
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      
+      const { message, history } = req.body;
+      
+      const systemInstruction = `You are the official Customer Support Bot for Telemarket. 
+Your job is to assist users in any language they speak.
+Telemarket is a platform where users can securely buy and sell Telegram accounts.
+To top up balance: Users can click the '$' or 'FUNDS' button in the dashboard, select bKash, Nagad, Binance, or Crypto, and follow the instructions.
+To buy an account: Users can click 'My Codes' (Live Buy) or 'BUY' nav to view available stock and purchase.
+To sell an account: Currently under maintenance ("Coming Soon"). But later users can sync their seller API.
+To withdraw earnings: Users can click 'CASH OUT' in Dashboard or Profile to request a withdrawal (Min $1 USD). Allowed methods are bKash, Nagad, Binance, BSC-USDT.
+HelpLine WhatsApp: +8801644627304 (01644627304). Available 24/7.
+Be very polite, helpful, concise, and respond in the language the user speaks. Use emojis moderately.`;
+
+      // Convert history to Gemini format if needed, but for simplicity we just generateContent with full context
+      const conversation = history.map((m: any) => `${m.role === 'user' ? 'Customer' : 'Bot'}: ${m.text}`).join('\n');
+      const prompt = `${systemInstruction}\n\nConversation history:\n${conversation}\n\nCustomer: ${message}\nBot:`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+      });
+
+      res.json({ reply: response.text });
+    } catch (error) {
+      console.error("Gemini Chat Error:", error);
+      res.status(500).json({ reply: "I'm having trouble thinking right now. Please try again later or contact Support on WhatsApp: 01644627304" });
+    }
+  });
+
   // Payment API Keys
-  const PAYMENTLY_API_KEY = process.env.PAYMENTLY_API_KEY || "tmK3Qhnqo38AvMetmNAXv3cVvQR2P0weO9OqJqDg";
-  const APP_URL = process.env.APP_URL || `http://localhost:${PORT}`;
+  
+  // Telegram Bot Webhook Integration
+  app.post("/api/telegram/webhook", async (req, res) => {
+    try {
+      const { message } = req.body;
+      const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+
+      if (!TELEGRAM_BOT_TOKEN) {
+        return res.status(200).send("OK");
+      }
+
+      if (message && message.text) {
+        const chatId = message.chat.id;
+        const text = message.text;
+
+        if (text === "/start" || text.startsWith("/start")) {
+          const welcomeText = "🛒 *Welcome to TeleMarket Official Bot!* 🌟\n\n" +
+            "Buy premium Telegram accounts with instant delivery.\n\n" +
+            "🌐 *Access Anywhere:*\n" +
+            "You can seamlessly use our platform from anywhere you want!\n" +
+            "• Telegram Bot: @TeleMarket_official_bot\n" +
+            "• Web Browser: https://telemarket-rldz.onrender.com/\n\n" +
+            "🚀 *Features:*\n" +
+            "• Auto delivery in seconds\n" +
+            "• Crypto, bKash & Nagad support\n" +
+            "• 100% Secure & Private\n\n" +
+            "👇 Tap below to launch the App and start trading now!";
+          
+          const imageUrl = "https://images.unsplash.com/photo-1620325867502-221afb5fbc43?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80";
+          
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: chatId,
+              photo: imageUrl,
+              caption: welcomeText,
+              parse_mode: "Markdown",
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    { text: "🚀 Open TeleMarket", web_app: { url: APP_URL } }
+                  ],
+                  [
+                    { text: "👨‍💻 Support HelpLine", url: "https://wa.me/8801644627304" }
+                  ]
+                ]
+              }
+            })
+          });
+        }
+      }
+      res.status(200).send("OK");
+    } catch (e) {
+      console.error("Telegram webhook error:", e);
+      res.status(200).send("OK"); 
+    }
+  });
+
+  app.get("/api/telegram/set-webhook", async (req, res) => {
+    const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+    if (!TELEGRAM_BOT_TOKEN) return res.status(400).json({ error: "TELEGRAM_BOT_TOKEN missing in server environment variables" });
+    
+    // Auto-detect public URL
+    const publicUrl = APP_URL.replace("http://localhost:3000", req.protocol + "://" + req.get("host"));
+    const webhookUrl = `${publicUrl}/api/telegram/webhook`;
+    
+    try {
+      const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=${encodeURIComponent(webhookUrl)}`);
+      const data = await response.json();
+      res.json({ webhookUrl, ...data });
+    } catch (e) {
+      res.status(500).json({ error: "Failed to set webhook" });
+    }
+  });
 
   // Direct Cryptomus & Binance Pay API Keys (User should provide these)
   const CRYPTOMUS_MERCHANT_ID =

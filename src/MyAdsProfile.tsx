@@ -19,6 +19,8 @@ export default function MyAdsProfile({ currentUser, onNavigate }: { currentUser:
     return () => unsub();
   }, [currentUser]);
 
+  if (!currentUser) return null;
+
   const [extendPlanFor, setExtendPlanFor] = useState<{ [adId: string]: number }>({});
 
   const handleExtend = async (ad: any) => {

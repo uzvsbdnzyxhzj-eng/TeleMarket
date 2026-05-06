@@ -35,6 +35,14 @@ import {
   Trash2,
   Landmark,
   CircleDollarSign,
+  Bookmark,
+  Home,
+  LayoutGrid,
+  Phone,
+  MessageCircle,
+  Gamepad2,
+  RefreshCw,
+  Info,
 } from "lucide-react";
 import { auth, db } from "./firebase";
 
@@ -78,6 +86,7 @@ import AdvertisementBanner from "./AdvertisementBanner";
 import PostAd from "./PostAd";
 import MyAdsProfile from "./MyAdsProfile";
 import AdminUserManagement from "./AdminUserManagement";
+import ChatBot from "./ChatBot";
 
 type View =
   | "buy"
@@ -97,13 +106,13 @@ import {
 
 export const TelemarketLogo = ({ className = "h-10" }: { className?: string }) => (
   <svg
-    viewBox="0 0 200 80"
+    viewBox="0 0 260 60"
     className={className}
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
   >
     {/* T Icon */}
-    <g transform="translate(100, 30)">
+    <g transform="translate(30, 30)">
       {/* Darker green shadow overlay for T */}
       <path d="M-15 -15 H15 V-5 H5 V15 H-5 V-5 H-15 Z" fill="#84D12F" />
       <path d="M-5 -5 H5 V15 H-5 Z" fill="#75bb29" />
@@ -123,11 +132,11 @@ export const TelemarketLogo = ({ className = "h-10" }: { className?: string }) =
 
     {/* Text */}
     <text
-      x="100"
-      y="65"
-      textAnchor="middle"
+      x="70"
+      y="35"
+      textAnchor="start"
       fill="currentColor"
-      fontSize="18"
+      fontSize="22"
       fontWeight="900"
       fontFamily="sans-serif"
       letterSpacing="1"
@@ -135,12 +144,12 @@ export const TelemarketLogo = ({ className = "h-10" }: { className?: string }) =
       TELEMARKET
     </text>
     <text
-      x="100"
-      y="78"
-      textAnchor="middle"
+      x="72"
+      y="48"
+      textAnchor="start"
       fill="currentColor"
       opacity="0.8"
-      fontSize="8"
+      fontSize="10"
       fontWeight="700"
       fontFamily="sans-serif"
       letterSpacing="4"
@@ -234,6 +243,7 @@ export default function App() {
   const [topupError, setTopupError] = useState("");
   const [withdrawError, setWithdrawError] = useState("");
 
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   // Load global banner data
   useEffect(() => {
@@ -283,13 +293,19 @@ export default function App() {
 
   // Monetag Popunder Ad Initialization
   useEffect(() => {
-    if (!currentUser) return;
-    
     let clickCount = 0;
-    let targetClicks = 5;
+    let targetClicks = 8; // trigger every 8 clicks as requested
 
     const triggerPop = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
+      
+      // Do not count clicks if inside buy or sell view
+      const viewContainer = target.closest('[data-view]');
+      const currentViewStr = viewContainer ? viewContainer.getAttribute('data-view') : null;
+      if (currentViewStr === "buy" || currentViewStr === "sell" || currentViewStr === "post-ad") {
+        return; // Ignore internal clicks in these views
+      }
+
       const isInteractive = target.closest('button') || target.closest('a') || target.closest('[role="button"]') || target.closest('input') || target.closest('[class*="cursor-pointer"]');
       
       if (!isInteractive) return;
@@ -299,7 +315,6 @@ export default function App() {
         try {
           // @ts-ignore
           if (typeof window !== "undefined" && typeof show_10960656 === "function") {
-            // Monetag popunder function
             // @ts-ignore
             show_10960656('pop').catch(() => {});
           }
@@ -307,13 +322,13 @@ export default function App() {
           console.error(err);
         }
         clickCount = 0;
-        targetClicks = 5;
+        targetClicks = 8;
       }
     };
     
     document.addEventListener("click", triggerPop);
     return () => document.removeEventListener("click", triggerPop);
-  }, [currentUser]);
+  }, []);
 
   // Load admin data
   useEffect(() => {
@@ -374,6 +389,7 @@ export default function App() {
   const i18n = t[lang];
 
   const [showAuth, setShowAuth] = useState(false);
+  const [showLanding, setShowLanding] = useState(false);
 
   // Fetch bot countries from backend
   useEffect(() => {
@@ -622,7 +638,7 @@ export default function App() {
           if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
              try {
                 const cred = await createUserWithEmailAndPassword(auth, guestEmail, guestPass);
-                await updateProfile(cred.user, { displayName: tgData?.user?.first_name || (tgData?.user?.id ? 'Telegram User' : 'Guest User') });
+                await updateProfile(cred.user, { displayName: tgData?.user?.first_name || (tgData?.user?.id ? 'Telegram User' : 'Guest User'), photoURL: (tgData?.user?.photo_url || null) });
              } catch(createErr) {
                 console.error("Failed to create guest user:", createErr);
                 setAuthLoading(false);
@@ -1063,7 +1079,7 @@ export default function App() {
             </button>
             <button
               onClick={async () => {
-                if (!currentUser) return alert("Please login first.");
+                if (!currentUser) return requireAuth();
                 if (balanceUSD < totalToPay)
                   return alert(
                     `Insufficient balance. You need $${totalToPay.toFixed(2)}.`,
@@ -1744,23 +1760,39 @@ export default function App() {
     );
   }
 
-  if (!currentUser) {
-    if (showAuth) {
-      return (
-        <Login
-          lang={lang}
-          setLang={setLang}
-          onBack={() => setShowAuth(false)}
-        />
-      );
+  const requireAuth = (callback?: () => void) => {
+    if (!currentUser) {
+      setShowLanding(true);
+      return;
     }
+    if (callback) callback();
+  };
+
+  if (showAuth && !currentUser) {
+    return (
+      <Login
+        lang={lang}
+        setLang={setLang}
+        onBack={() => {
+          setShowAuth(false);
+          setShowLanding(true);
+        }}
+      />
+    );
+  }
+
+  if (showLanding && !currentUser) {
     return (
       <Landing
         lang={lang}
         setLang={setLang}
-        onGetStarted={() => setShowAuth(true)}
+        onGetStarted={() => {
+          setShowLanding(false);
+          setShowAuth(true);
+        }}
         countries={countries}
         markupPercent={markupPercent}
+        onBack={() => setShowLanding(false)}
       />
     );
   }
@@ -1974,15 +2006,23 @@ export default function App() {
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">
                   Welcome to TeleMarket!
                 </h2>
-                <div className="text-gray-600 mb-6 text-sm leading-relaxed space-y-2">
+                <div className="text-gray-600 mb-6 text-sm leading-relaxed space-y-4">
                   <p>
-                    The premier marketplace to securely buy and sell Telegram
-                    accounts.
+                    The premier marketplace to securely buy and sell Telegram accounts.
+                    Browse our directory of verified and highly active accounts.
                   </p>
-                  <p>
-                    Browse our directory of verified and highly active
-                    accounts. Start earning with confidence today.
-                  </p>
+                  <div className="bg-blue-50 p-4 rounded-xl text-left border border-blue-100">
+                    <p className="font-bold text-blue-900 mb-2 flex items-center gap-2">
+                      <span className="text-lg">🌐</span> Access Anywhere
+                    </p>
+                    <p className="text-blue-800 text-xs mb-3">
+                      You can use our platform directly here on the web, or through our Official Telegram Bot!
+                    </p>
+                    <ul className="list-disc pl-5 mt-2 text-blue-800 text-xs space-y-1.5 font-medium">
+                      <li>Telegram Bot: <strong>@TeleMarket_official_bot</strong></li>
+                      <li>Website: <strong>https://telemarket-rldz.onrender.com/</strong></li>
+                    </ul>
+                  </div>
                 </div>
                 <button
                   onClick={() => setShowWelcome(false)}
@@ -1998,282 +2038,145 @@ export default function App() {
 
       <TopTicker />
       {/* Navbar */}
-      <header className="bg-[#2AABEE] text-white shadow-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col md:flex-row gap-4 justify-between items-center">
-          <div className="w-full flex justify-between items-center md:w-auto">
-            <div
-              className="flex items-center space-x-2 cursor-pointer"
-              onClick={() => setCurrentView("buy")}
-            >
-              <TelemarketLogo className="h-10 md:h-12 text-white drop-shadow-md" />
+      <header className="bg-white text-gray-800 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] sticky top-0 z-50 border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex justify-between items-center w-full md:w-auto">
+              <div
+                className="flex items-center space-x-2 cursor-pointer"
+                onClick={() => setCurrentView("dashboard")}
+              >
+                <TelemarketLogo className="h-10 md:h-12" />
+              </div>
+
+              <div className="flex md:hidden items-center gap-2">
+                <div className="flex items-center gap-1 text-gray-700 bg-gray-100 px-1.5 py-1.5 rounded-lg shrink-0 border border-gray-200">
+                  <Globe className="w-4 h-4 opacity-80" />
+                  <select value={lang} onChange={(e) => setLang(e.target.value as Language)} className="bg-transparent border-none text-gray-700 outline-none cursor-pointer text-xs font-bold max-w-[50px]">
+                    <option value="en">English</option>
+                    <option value="bn">Bengali</option>
+                    <option value="hi">Hindi</option>
+                    <option value="es">Spanish</option>
+                    <option value="ar">Arabic</option>
+                    <option value="ru">Russian</option>
+                    <option value="pt">Portuguese</option>
+                    <option value="fr">French</option>
+                    <option value="de">German</option>
+                    <option value="zh">Chinese</option>
+                    <option value="ja">Japanese</option>
+                    <option value="ko">Korean</option>
+                    <option value="tr">Turkish</option>
+                    <option value="id">Indonesian</option>
+                    <option value="ur">Urdu</option>
+                    <option value="it">Italian</option>
+                    <option value="nl">Dutch</option>
+                    <option value="pl">Polish</option>
+                    <option value="vi">Vietnamese</option>
+                    <option value="th">Thai</option>
+                  </select>
+                </div>
+                <div 
+                  className="flex items-center gap-1 bg-[#1cd435] hover:bg-green-600 text-white px-3 py-1.5 rounded-full cursor-pointer transition shadow-sm"
+                  onClick={() => { (window as any).triggerAdClick?.(); requireAuth(() => setTopupModal(true)); }}
+                >
+                  <Wallet className="w-4 h-4" />
+                  <span className="font-bold text-sm">${balanceUSD.toFixed(0)}</span>
+                </div>
+                <div
+                  className={`w-9 h-9 bg-[#5b8735] hover:opacity-90 text-white rounded-full flex items-center justify-center font-bold text-base cursor-pointer shadow-sm uppercase tracking-wider relative ${currentUser?.photoURL ? '' : 'overflow-hidden'}`}
+                  onClick={() => requireAuth(() => setCurrentView("profile"))}
+                >
+                  {currentUser?.photoURL ? (
+                    <img src={currentUser.photoURL} alt="Avatar" className="w-full h-full rounded-full object-cover" />
+                  ) : (
+                    currentUser?.email?.[0] || "U"
+                  )}
+                </div>
+              </div>
             </div>
 
-            {/* Mobile Actions */}
-            <div className="flex md:hidden items-center gap-2">
-              {numericId && (
-                <div className="bg-white/20 text-white px-2 py-1 rounded text-xs font-bold font-mono border border-white/30 hidden sm:flex items-center">
-                  UID: {numericId}
-                </div>
-              )}
-              <div className="flex items-center gap-1 text-white bg-black/10 px-2 py-1 rounded-lg">
+            {/* Desktop Navbar right side */}
+            <div className="hidden md:flex w-full md:w-auto items-center gap-2 lg:gap-4 overflow-x-auto no-scrollbar">
+              <nav className="flex items-center gap-1 lg:gap-2 font-medium min-w-max">
+                <button onClick={() => setCurrentView("dashboard")} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "dashboard" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
+                  <LayoutDashboard className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.dashboardNav}</span>
+                </button>
+                <button onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("buy"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "buy" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
+                  <ShoppingCart className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.buyNav}</span>
+                </button>
+                <button onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("sell"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "sell" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
+                  <PlusCircle className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.sellNav}</span>
+                </button>
+                <button onClick={() => requireAuth(() => setCurrentView("records"))} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "records" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
+                  <FileText className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.recordsNav || "My Orders"}</span>
+                </button>
+                <button onClick={() => requireAuth(() => setCurrentView("profile"))} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "profile" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
+                  <User className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.profileNav || "Profile"}</span>
+                </button>
+                {currentUser?.email && (currentUser.email === "admin@gmail.com" || currentUser.email === "uzvsbdnzyxhzj@gmail.com") && (
+                  <button onClick={() => setCurrentView("admin")} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm bg-red-100 text-red-600 hover:bg-red-200 font-bold`}>
+                    <Settings className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.adminNav}</span>
+                  </button>
+                )}
+              </nav>
+
+              <div className="flex items-center gap-1 text-gray-700 bg-gray-100 px-2 py-1 rounded-lg shrink-0 border border-gray-200">
                 <Globe className="w-4 h-4 opacity-80" />
-                <select
-                  value={lang}
-                  onChange={(e) => setLang(e.target.value as Language)}
-                  className="bg-transparent border-none text-white outline-none cursor-pointer text-xs font-medium appearance-none"
-                >
-                  <option value="en" className="text-gray-900">English</option>
-                  <option value="bn" className="text-gray-900">Bengali (বাংলা)</option>
-                  <option value="hi" className="text-gray-900">Hindi (हिन्दी)</option>
-                  <option value="es" className="text-gray-900">Spanish (Español)</option>
-                  <option value="ar" className="text-gray-900">Arabic (العربية)</option>
-                  <option value="ru" className="text-gray-900">Russian (Русский)</option>
-                  <option value="pt" className="text-gray-900">Portuguese (Português)</option>
-                  <option value="fr" className="text-gray-900">French (Français)</option>
-                  <option value="de" className="text-gray-900">German (Deutsch)</option>
-                  <option value="zh" className="text-gray-900">Chinese (中文)</option>
-                  <option value="ja" className="text-gray-900">Japanese (日本語)</option>
-                  <option value="ko" className="text-gray-900">Korean (한국어)</option>
-                  <option value="tr" className="text-gray-900">Turkish (Türkçe)</option>
-                  <option value="id" className="text-gray-900">Indonesian (Bahasa Indonesia)</option>
-                  <option value="ur" className="text-gray-900">Urdu (اردو)</option>
-                  <option value="it" className="text-gray-900">Italian (Italiano)</option>
-                  <option value="nl" className="text-gray-900">Dutch (Nederlands)</option>
-                  <option value="pl" className="text-gray-900">PL</option>
-                  <option value="vi" className="text-gray-900">VI</option>
-                  <option value="th" className="text-gray-900">TH</option>
+                <select value={lang} onChange={(e) => setLang(e.target.value as Language)} className="bg-transparent border-none text-gray-700 outline-none cursor-pointer text-xs font-bold max-w-[80px]">
+                  <option value="en">English</option>
+                  <option value="bn">Bengali</option>
+                  <option value="hi">Hindi</option>
+                  <option value="es">Spanish</option>
+                  <option value="ar">Arabic</option>
+                  <option value="ru">Russian</option>
+                  <option value="pt">Portuguese</option>
+                  <option value="fr">French</option>
+                  <option value="de">German</option>
+                  <option value="zh">Chinese</option>
+                  <option value="ja">Japanese</option>
+                  <option value="ko">Korean</option>
+                  <option value="tr">Turkish</option>
+                  <option value="id">Indonesian</option>
+                  <option value="ur">Urdu</option>
+                  <option value="it">Italian</option>
+                  <option value="nl">Dutch</option>
+                  <option value="pl">Polish</option>
+                  <option value="vi">Vietnamese</option>
+                  <option value="th">Thai</option>
                 </select>
               </div>
+
+              <div 
+                className="flex items-center gap-1.5 bg-[#1cd435] hover:bg-green-600 text-white px-3 py-1.5 rounded-full cursor-pointer transition shadow-sm shrink-0"
+                onClick={() => { (window as any).triggerAdClick?.(); requireAuth(() => setTopupModal(true)); }}
+              >
+                <Wallet className="w-4 h-4" />
+                <span className="font-bold text-sm">${balanceUSD.toFixed(0)}</span>
+              </div>
+              <div
+                className={`w-9 h-9 lg:w-10 lg:h-10 bg-[#5b8735] hover:opacity-90 text-white rounded-full flex items-center justify-center font-bold text-lg cursor-pointer shadow-sm uppercase tracking-wider relative shrink-0 ${currentUser?.photoURL ? '' : 'overflow-hidden'}`}
+                onClick={() => requireAuth(() => setCurrentView("profile"))}
+              >
+                {currentUser?.photoURL ? (
+                  <img src={currentUser.photoURL} alt="Avatar" className="w-full h-full rounded-full object-cover" />
+                ) : (
+                  currentUser?.email?.[0] || "U"
+                )}
+              </div>
               <button
-                onClick={() => {
-                  localStorage.setItem("skip_auto_login", "true");
-                  signOut(auth);
-                }}
-                className="flex items-center justify-center bg-red-500/80 hover:bg-red-500 text-white p-2 rounded-lg text-xs font-bold transition"
+                onClick={() => { localStorage.setItem("skip_auto_login", "true"); signOut(auth); }}
+                className="flex items-center justify-center w-9 h-9 lg:w-10 lg:h-10 bg-gray-100 hover:bg-red-100 hover:text-red-600 text-gray-500 rounded-full transition shrink-0"
                 title="Sign Out"
               >
                 <LogOut className="w-4 h-4" />
               </button>
-              <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="flex items-center justify-center bg-black/20 hover:bg-black/30 text-white p-2 rounded-lg transition"
-              >
-                {isMobileMenuOpen ? (
-                  <X className="w-5 h-5" />
-                ) : (
-                  <Menu className="w-5 h-5" />
-                )}
-              </button>
             </div>
-          </div>
-
-          <div className="hidden md:block w-full md:w-auto overflow-x-auto pb-1 no-scrollbar">
-            <nav className="flex items-center gap-2 font-medium min-w-max">
-              <button
-                onClick={() => setCurrentView("dashboard")}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition text-sm ${currentView === "dashboard" ? "bg-black/20 text-white font-bold" : "hover:bg-black/10"}`}
-              >
-                <LayoutDashboard className="w-4 h-4 shrink-0" />
-                <span className="whitespace-nowrap">{i18n.dashboardNav}</span>
-              </button>
-              <button
-                onClick={() => setCurrentView("buy")}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition text-sm ${currentView === "buy" ? "bg-black/20 text-white font-bold" : "hover:bg-black/10"}`}
-              >
-                <ShoppingCart className="w-4 h-4 shrink-0" />
-                <span className="whitespace-nowrap">{i18n.buyNav}</span>
-              </button>
-
-              <button
-                onClick={() => setCurrentView("sell")}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition text-sm ${currentView === "sell" ? "bg-black/20 text-white font-bold" : "hover:bg-black/10"}`}
-              >
-                <PlusCircle className="w-4 h-4 shrink-0" />
-                <span className="whitespace-nowrap">{i18n.sellNav}</span>
-              </button>
-
-              <button
-                onClick={() => setCurrentView("records")}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition text-sm ${currentView === "records" ? "bg-black/20 text-white font-bold" : "hover:bg-black/10"}`}
-              >
-                <FileText className="w-4 h-4 shrink-0" />
-                <span className="whitespace-nowrap">
-                  {i18n.recordsNav || "Record buy/sell"}
-                </span>
-              </button>
-              <button
-                onClick={() => setCurrentView("profile")}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition text-sm ${currentView === "profile" ? "bg-black/20 text-white font-bold" : "hover:bg-black/10"}`}
-              >
-                <User className="w-4 h-4 shrink-0" />
-                <span className="whitespace-nowrap">
-                  {i18n.profileNav || "Profile"}
-                </span>
-              </button>
-              {currentUser?.email &&
-              (currentUser.email === "admin@gmail.com" ||
-                currentUser.email === "uzvsbdnzyxhzj@gmail.com") ? (
-                <button
-                  onClick={() => setCurrentView("admin")}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition text-sm bg-red-500 hover:bg-red-600 ${currentView === "admin" ? "ring-2 ring-white/50 font-bold" : ""}`}
-                >
-                  <Settings className="w-4 h-4 shrink-0" />
-                  <span className="whitespace-nowrap">{i18n.adminNav}</span>
-                </button>
-              ) : null}
-            </nav>
-          </div>
-
-          {/* Expanded Mobile Menu */}
-          {isMobileMenuOpen && (
-            <div className="w-full md:hidden flex flex-col gap-2 mt-2 bg-black/10 p-2 rounded-xl">
-              <button
-                onClick={() => {
-                  setCurrentView("dashboard");
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`flex items-center gap-2 px-4 py-3 rounded-lg transition text-sm ${currentView === "dashboard" ? "bg-black/20 text-white font-bold" : "hover:bg-black/10"}`}
-              >
-                <LayoutDashboard className="w-5 h-5 shrink-0" />
-                <span>{i18n.dashboardNav}</span>
-              </button>
-              <button
-                onClick={() => {
-                  setCurrentView("buy");
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`flex items-center gap-2 px-4 py-3 rounded-lg transition text-sm ${currentView === "buy" ? "bg-black/20 text-white font-bold" : "hover:bg-black/10"}`}
-              >
-                <ShoppingCart className="w-5 h-5 shrink-0" />
-                <span>{i18n.buyNav}</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setCurrentView("sell");
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`flex items-center gap-2 px-4 py-3 rounded-lg transition text-sm ${currentView === "sell" ? "bg-black/20 text-white font-bold" : "hover:bg-black/10"}`}
-              >
-                <PlusCircle className="w-5 h-5 shrink-0" />
-                <span>{i18n.sellNav}</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setCurrentView("records");
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`flex items-center gap-2 px-4 py-3 rounded-lg transition text-sm ${currentView === "records" ? "bg-black/20 text-white font-bold" : "hover:bg-black/10"}`}
-              >
-                <FileText className="w-5 h-5 shrink-0" />
-                <span>{i18n.recordsNav || "Record buy/sell"}</span>
-              </button>
-              <button
-                onClick={() => {
-                  setCurrentView("profile");
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`flex items-center gap-2 px-4 py-3 rounded-lg transition text-sm ${currentView === "profile" ? "bg-black/20 text-white font-bold" : "hover:bg-black/10"}`}
-              >
-                <User className="w-5 h-5 shrink-0" />
-                <span>{i18n.profileNav || "Profile"}</span>
-              </button>
-              <button
-                onClick={() => {
-                  setTopupModal(true);
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`flex items-center gap-2 px-4 py-3 rounded-lg transition text-sm hover:bg-black/10`}
-              >
-                <ShoppingCart className="w-5 h-5 shrink-0" />
-                <span>Top Up</span>
-              </button>
-              <button
-                onClick={() => {
-                  setWithdrawModal(true);
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`flex items-center gap-2 px-4 py-3 rounded-lg transition text-sm hover:bg-black/10`}
-              >
-                <Wallet className="w-5 h-5 shrink-0" />
-                <span>Withdraw</span>
-              </button>
-              {currentUser?.email &&
-              (currentUser.email === "admin@gmail.com" ||
-                currentUser.email === "uzvsbdnzyxhzj@gmail.com") ? (
-                <button
-                  onClick={() => {
-                    setCurrentView("admin");
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className={`flex items-center gap-2 px-4 py-3 rounded-lg transition text-sm bg-red-500 hover:bg-red-600 ${currentView === "admin" ? "ring-2 ring-white/50 font-bold" : ""}`}
-                >
-                  <Settings className="w-5 h-5 shrink-0" />
-                  <span>{i18n.adminNav}</span>
-                </button>
-              ) : null}
-            </div>
-          )}
-
-          <div className="hidden md:flex items-center gap-4">
-            {/* Language Selector (Google Translate) desktop */}
-            <div className="flex flex-col md:flex-row items-center gap-2">
-              {numericId && (
-                <div className="bg-white/20 text-white px-2 py-1 rounded text-xs font-bold font-mono border border-white/30 hidden sm:flex items-center">
-                  UID: {numericId}
-                </div>
-              )}
-              <div className="flex items-center gap-1 text-white bg-black/10 px-2 py-1 rounded-lg">
-                <Globe className="w-4 h-4 opacity-80" />
-                <select
-                  value={lang}
-                  onChange={(e) => setLang(e.target.value as Language)}
-                  className="bg-transparent border-none text-white outline-none cursor-pointer text-xs md:text-sm font-medium"
-                >
-                  <option value="en" className="text-gray-900">English</option>
-                  <option value="bn" className="text-gray-900">Bengali (বাংলা)</option>
-                  <option value="hi" className="text-gray-900">Hindi (हिन्दी)</option>
-                  <option value="es" className="text-gray-900">Spanish (Español)</option>
-                  <option value="ar" className="text-gray-900">Arabic (العربية)</option>
-                  <option value="ru" className="text-gray-900">Russian (Русский)</option>
-                  <option value="pt" className="text-gray-900">Portuguese (Português)</option>
-                  <option value="fr" className="text-gray-900">French (Français)</option>
-                  <option value="de" className="text-gray-900">German (Deutsch)</option>
-                  <option value="zh" className="text-gray-900">Chinese (中文)</option>
-                  <option value="ja" className="text-gray-900">Japanese (日本語)</option>
-                  <option value="ko" className="text-gray-900">Korean (한국어)</option>
-                  <option value="tr" className="text-gray-900">Turkish (Türkçe)</option>
-                  <option value="id" className="text-gray-900">Indonesian (Bahasa Indonesia)</option>
-                  <option value="ur" className="text-gray-900">Urdu (اردو)</option>
-                  <option value="it" className="text-gray-900">Italian (Italiano)</option>
-                  <option value="nl" className="text-gray-900">Dutch (Nederlands)</option>
-                  <option value="pl" className="text-gray-900">Polski (Polish)</option>
-                  <option value="vi" className="text-gray-900">Tiếng Việt (Vietnamese)</option>
-                  <option value="th" className="text-gray-900">ไทย (Thai)</option>
-                </select>
-              </div>
-            </div>
-
-            <button
-              onClick={() => {
-                localStorage.setItem("skip_auto_login", "true");
-                signOut(auth);
-              }}
-              className="flex items-center gap-1 bg-red-500/80 hover:bg-red-500 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition ml-2"
-              title="Sign Out"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden md:inline">Logout</span>
-            </button>
-          </div>
         </div>
       </header>
 
-      <AdvertisementBanner onPostAdClick={() => setCurrentView("post-ad")} />
+      <AdvertisementBanner onPostAdClick={() => requireAuth(() => setCurrentView("post-ad"))} />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
+      <main data-view={currentView} className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
         {currentView === "post-ad" && (
           <PostAd
             balanceUSD={balanceUSD}
@@ -2403,7 +2306,7 @@ export default function App() {
                 History
               </h2>
               <button
-                onClick={() => setCurrentView("profile")}
+                onClick={() => requireAuth(() => setCurrentView("profile"))}
                 className="text-sm font-medium text-[#2AABEE] hover:underline bg-[#2AABEE]/10 px-3 py-1.5 rounded-lg border border-[#2AABEE]/20"
               >
                 Back to Profile
@@ -2626,39 +2529,78 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Account Card */}
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-3xl font-bold text-blue-600">
-                    {currentUser?.email
-                      ? currentUser.email[0].toUpperCase()
-                      : "U"}
+              
+              <div className="space-y-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden text-center p-6">
+                  <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-[#1cd435] to-green-600 p-1 mb-4 flex items-center justify-center">
+                    {currentUser?.photoURL ? (
+                      <img src={currentUser.photoURL} alt="Profile Avatar" className="w-full h-full rounded-full object-cover border-4 border-white" />
+                    ) : (
+                      <div className="w-full h-full rounded-full bg-[#1cd435] flex items-center justify-center text-white text-4xl font-bold border-4 border-white">
+                        {currentUser?.displayName?.[0]?.toUpperCase() || currentUser?.email?.[0]?.toUpperCase() || "U"}
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-900">
-                      {currentUser?.email || "User"}
-                    </h3>
-                    <p className="text-gray-500 font-mono text-sm">
-                      UID: {numericId}
-                    </p>
+                  <h3 className="text-xl font-bold text-[#1cd435] mb-2 uppercase">
+                    Hi, {currentUser?.displayName || currentUser?.email?.split('@')[0] || "User"}
+                  </h3>
+                  <div className="flex items-center justify-center gap-2 mb-6">
+                    <span className="text-gray-800 font-bold text-base">Available Balance : {balanceUSD.toFixed(2)} USD</span>
+                    <button onClick={() => window.location.reload()} className="p-1 hover:bg-gray-100 border border-gray-300 rounded-md transition shadow-sm">
+                      <RefreshCw className="w-4 h-4 text-gray-700" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="border border-[#1cd435] rounded-xl p-4 text-center shadow-sm">
+                      <div className="text-[#1cd435] font-bold text-xl mb-1">{numericId}</div>
+                      <div className="text-[#152e4d] font-bold text-sm">Support Pin</div>
+                    </div>
+                    <div className="border border-[#1cd435] rounded-xl p-4 text-center shadow-sm">
+                      <div className="text-[#1cd435] font-bold text-xl mb-1">{transactions.filter(t => t.txType === "Credit").reduce((sum, t) => sum + (t.amountUSD || 0), 0).toFixed(2)} USD</div>
+                      <div className="text-[#152e4d] font-bold text-sm">Total Deposited</div>
+                    </div>
+                    <div className="border border-[#1cd435] rounded-xl p-4 text-center shadow-sm">
+                      <div className="text-[#1cd435] font-bold text-xl mb-1">{transactions.filter(t => t.type === "purchase" || t.txType === "Debit").reduce((sum, t) => sum + (t.amountUSD || 0), 0).toFixed(2)}</div>
+                      <div className="text-[#152e4d] font-bold text-sm">Total Spent</div>
+                    </div>
+                    <div className="border border-[#1cd435] rounded-xl p-4 text-center shadow-sm">
+                      <div className="text-[#1cd435] font-bold text-xl mb-1">{transactions.filter(t => t.type === "purchase" || t.type === "p2p_buy").length}</div>
+                      <div className="text-[#152e4d] font-bold text-sm">Total Order</div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center py-3 border-b border-gray-50">
-                    <span className="text-gray-600">Total Balance</span>
-                    <span className="font-bold text-gray-900">
-                      ${balanceUSD.toFixed(2)}
-                    </span>
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="p-4 border-b border-gray-100 flex items-center gap-2">
+                    <Wallet className="w-5 h-5 text-gray-800" />
+                    <h3 className="font-bold text-gray-800 text-lg">Account Information</h3>
                   </div>
-                  <div className="flex justify-between items-center py-3 border-b border-gray-50">
-                    <span className="text-gray-600">Account Status</span>
-                    <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold uppercase">
-                      Active
-                    </span>
+                  <div className="p-6">
+                      <div className="bg-[#1cd435] text-white rounded-lg p-4 text-center mb-4">
+                        <div className="font-bold text-xl mb-1">{balanceUSD.toFixed(2)} USD</div>
+                        <div className="text-sm font-bold tracking-wide">Available Balance</div>
+                      </div>
+                      <div className="border border-gray-200 rounded-lg p-6 text-center shadow-sm">
+                        <CheckCircle className="w-10 h-10 text-blue-500 mx-auto fill-blue-500/10" />
+                        <div className="text-xl font-bold mt-3 text-gray-800">Account Verified!</div>
+                      </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+                  <div className="p-4 border-b border-gray-100 flex items-center gap-2">
+                    <Info className="w-5 h-5 text-gray-800" />
+                    <h3 className="font-bold text-gray-800 text-lg">User Information</h3>
+                  </div>
+                  <div className="p-6 text-sm text-gray-800 space-y-3">
+                      <p className="flex items-center"><strong className="w-16">email :</strong> <span className="font-medium text-gray-600">{currentUser?.email}</span></p>
+                      <p className="flex items-center"><strong className="w-16">Phone :</strong> <span className="font-medium text-gray-600">N/A</span></p>
                   </div>
                 </div>
               </div>
+              
+              <div className="space-y-6">
 
               {/* Referral Profile Card */}
               <div className="bg-gradient-to-r from-orange-400 to-amber-500 p-6 rounded-2xl shadow-lg text-white overflow-hidden relative">
@@ -2754,6 +2696,7 @@ export default function App() {
                 </div>
                 <div className="absolute right-[-10%] top-[-20%] w-64 h-64 bg-white/10 rounded-full blur-3xl outline-none"></div>
               </div>
+              </div>
             </div>
 
             {/* Referrals List */}
@@ -2813,7 +2756,7 @@ export default function App() {
               )}
             </div>
 
-            <AdvertisementBanner onPostAdClick={() => setCurrentView("post-ad")} />
+            <AdvertisementBanner onPostAdClick={() => requireAuth(() => setCurrentView("post-ad"))} />
 
             {/* My Advertisements Component */}
             <MyAdsProfile currentUser={currentUser} onNavigate={setCurrentView} />
@@ -2825,7 +2768,7 @@ export default function App() {
               </div>
               <div className="divide-y divide-gray-50">
                 <button
-                  onClick={() => setCurrentView("wallet-history")}
+                  onClick={() => requireAuth(() => setCurrentView("wallet-history"))}
                   className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left"
                 >
                   <div className="flex items-center gap-3">
@@ -2839,7 +2782,7 @@ export default function App() {
                   <ArrowRight className="w-4 h-4 text-gray-400" />
                 </button>
                 <button
-                  onClick={() => setCurrentView("records")}
+                  onClick={() => requireAuth(() => setCurrentView("records"))}
                   className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left"
                 >
                   <div className="flex items-center gap-3">
@@ -2879,7 +2822,7 @@ export default function App() {
                   Recent Wallet History
                 </h3>
                 <button
-                  onClick={() => setCurrentView("wallet-history")}
+                  onClick={() => requireAuth(() => setCurrentView("wallet-history"))}
                   className="text-sm font-medium text-[#2AABEE] hover:underline"
                 >
                   View All
@@ -2958,6 +2901,60 @@ export default function App() {
                 )}
               </div>
             </div>
+            {/* Contact Support Section */}
+            <div className="mt-8 pb-10">
+              <h2 className="text-xl font-bold mb-4 text-gray-800 border-b pb-2">Contact Us</h2>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center justify-center gap-2 hover:bg-gray-50 transition">
+                  <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.04c-5.5 0-10 4.48-10 10.02c0 5.01 3.66 9.15 8.44 9.9v-7H7.9v-2.9h2.54V9.85c0-2.51 1.49-3.89 3.78-3.89c1.09 0 2.23.2 2.23.2v2.45h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.45 2.9h-2.33v7a10 10 0 0 0 8.44-9.9c0-5.54-4.5-10.02-10-10.02z"/></svg>
+                  <span className="font-bold text-gray-700">Facebook</span>
+                </a>
+                <a href="https://youtube.com" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center justify-center gap-2 hover:bg-gray-50 transition">
+                  <svg className="w-6 h-6 text-red-600" fill="currentColor" viewBox="0 0 24 24"><path d="M21.58 7.19c-.23-.86-.91-1.54-1.77-1.77C18.24 5 12 5 12 5s-6.24 0-7.81.42c-.86.23-1.54.91-1.77 1.77C2 8.76 2 12 2 12s0 3.24.42 4.81c.23.86.91 1.54 1.77 1.77C5.76 19 12 19 12 19s6.24 0 7.81-.42c.86-.23 1.54-.91 1.77-1.77C22 15.24 22 12 22 12s0-3.24-.42-4.81zM9.5 15.5v-7l6 3.5l-6 3.5z"/></svg>
+                  <span className="font-bold text-gray-700">YouTube</span>
+                </a>
+                <a href="https://t.me/your_telegram" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center justify-center gap-2 hover:bg-gray-50 transition">
+                  <svg className="w-6 h-6 text-[#2AABEE]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.06-.2-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06 0 .13-.01.2z"/></svg>
+                  <span className="font-bold text-gray-700">Telegram</span>
+                </a>
+                <a href="https://wa.me/8801644627304" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center justify-center gap-2 hover:bg-gray-50 transition">
+                  <svg className="w-6 h-6 text-[#25D366]" fill="currentColor" viewBox="0 0 24 24"><path d="M17.47 13.5v-.01c-.13-.06-1.14-.56-1.32-.63-.18-.06-.31-.1-.44.1-.14.19-.5.63-.61.76-.11.13-.23.14-.36.08-.13-.06-.82-.3-1.56-.96-.58-.51-.97-1.14-1.08-1.32-.12-.19 0-.29.07-.38.06-.06.13-.15.2-.23.06-.07.08-.13.13-.21.04-.08.02-.16-.01-.22-.04-.06-.44-1.06-.61-1.46-.16-.39-.32-.34-.44-.34h-.38c-.13 0-.34.05-.51.24s-.68.66-.68 1.62c0 .96.69 1.88.79 2.01.1.13 1.37 2.09 3.31 2.93 1.65.71 2.14.77 2.92.65.65-.1 1.43-.59 1.63-1.16.2-.56.2-.1.14-.11z"/><path d="M12 2C6.48 2 2 6.48 2 12c0 1.95.55 3.76 1.48 5.3L2 22l4.89-1.28A9.957 9.957 0 0012 22c5.52 0 10-4.48 10-10S17.52 2 12 2zM12 20.31c-1.63 0-3.19-.43-4.52-1.22l-.32-.18-3.37.88.9-3.28-.2-.33a8.307 8.307 0 01-1.28-4.45c0-4.59 3.73-8.32 8.32-8.32 4.59 0 8.32 3.73 8.32 8.32s-3.73 8.32-8.32 8.32z"/></svg>
+                  <span className="font-bold text-gray-700">WhatsApp</span>
+                </a>
+              </div>
+
+              <div className="space-y-4">
+                <a href="https://wa.me/8801644627304" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center justify-between hover:bg-gray-50 transition cursor-pointer">
+                   <div className="flex items-center gap-4">
+                     <svg className="w-10 h-10 text-[#25D366]" fill="currentColor" viewBox="0 0 24 24"><path d="M17.47 13.5v-.01c-.13-.06-1.14-.56-1.32-.63-.18-.06-.31-.1-.44.1-.14.19-.5.63-.61.76-.11.13-.23.14-.36.08-.13-.06-.82-.3-1.56-.96-.58-.51-.97-1.14-1.08-1.32-.12-.19 0-.29.07-.38.06-.06.13-.15.2-.23.06-.07.08-.13.13-.21.04-.08.02-.16-.01-.22-.04-.06-.44-1.06-.61-1.46-.16-.39-.32-.34-.44-.34h-.38c-.13 0-.34.05-.51.24s-.68.66-.68 1.62c0 .96.69 1.88.79 2.01.1.13 1.37 2.09 3.31 2.93 1.65.71 2.14.77 2.92.65.65-.1 1.43-.59 1.63-1.16.2-.56.2-.1.14-.11z"/><path d="M12 2C6.48 2 2 6.48 2 12c0 1.95.55 3.76 1.48 5.3L2 22l4.89-1.28A9.957 9.957 0 0012 22c5.52 0 10-4.48 10-10S17.52 2 12 2zM12 20.31c-1.63 0-3.19-.43-4.52-1.22l-.32-.18-3.37.88.9-3.28-.2-.33a8.307 8.307 0 01-1.28-4.45c0-4.59 3.73-8.32 8.32-8.32 4.59 0 8.32 3.73 8.32 8.32s-3.73 8.32-8.32 8.32z"/></svg>
+                     <div>
+                       <h4 className="font-bold text-gray-800 flex items-center gap-1.5">WhatsApp HelpLine <CheckCircle className="w-4 h-4 text-blue-500 fill-blue-500/20" /></h4>
+                       <p className="text-gray-500 text-sm mt-0.5">Available 24 hours / 7 days</p>
+                     </div>
+                   </div>
+                </a>
+
+                <a href="https://t.me/your_telegram" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center justify-between hover:bg-gray-50 transition cursor-pointer">
+                   <div className="flex items-center gap-4">
+                     <svg className="w-10 h-10 text-[#2AABEE]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.06-.2-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06 0 .13-.01.2z"/></svg>
+                     <div>
+                       <h4 className="font-bold text-gray-800 flex items-center gap-1.5">Telegram HelpLine <CheckCircle className="w-4 h-4 text-blue-500 fill-blue-500/20" /></h4>
+                       <p className="text-gray-500 text-sm mt-0.5">Available 24 hours / 7 days</p>
+                     </div>
+                   </div>
+                </a>
+                
+                <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center justify-between hover:bg-gray-50 transition cursor-pointer">
+                   <div className="flex items-center gap-4">
+                     <svg className="w-10 h-10 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.04c-5.5 0-10 4.48-10 10.02c0 5.01 3.66 9.15 8.44 9.9v-7H7.9v-2.9h2.54V9.85c0-2.51 1.49-3.89 3.78-3.89c1.09 0 2.23.2 2.23.2v2.45h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.45 2.9h-2.33v7a10 10 0 0 0 8.44-9.9c0-5.54-4.5-10.02-10-10.02z"/></svg>
+                     <div>
+                       <h4 className="font-bold text-gray-800 flex items-center gap-1.5">Facebook HelpLine <CheckCircle className="w-4 h-4 text-blue-500 fill-blue-500/20" /></h4>
+                       <p className="text-gray-500 text-sm mt-0.5">Available 24 hours / 7 days</p>
+                     </div>
+                   </div>
+                </a>
+              </div>
+            </div>
           </div>
         )}
 
@@ -2978,7 +2975,7 @@ export default function App() {
             {/* Quick Actions (Buy / Sell / Topup / Withdraw inside dashboard) */}
             <div className="grid grid-cols-2 gap-4 mb-6 md:grid-cols-4">
               <div
-                onClick={() => setCurrentView("buy")}
+                onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("buy"); }}
                 className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col"
               >
                 <div className="relative bg-gradient-to-br from-blue-500 to-blue-600 h-28 flex flex-col items-center justify-center px-4 pt-4 pb-2">
@@ -3015,7 +3012,7 @@ export default function App() {
               </div>
 
               <div
-                onClick={() => setCurrentView("sell")}
+                onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("sell"); }}
                 className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col"
               >
                 <div className="relative bg-gradient-to-br from-purple-500 to-purple-600 h-28 flex flex-col items-center justify-center px-4 pt-4 pb-2">
@@ -3048,7 +3045,7 @@ export default function App() {
               </div>
 
               <div
-                onClick={() => setTopupModal(true)}
+                onClick={() => { (window as any).triggerAdClick?.(); requireAuth(() => setTopupModal(true)); }}
                 className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col"
               >
                 <div className="relative bg-gradient-to-br from-indigo-600 to-indigo-700 h-28 flex flex-col items-center justify-center p-4">
@@ -3071,38 +3068,12 @@ export default function App() {
               </div>
 
               <div
-                onClick={() => setWithdrawModal(true)}
+                onClick={() => { (window as any).triggerAdClick?.(); requireAuth(() => setWithdrawModal(true)); }}
                 className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col"
               >
-                <div className="relative bg-gradient-to-br from-sky-500 to-blue-600 h-28 flex flex-col items-center justify-center p-4">
-                  <div className="relative mb-1">
-                    <svg
-                      className="w-14 h-14 drop-shadow-md"
-                      viewBox="0 0 64 64"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      {/* Roof Base */}
-                      <path d="M4 26H60V30H4V26Z" fill="#4B5563" />
-                      {/* Roof Triangle */}
-                      <path d="M32 6L4 26H60L32 6Z" fill="#6B7280" />
-                      {/* Pillars - Blue */}
-                      <rect x="8" y="30" width="8" height="20" fill="#3B82F6" />
-                      <rect x="28" y="30" width="8" height="20" fill="#3B82F6" />
-                      <rect x="48" y="30" width="8" height="20" fill="#3B82F6" />
-                      {/* Base Steps */}
-                      <path d="M4 50H60V54H4V50Z" fill="#6B7280" />
-                      <path d="M2 54H62V58H2V54Z" fill="#4B5563" />
-                      {/* Gold Coin in the middle of Roof */}
-                      <circle cx="32" cy="18" r="7" fill="#FBBF24" />
-                      <path
-                        d="M32 13V23M29 16.5C29 16.5 30 15 32 15C34 15 34.5 16.5 34.5 17.5C34.5 18.5 32.5 19 32 19C31.5 19 29.5 19.5 29.5 20.5C29.5 21.5 30 23 32 23C34 23 35 21 35 21"
-                        stroke="#B45309"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                <div className="relative bg-gradient-to-br from-teal-500 to-emerald-600 h-28 flex flex-col items-center justify-center p-4">
+                  <div className="relative mb-1 text-white">
+                    <CircleDollarSign className="w-12 h-12 text-white/90" />
                   </div>
                   <div className="text-white font-bold text-lg leading-tight tracking-tight mt-1">CASH OUT</div>
                 </div>
@@ -3121,7 +3092,7 @@ export default function App() {
 
             {/* Invite & Earn Banner */}
             <div
-              onClick={() => setCurrentView("profile")}
+              onClick={() => requireAuth(() => setCurrentView("profile"))}
               className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl p-6 text-white cursor-pointer hover:shadow-xl transition transform hover:-translate-y-1 relative overflow-hidden group mb-6 mt-4 md:mt-0"
             >
               <div className="relative z-10 flex items-center justify-between">
@@ -3174,7 +3145,7 @@ export default function App() {
                   </p>
                 </div>
                 <button
-                  onClick={() => setTopupModal(true)}
+                  onClick={() => { (window as any).triggerAdClick?.(); requireAuth(() => setTopupModal(true)); }}
                   className="w-full bg-[#2AABEE] text-white py-2.5 rounded-lg font-medium hover:bg-blue-500 transition shadow-sm"
                 >
                   {i18n.topupBtn}
@@ -3198,7 +3169,7 @@ export default function App() {
                   </p>
                 </div>
                 <button
-                  onClick={() => setWithdrawModal(true)}
+                  onClick={() => { (window as any).triggerAdClick?.(); requireAuth(() => setWithdrawModal(true)); }}
                   className="w-full bg-slate-800 text-white py-2.5 rounded-lg font-medium hover:bg-slate-700 transition shadow-sm"
                 >
                   {i18n.withdrawBtn}
@@ -3243,6 +3214,61 @@ export default function App() {
                 </p>
               </div>
             </div>
+            {/* Contact Support Section */}
+            <div className="mt-8 pb-10">
+              <h2 className="text-xl font-bold mb-4 text-gray-800 border-b pb-2">Contact Us</h2>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center justify-center gap-2 hover:bg-gray-50 transition">
+                  <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.04c-5.5 0-10 4.48-10 10.02c0 5.01 3.66 9.15 8.44 9.9v-7H7.9v-2.9h2.54V9.85c0-2.51 1.49-3.89 3.78-3.89c1.09 0 2.23.2 2.23.2v2.45h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.45 2.9h-2.33v7a10 10 0 0 0 8.44-9.9c0-5.54-4.5-10.02-10-10.02z"/></svg>
+                  <span className="font-bold text-gray-700">Facebook</span>
+                </a>
+                <a href="https://youtube.com" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center justify-center gap-2 hover:bg-gray-50 transition">
+                  <svg className="w-6 h-6 text-red-600" fill="currentColor" viewBox="0 0 24 24"><path d="M21.58 7.19c-.23-.86-.91-1.54-1.77-1.77C18.24 5 12 5 12 5s-6.24 0-7.81.42c-.86.23-1.54.91-1.77 1.77C2 8.76 2 12 2 12s0 3.24.42 4.81c.23.86.91 1.54 1.77 1.77C5.76 19 12 19 12 19s6.24 0 7.81-.42c.86-.23 1.54-.91 1.77-1.77C22 15.24 22 12 22 12s0-3.24-.42-4.81zM9.5 15.5v-7l6 3.5l-6 3.5z"/></svg>
+                  <span className="font-bold text-gray-700">YouTube</span>
+                </a>
+                <a href="https://t.me/your_telegram" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center justify-center gap-2 hover:bg-gray-50 transition">
+                  <svg className="w-6 h-6 text-[#2AABEE]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.06-.2-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06 0 .13-.01.2z"/></svg>
+                  <span className="font-bold text-gray-700">Telegram</span>
+                </a>
+                <a href="https://wa.me/8801644627304" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center justify-center gap-2 hover:bg-gray-50 transition">
+                  <svg className="w-6 h-6 text-[#25D366]" fill="currentColor" viewBox="0 0 24 24"><path d="M17.47 13.5v-.01c-.13-.06-1.14-.56-1.32-.63-.18-.06-.31-.1-.44.1-.14.19-.5.63-.61.76-.11.13-.23.14-.36.08-.13-.06-.82-.3-1.56-.96-.58-.51-.97-1.14-1.08-1.32-.12-.19 0-.29.07-.38.06-.06.13-.15.2-.23.06-.07.08-.13.13-.21.04-.08.02-.16-.01-.22-.04-.06-.44-1.06-.61-1.46-.16-.39-.32-.34-.44-.34h-.38c-.13 0-.34.05-.51.24s-.68.66-.68 1.62c0 .96.69 1.88.79 2.01.1.13 1.37 2.09 3.31 2.93 1.65.71 2.14.77 2.92.65.65-.1 1.43-.59 1.63-1.16.2-.56.2-.1.14-.11z"/><path d="M12 2C6.48 2 2 6.48 2 12c0 1.95.55 3.76 1.48 5.3L2 22l4.89-1.28A9.957 9.957 0 0012 22c5.52 0 10-4.48 10-10S17.52 2 12 2zM12 20.31c-1.63 0-3.19-.43-4.52-1.22l-.32-.18-3.37.88.9-3.28-.2-.33a8.307 8.307 0 01-1.28-4.45c0-4.59 3.73-8.32 8.32-8.32 4.59 0 8.32 3.73 8.32 8.32s-3.73 8.32-8.32 8.32z"/></svg>
+                  <span className="font-bold text-gray-700">WhatsApp</span>
+                </a>
+              </div>
+
+              <div className="space-y-4">
+                <a href="https://wa.me/8801644627304" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center justify-between hover:bg-gray-50 transition cursor-pointer">
+                   <div className="flex items-center gap-4">
+                     <svg className="w-10 h-10 text-[#25D366]" fill="currentColor" viewBox="0 0 24 24"><path d="M17.47 13.5v-.01c-.13-.06-1.14-.56-1.32-.63-.18-.06-.31-.1-.44.1-.14.19-.5.63-.61.76-.11.13-.23.14-.36.08-.13-.06-.82-.3-1.56-.96-.58-.51-.97-1.14-1.08-1.32-.12-.19 0-.29.07-.38.06-.06.13-.15.2-.23.06-.07.08-.13.13-.21.04-.08.02-.16-.01-.22-.04-.06-.44-1.06-.61-1.46-.16-.39-.32-.34-.44-.34h-.38c-.13 0-.34.05-.51.24s-.68.66-.68 1.62c0 .96.69 1.88.79 2.01.1.13 1.37 2.09 3.31 2.93 1.65.71 2.14.77 2.92.65.65-.1 1.43-.59 1.63-1.16.2-.56.2-.1.14-.11z"/><path d="M12 2C6.48 2 2 6.48 2 12c0 1.95.55 3.76 1.48 5.3L2 22l4.89-1.28A9.957 9.957 0 0012 22c5.52 0 10-4.48 10-10S17.52 2 12 2zM12 20.31c-1.63 0-3.19-.43-4.52-1.22l-.32-.18-3.37.88.9-3.28-.2-.33a8.307 8.307 0 01-1.28-4.45c0-4.59 3.73-8.32 8.32-8.32 4.59 0 8.32 3.73 8.32 8.32s-3.73 8.32-8.32 8.32z"/></svg>
+                     <div>
+                       <h4 className="font-bold text-gray-800 flex items-center gap-1.5">WhatsApp HelpLine <CheckCircle className="w-4 h-4 text-blue-500 fill-blue-500/20" /></h4>
+                       <p className="text-gray-500 text-sm mt-0.5">Available 24 hours / 7 days</p>
+                     </div>
+                   </div>
+                </a>
+
+                <a href="https://t.me/your_telegram" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center justify-between hover:bg-gray-50 transition cursor-pointer">
+                   <div className="flex items-center gap-4">
+                     <svg className="w-10 h-10 text-[#2AABEE]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.06-.2-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06 0 .13-.01.2z"/></svg>
+                     <div>
+                       <h4 className="font-bold text-gray-800 flex items-center gap-1.5">Telegram HelpLine <CheckCircle className="w-4 h-4 text-blue-500 fill-blue-500/20" /></h4>
+                       <p className="text-gray-500 text-sm mt-0.5">Available 24 hours / 7 days</p>
+                     </div>
+                   </div>
+                </a>
+                
+                <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center justify-between hover:bg-gray-50 transition cursor-pointer">
+                   <div className="flex items-center gap-4">
+                     <svg className="w-10 h-10 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.04c-5.5 0-10 4.48-10 10.02c0 5.01 3.66 9.15 8.44 9.9v-7H7.9v-2.9h2.54V9.85c0-2.51 1.49-3.89 3.78-3.89c1.09 0 2.23.2 2.23.2v2.45h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.45 2.9h-2.33v7a10 10 0 0 0 8.44-9.9c0-5.54-4.5-10.02-10-10.02z"/></svg>
+                     <div>
+                       <h4 className="font-bold text-gray-800 flex items-center gap-1.5">Facebook HelpLine <CheckCircle className="w-4 h-4 text-blue-500 fill-blue-500/20" /></h4>
+                       <p className="text-gray-500 text-sm mt-0.5">Available 24 hours / 7 days</p>
+                     </div>
+                   </div>
+                </a>
+              </div>
+            </div>
+
           </div>
         )}
 
@@ -4038,6 +4064,56 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* Mobile Bottom Navigation Bar */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-[60] flex justify-around items-center px-1 py-1.5 pb-2 shadow-[0_-5px_15px_rgba(0,0,0,0.05)]">
+        <button onClick={() => setCurrentView("dashboard")} className={`flex flex-col items-center flex-1 py-1 transition-colors ${currentView === "dashboard" ? "text-blue-700" : "text-gray-500 hover:text-gray-900"}`}>
+          <Home className={`w-[22px] h-[22px] mb-0.5 ${currentView === "dashboard" ? "stroke-[2.5px]" : "stroke-2"}`} />
+          <span className={`text-[10px] ${currentView === "dashboard" ? "font-bold" : "font-medium"}`}>Home</span>
+        </button>
+        <button onClick={() => { (window as any).triggerAdClick?.(); requireAuth(() => { setTopupModal(true); setIsMobileMenuOpen(false); }); }} className={`flex flex-col items-center flex-1 py-1 transition-colors text-gray-500 hover:text-gray-900`}>
+          <svg className="w-[22px] h-[22px] mb-0.5 stroke-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+          <span className="text-[10px] font-medium">Add Money</span>
+        </button>
+        <button onClick={() => requireAuth(() => setCurrentView("records"))} className={`flex flex-col items-center flex-1 py-1 transition-colors ${currentView === "records" ? "text-blue-700" : "text-gray-500 hover:text-gray-900"}`}>
+          <Bookmark className={`w-[22px] h-[22px] mb-0.5 ${currentView === "records" ? "stroke-[2.5px]" : "stroke-2"}`} />
+          <span className={`text-[10px] ${currentView === "records" ? "font-bold" : "font-medium"}`}>My Orders</span>
+        </button>
+        <button onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("buy"); }} className={`flex flex-col items-center flex-1 py-1 transition-colors ${currentView === "buy" ? "text-blue-700" : "text-gray-500 hover:text-gray-900"}`}>
+          <LayoutGrid className={`w-[22px] h-[22px] mb-0.5 ${currentView === "buy" ? "stroke-[2.5px]" : "stroke-2"}`} />
+          <span className={`text-[10px] ${currentView === "buy" ? "font-bold" : "font-medium"}`}>My Codes</span>
+        </button>
+        <button onClick={() => requireAuth(() => setCurrentView("profile"))} className={`flex flex-col items-center flex-1 py-1 transition-colors ${currentView === "profile" ? "text-blue-700" : "text-gray-500 hover:text-gray-900"}`}>
+          <User className={`w-[22px] h-[22px] mb-0.5 ${currentView === "profile" ? "stroke-[2.5px]" : "stroke-2"}`} />
+          <span className={`text-[10px] ${currentView === "profile" ? "font-bold" : "font-medium"}`}>My Account</span>
+        </button>
+      </div>
+
+      {/* Floating Action Buttons */}
+      <div className="fixed bottom-20 right-4 z-[70] flex flex-col items-end gap-3">
+        {/* Chat Bot Button */}
+        {!isChatOpen && (
+           <button onClick={() => setIsChatOpen(true)} className="bg-gradient-to-r from-blue-600 to-[#2AABEE] text-white p-3 rounded-full shadow-2xl flex items-center justify-center transform hover:scale-105 transition">
+             <Bot className="w-6 h-6" />
+           </button>
+        )}
+
+        {/* WhatsApp Button */}
+        <div className="flex items-center shadow-xl rounded-full" style={{ filter: 'drop-shadow(0px 4px 6px rgba(0,0,0,0.1))' }}>
+          <button onClick={() => window.open("https://wa.me/8801644627304", "_blank")} className="flex items-center cursor-pointer">
+              <div className="bg-[#dd3333] text-white px-3 py-1.5 rounded-l-full font-bold text-xs border border-[#dd3333] tracking-wide h-10 flex items-center -mr-3 pr-4">
+                Need Help?
+              </div>
+              <div className="bg-[#c22020] text-white p-2.5 rounded-full z-10 w-11 h-11 flex items-center justify-center transform hover:scale-105 transition shadow-lg">
+                <Phone className="w-5 h-5 fill-current" />
+              </div>
+          </button>
+        </div>
+      </div>
+
+      {isChatOpen && <ChatBot onClose={() => setIsChatOpen(false)} />}
 
       {/* Modals */}
       {p2pModal && renderP2pModal()}

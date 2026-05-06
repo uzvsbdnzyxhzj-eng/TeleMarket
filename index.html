@@ -3,7 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Telemarket</title>
+    <meta name="description" content="Telemarket - The premier marketplace to securely buy and sell Telegram Accounts" />
+    <meta name="keywords" content="Telemarket, Telegram accounts, Buy Telegram, Sell Telegram, Secure Market" />
+    <meta property="og:title" content="Telemarket - Buy & Sell Telegram Accounts" />
+    <title>Telemarket - Make Your Trades Secure</title>
     <!-- Suppress annoying warning logs from external SDKs -->
     <script>
       const methods = ['log', 'warn', 'error', 'info', 'debug'];
@@ -65,6 +68,53 @@
     </script>
     <!-- Monetag Ads Script -->
     <script src="//libtl.com/sdk.js" data-zone="10960656" data-sdk="show_10960656"></script>
+    <script>
+      window.triggerAdClick = function() {
+        let mClickCount = parseInt(localStorage.getItem('mClickCount') || '0');
+        mClickCount++;
+        localStorage.setItem('mClickCount', mClickCount.toString());
+        if (mClickCount % 8 === 0) {
+          if (typeof show_10960656 === 'function') {
+            show_10960656().catch(function(e) { console.log(e); });
+          }
+        }
+      };
+    </script>
+    <!-- Page Pulse Tracking Script -->
+    <script>
+    (function(){
+      if(window.self!==window.top)return;
+      var pid="5aa53383-05de-4aff-a947-60a0a51252d0";
+      var tk="8cf473a3-3053-4ed1-b25c-9260f2743940";
+      var ep="https://esnubozrjxrbegatzusu.supabase.co/functions/v1/track";
+      var sid=sessionStorage.getItem("_pp_sid")||Math.random().toString(36).slice(2);
+      sessionStorage.setItem("_pp_sid",sid);
+      var vid=localStorage.getItem("_pp_vid")||Math.random().toString(36).slice(2);
+      localStorage.setItem("_pp_vid",vid);
+      var lastUrl=location.href;
+      function send(t,n){
+        fetch(ep,{method:"POST",headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({page_id:pid,token:tk,url:location.href,referrer:document.referrer,
+            user_agent:navigator.userAgent,screen_width:screen.width,
+            session_id:sid,visitor_id:vid,event_type:t,element_name:n||null})});
+      }
+      send("pageview");
+      document.addEventListener("click",function(e){
+        var el=e.target.closest("a,button,[role='button'],input[type='submit']");
+        if(!el)return;
+        var p=el;while(p){var s=getComputedStyle(p);if(s.position==="fixed"||s.position==="sticky"){var r=p.getBoundingClientRect();if(r.width>window.innerWidth*0.4&&r.height>window.innerHeight*0.3)return;}p=p.parentElement;}
+        var name=el.getAttribute("data-pp")||el.innerText||el.getAttribute("aria-label")||el.tagName;
+        if(name)send("click",name.trim().substring(0,100));
+      });
+      function checkUrl(){if(location.href!==lastUrl){lastUrl=location.href;send("pageview");}}
+      var origPush=history.pushState;history.pushState=function(){origPush.apply(this,arguments);checkUrl();};
+      var origReplace=history.replaceState;history.replaceState=function(){origReplace.apply(this,arguments);checkUrl();};
+      window.addEventListener("popstate",checkUrl);
+      setInterval(function(){if(!document.hidden)send("ping");},15000);
+      var _cc={};window.PagePulse={trackConversion:function(label){var k=label||"_";if(_cc[k])return;_cc[k]=1;send("conversion",label||null);}};
+    })();
+    </script>
+    <!-- End Page Pulse Tracking Script -->
   </head>
   <body>
     <div id="root"></div>
