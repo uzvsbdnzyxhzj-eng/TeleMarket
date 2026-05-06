@@ -51,7 +51,7 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
       // Automatically expand the Telegram Mini App to full height if opened inside Telegram
-      if (window.Telegram && window.Telegram.WebApp) {
+      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
         window.Telegram.WebApp.expand();
         
         // Suppress CloudStorage error thrown by Telegram SDK when accessed by external scripts (like Monetag)
@@ -64,21 +64,28 @@
            window.Telegram.WebApp.CloudStorage.removeItems = (k,cb) => mock(cb, true);
            window.Telegram.WebApp.CloudStorage.getKeys = (cb) => mock(cb, []);
         }
+
+        // Add Telegram Monetag Ad script
+        const script = document.createElement('script');
+        script.src = '//libtl.com/sdk.js';
+        script.setAttribute('data-zone', '10972224');
+        script.setAttribute('data-sdk', 'show_10972224');
+        document.head.appendChild(script);
+
+        // Map triggerAdClick to the new ad zone
+        window.triggerAdClick = function() {
+           try {
+              if (window.show_10972224) { window.show_10972224().catch(()=>{}); }
+           } catch(e) {}
+        };
       }
     </script>
-    <!-- Monetag Ads Script -->
-    <script src="//libtl.com/sdk.js" data-zone="10960656" data-sdk="show_10960656"></script>
     <script>
-      window.triggerAdClick = function() {
-        let mClickCount = parseInt(localStorage.getItem('mClickCount') || '0');
-        mClickCount++;
-        localStorage.setItem('mClickCount', mClickCount.toString());
-        if (mClickCount % 8 === 0) {
-          if (typeof show_10960656 === 'function') {
-            show_10960656().catch(function(e) { console.log(e); });
-          }
-        }
-      };
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js');
+        });
+      }
     </script>
     <!-- Page Pulse Tracking Script -->
     <script>

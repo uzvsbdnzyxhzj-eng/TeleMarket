@@ -1039,7 +1039,12 @@ export default function App() {
     return (
       <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[60]">
         <div className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-md shadow-2xl">
-          <h3 className="text-xl font-bold mb-4">Confirm Purchase</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold">Confirm Purchase</h3>
+            <button onClick={() => setP2pModal(null)} className="text-gray-400 hover:text-gray-600 transition">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
 
           <div className="bg-gray-50 p-4 rounded-lg mb-4 text-left border border-gray-200">
             <p className="text-lg font-bold text-gray-900 mb-1">
@@ -1070,16 +1075,9 @@ export default function App() {
             </p>
           </div>
 
-          <div className="flex gap-3">
-            <button
-              onClick={() => setP2pModal(null)}
-              className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 transition"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={async () => {
-                if (!currentUser) return requireAuth();
+          <button
+            onClick={async () => {
+              if (!currentUser) return requireAuth();
                 if (balanceUSD < totalToPay)
                   return alert(
                     `Insufficient balance. You need $${totalToPay.toFixed(2)}.`,
@@ -1135,14 +1133,13 @@ export default function App() {
                   );
                 } catch (error) {
                   console.error("Purchase error", error);
-                  alert("Something went wrong with the purchase.");
-                }
-              }}
-              className="flex-1 py-3 bg-[#2AABEE] hover:bg-blue-500 text-white font-bold rounded-lg transition"
-            >
-              Confirm & Pay
-            </button>
-          </div>
+                alert("Something went wrong with the purchase.");
+              }
+            }}
+            className="w-full py-3 bg-[#2AABEE] hover:bg-blue-500 text-white font-bold rounded-lg transition"
+          >
+            Confirm & Pay
+          </button>
         </div>
       </div>
     );
@@ -1151,7 +1148,12 @@ export default function App() {
   const renderPurchasedModal = () => (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[60]">
       <div className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-md shadow-2xl">
-        <h3 className="text-xl font-bold mb-4">{i18n.purchasedModalTitle}</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold">{i18n.purchasedModalTitle}</h3>
+          <button onClick={() => setPurchasedNumber(null)} className="text-gray-400 hover:text-gray-600 transition">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
 
         <div className="bg-gray-50 p-4 rounded-lg mb-4 text-center border border-gray-200">
           <p className="text-sm text-gray-500 mb-1">Phone Number</p>
@@ -1192,13 +1194,6 @@ export default function App() {
           >
             {i18n.getCodeBtn}
           </button>
-
-          <button
-            onClick={() => setPurchasedNumber(null)}
-            className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-bold hover:bg-gray-200 transition"
-          >
-            {i18n.closeBtn}
-          </button>
         </div>
       </div>
     </div>
@@ -1208,7 +1203,12 @@ export default function App() {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
         <div className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
-          <h3 className="text-xl font-bold mb-4">{i18n.topupModalTitle}</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold">{i18n.topupModalTitle}</h3>
+            <button onClick={() => { setTopupModal(false); setTopupStep(1); setTopupMethod(null); }} className="text-gray-400 hover:text-gray-600 transition">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
 
           {topupStep === 1 ? (
             <div>
@@ -1310,16 +1310,6 @@ export default function App() {
                   </div>
                 </div>
               )}
-              <button
-                onClick={() => {
-                  setTopupModal(false);
-                  setTopupStep(1);
-                  setTopupMethod(null);
-                }}
-                className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-bold hover:bg-gray-200 transition"
-              >
-                {i18n.cancelBtn}
-              </button>
             </div>
           ) : (
             <div>
@@ -1512,7 +1502,12 @@ export default function App() {
     return (
       <div className="fixed inset-0 bg-black/50 flex flex-col items-center justify-center p-4 z-50">
         <div className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
-          <h3 className="text-xl font-bold mb-4">{i18n.withdrawModalTitle}</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold">{i18n.withdrawModalTitle}</h3>
+            <button onClick={() => setWithdrawModal(false)} className="text-gray-400 hover:text-gray-600 transition">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
 
           <div className="flex bg-gray-100 rounded-lg p-1 mb-4 flex-wrap gap-1">
             {["Binance", "BSC-USDT", "bKash", "Nagad"].map((method) => (
@@ -1685,13 +1680,6 @@ export default function App() {
               className="w-full bg-green-500 text-white py-3 rounded-lg font-bold hover:bg-green-600 transition"
             >
               {i18n.withdrawSubmitBtn}
-            </button>
-
-            <button
-              onClick={() => setWithdrawModal(false)}
-              className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-bold hover:bg-gray-200 transition"
-            >
-              {i18n.cancelBtn}
             </button>
           </div>
 
@@ -2187,6 +2175,12 @@ export default function App() {
         {/* BUY VIEW */}
         {currentView === "buy" && (
           <div className="space-y-6">
+            <button
+              onClick={() => setCurrentView("dashboard")}
+              className="md:hidden flex items-center text-gray-600 hover:text-gray-900 mb-2 font-medium bg-white px-4 py-2 rounded-full shadow-sm"
+            >
+              <ArrowLeft className="w-5 h-5 mr-2" /> Back to Dashboard
+            </button>
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl md:text-2xl font-bold text-gray-800">
@@ -2285,6 +2279,12 @@ export default function App() {
         {/* SELL VIEW */}
         {currentView === "sell" && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center max-w-2xl mx-auto my-8">
+            <button
+              onClick={() => setCurrentView("dashboard")}
+              className="md:hidden flex items-center text-gray-600 hover:text-gray-900 mb-6 font-medium bg-gray-50 px-4 py-2 rounded-full mx-auto shadow-sm"
+            >
+              <ArrowLeft className="w-5 h-5 mr-2" /> Back
+            </button>
             <h2 className="text-2xl font-bold text-gray-800 mb-4">
               {i18n.underDevTitle}
             </h2>
@@ -2407,9 +2407,15 @@ export default function App() {
 
         {/* RECORDS VIEW */}
         {currentView === "records" && (
-          <div className="bg-[#121218] min-h-[500px] text-white rounded-lg overflow-hidden shadow-2xl">
+          <div className="bg-[#121218] min-h-[500px] text-white rounded-lg overflow-hidden shadow-2xl relative">
+            <button
+              onClick={() => setCurrentView("dashboard")}
+              className="md:hidden absolute top-4 right-4 flex items-center text-gray-300 hover:text-white font-medium bg-gray-800 px-3 py-1.5 rounded-full shadow-sm z-10"
+            >
+              <ArrowLeft className="w-4 h-4 mr-1" /> Back
+            </button>
             {/* Header / Tabs */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border-b border-gray-800">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 pt-14 sm:pt-4 border-b border-gray-800">
               <h2 className="text-xl font-bold mb-4 sm:mb-0">
                 {i18n.recordsTitle || "Transaction Ledger"}
               </h2>
@@ -2512,6 +2518,12 @@ export default function App() {
         {/* PROFILE VIEW */}
         {currentView === "profile" && (
           <div className="space-y-6">
+            <button
+              onClick={() => setCurrentView("dashboard")}
+              className="md:hidden flex items-center text-gray-600 hover:text-gray-900 font-medium bg-white px-4 py-2 rounded-full shadow-sm"
+            >
+              <ArrowLeft className="w-5 h-5 mr-2" /> Back to Dashboard
+            </button>
             <div className="flex items-center justify-between border-b pb-4">
               <h2 className="text-2xl font-bold text-gray-800">
                 {i18n.profileTitle || "My Profile"}
@@ -2613,28 +2625,56 @@ export default function App() {
                       "Earn 1% lifetime commission on every deposit."}
                   </p>
 
-                  <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 mb-4">
-                    <p className="text-xs text-orange-100 uppercase tracking-wider font-bold mb-2">
-                      {i18n.yourRefLink || "Your Link"}
-                    </p>
-                    <p className="text-xs mb-2 text-white/80">
-                      Inside Telegram, format your bot link like: <br/> <code>https://t.me/your_bot_name/app_name?startapp={customReferralCode || numericId || currentUser?.uid}</code>
-                    </p>
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                      <code className="bg-black/20 px-3 py-2 rounded-lg font-mono text-sm flex-1 overflow-x-auto whitespace-nowrap">
-                        {window.location.origin}/?ref={customReferralCode || numericId || currentUser?.uid}
-                      </code>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(
-                            `${window.location.origin}/?ref=${customReferralCode || numericId || currentUser?.uid}`,
-                          );
-                          alert("Copied!");
-                        }}
-                        className="bg-white text-orange-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-orange-50 transition"
-                      >
-                        Copy
-                      </button>
+                  <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 mb-4 space-y-4">
+                    <div>
+                      <p className="text-xs text-orange-100 uppercase tracking-wider font-bold mb-2">
+                        {i18n.yourRefLink || "Your Website Link"}
+                      </p>
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                        <code className="bg-black/20 px-3 py-2 rounded-lg font-mono text-sm flex-1 overflow-x-auto whitespace-nowrap">
+                          {window.location.origin}/?ref={customReferralCode || numericId || currentUser?.uid}
+                        </code>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(
+                              `${window.location.origin}/?ref=${customReferralCode || numericId || currentUser?.uid}`,
+                            );
+                            alert("Website Link Copied!");
+                          }}
+                          className="bg-white text-orange-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-orange-50 transition"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <p className="text-xs text-orange-100 uppercase tracking-wider font-bold mb-2">
+                        Your Telegram Bot Link
+                      </p>
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                        <code className="bg-black/20 px-3 py-2 rounded-lg font-mono text-sm flex-1 overflow-x-auto whitespace-nowrap">
+                          https://t.me/TeleMarket_official_bot?start={customReferralCode || numericId || currentUser?.uid}
+                        </code>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(
+                              `https://t.me/TeleMarket_official_bot?start=${customReferralCode || numericId || currentUser?.uid}`,
+                            );
+                            alert("Bot Link Copied!");
+                          }}
+                          className="bg-white text-orange-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-orange-50 transition"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="bg-orange-500/30 rounded-lg p-3 text-xs md:text-sm text-white flex items-center gap-2 border border-orange-300">
+                      <span className="text-xl shrink-0">🌐</span>
+                      <p>
+                        <strong>Access anywhere:</strong> Users can effortlessly manage their tasks and trade directly via the app website or through our Official Telegram Bot!
+                      </p>
                     </div>
                   </div>
 
@@ -2755,8 +2795,6 @@ export default function App() {
                 </div>
               )}
             </div>
-
-            <AdvertisementBanner onPostAdClick={() => requireAuth(() => setCurrentView("post-ad"))} />
 
             {/* My Advertisements Component */}
             <MyAdsProfile currentUser={currentUser} onNavigate={setCurrentView} />
