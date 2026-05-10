@@ -3,13 +3,13 @@ import { motion, AnimatePresence } from 'motion/react';
 import { signInWithGoogle, auth } from './firebase';
 import { Globe, ArrowLeft, Bot, Mail, Lock, User } from 'lucide-react';
 import { t, Language } from './i18n';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, sendPasswordResetEmail, sendEmailVerification } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, sendPasswordResetEmail } from 'firebase/auth';
 import { TelemarketLogo } from './App';
 
-export default function Login({ lang, setLang, onBack }: { lang: Language, setLang: (l: Language) => void, onBack: () => void }) {
+export default function Login({ lang, setLang, onBack, initialMode = 'login' }: { lang: Language, setLang: (l: Language) => void, onBack: () => void, initialMode?: 'login' | 'signup' | 'reset' }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<'login' | 'signup' | 'reset'>('login');
+  const [mode, setMode] = useState<'login' | 'signup' | 'reset'>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');

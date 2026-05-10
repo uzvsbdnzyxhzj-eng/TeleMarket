@@ -11,10 +11,10 @@ interface PostAdProps {
 }
 
 const PLANS = [
-  { months: 1, price: 30, discountText: "10% OFF", finalPrice: 27 },
-  { months: 4, price: 120, discountText: "25% OFF", finalPrice: 78 },
-  { months: 8, price: 240, discountText: "35% OFF", finalPrice: 132 },
-  { months: 12, price: 360, discountText: "50% OFF", finalPrice: 180 },
+  { months: 1, price: 30, discountText: "SAVE 50%", finalPrice: 15 },
+  { months: 4, price: 120, discountText: "SAVE 66%", finalPrice: 40 },
+  { months: 8, price: 240, discountText: "SAVE 75%", finalPrice: 60 },
+  { months: 12, price: 360, discountText: "SAVE 79%", finalPrice: 75 },
 ];
 
 export default function PostAd({ balanceUSD, onNavigate, uid }: PostAdProps) {

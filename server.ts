@@ -208,6 +208,90 @@ async function startServer() {
     }
   });
 
+  // --- SMM Sun Proxy Routes ---
+  const SMM_API_URL = "https://smmsun.com/api/v2";
+  const SMM_API_KEY = "b433c05786f9f38669acba5c17b802ec";
+
+  let smmServicesCache: any = null;
+  let smmServicesCacheTime: number = 0;
+
+  app.post("/api/proxy/smm/services", async (req, res) => {
+    try {
+      const now = Date.now();
+      // Cache for 15 minutes (900,000 ms)
+      if (smmServicesCache && (now - smmServicesCacheTime) < 900000) {
+        return res.json(smmServicesCache);
+      }
+
+      const p = new URLSearchParams();
+      p.append("key", SMM_API_KEY);
+      p.append("action", "services");
+
+      const response = await fetch(SMM_API_URL, {
+        method: "POST",
+        body: p,
+      });
+      const data = await response.json();
+      
+      // Update cache
+      smmServicesCache = data;
+      smmServicesCacheTime = now;
+      
+      res.json(data);
+    } catch (error) {
+      console.error("SMM Services Error:", error);
+      // Fallback to cache if available
+      if (smmServicesCache) {
+         return res.json(smmServicesCache);
+      }
+      res.status(500).json({ error: "Failed to fetch social services." });
+    }
+  });
+
+  app.post("/api/proxy/smm/add", async (req, res) => {
+    try {
+      const p = new URLSearchParams();
+      p.append("key", SMM_API_KEY);
+      p.append("action", "add");
+      for (const [k, v] of Object.entries(req.body)) {
+        if (v !== undefined && v !== null) {
+          p.append(k, String(v));
+        }
+      }
+
+      const response = await fetch(SMM_API_URL, {
+        method: "POST",
+        body: p,
+      });
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error("SMM Add Error:", error);
+      res.status(500).json({ error: "Failed to place order." });
+    }
+  });
+
+  app.post("/api/proxy/smm/status", async (req, res) => {
+    try {
+      const p = new URLSearchParams();
+      p.append("key", SMM_API_KEY);
+      p.append("action", "status");
+      if (req.body.order) p.append("order", String(req.body.order));
+      if (req.body.orders) p.append("orders", String(req.body.orders));
+
+      const response = await fetch(SMM_API_URL, {
+        method: "POST",
+        body: p,
+      });
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error("SMM Status Error:", error);
+      res.status(500).json({ error: "Failed to fetch order status." });
+    }
+  });
+  // ----------------------------
+
   app.post("/api/proxy/chat", async (req, res) => {
     try {
       if (!process.env.GEMINI_API_KEY) {
@@ -477,6 +561,61 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
       res
         .status(400)
         .json({ success: false, message: "Unknown payment method" });
+    }
+  });
+
+  app.post("/api/payment/binance/check", async (req, res) => {
+    const { orderId, amount, uid } = req.body;
+    try {
+      const apiKey = "ra2ZyraxFzBuQiGfYqs08VSyjbOgVkVbyi3Ll3OrHsakgm4tllv1r27J9p7EYz6T";
+      const apiSecret = "DXwtIzuN4rBI9JkoWFZWSsDU9Woo8lIYEs8SdN6Olf0UVUpmxweUxlVPR0DuQTRw";
+      
+      const timestamp = Date.now();
+      const queryString = `timestamp=${timestamp}`;
+      const signature = crypto
+        .createHmac("sha256", apiSecret)
+        .update(queryString)
+        .digest("hex");
+
+      const response = await fetch(`https://api.binance.com/sapi/v1/pay/transactions?${queryString}&signature=${signature}`, {
+        method: "GET",
+        headers: {
+          "X-MBX-APIKEY": apiKey,
+        },
+      });
+
+      const data = await response.json();
+      console.log("Binance Pay Query response code:", data.code);
+
+      if (data && data.code === '000000' && data.data) {
+        // Find matching transaction
+        const tx = data.data.find((t: any) => (t.orderId === orderId || t.fundTransferId === orderId) && t.status === "SUCCESS");
+        if (tx) {
+           const txAmount = parseFloat(tx.amount);
+           if (txAmount >= amount * 0.95) { // allow a 5% margin for rounding issues
+              return res.json({ success: true, message: "Order verified via Binance Pay" });
+           }
+        }
+      }
+
+      // Try checking spot deposits too just in case they sent on-chain
+      const spotQuery = `timestamp=${timestamp}`;
+      const spotSig = crypto.createHmac("sha256", apiSecret).update(spotQuery).digest("hex");
+      const spotRes = await fetch(`https://api.binance.com/sapi/v1/capital/deposit/hisrec?${spotQuery}&signature=${spotSig}`, {
+        headers: { "X-MBX-APIKEY": apiKey }
+      });
+      const spotData = await spotRes.json();
+      if (Array.isArray(spotData)) {
+          const matchedSpot = spotData.find((d: any) => d.txId === orderId && d.status === 1);
+          if (matchedSpot && parseFloat(matchedSpot.amount) >= amount * 0.95) {
+             return res.json({ success: true, message: "Order verified via Spot Deposits" });
+          }
+      }
+
+      res.json({ success: false, message: "Transaction not found or mismatched amount." });
+    } catch (e) {
+      console.error(e);
+      res.json({ success: false, message: "API Error" });
     }
   });
 

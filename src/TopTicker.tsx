@@ -1,5 +1,5 @@
 import React from 'react';
-import { Smartphone, Send, Bitcoin } from 'lucide-react';
+import { Smartphone, Send, Bitcoin, Youtube, Facebook, Instagram, Zap } from 'lucide-react';
 
 export default function TopTicker() {
   return (

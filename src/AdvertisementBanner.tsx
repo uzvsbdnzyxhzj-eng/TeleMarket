@@ -63,7 +63,7 @@ export default function AdvertisementBanner({ onPostAdClick }: { onPostAdClick?:
     if (banners.length <= 1) return;
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % banners.length);
-    }, 3000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [banners.length]);
 
@@ -95,12 +95,11 @@ export default function AdvertisementBanner({ onPostAdClick }: { onPostAdClick?:
               transition={{ duration: 0.3 }}
               drag={banners.length > 1 ? "x" : false}
               dragConstraints={{ left: 0, right: 0 }}
-              dragElastic={0.2}
-              onDragEnd={(e, { offset, velocity }) => {
-                const swipe = swipePower(offset.x, velocity.x);
-                if (swipe < -swipeConfidenceThreshold) {
+              dragElastic={0.8}
+              onDragEnd={(e, { offset }) => {
+                if (offset.x < -30) {
                   setCurrentIndex((prev) => (prev + 1) % banners.length);
-                } else if (swipe > swipeConfidenceThreshold) {
+                } else if (offset.x > 30) {
                   setCurrentIndex((prev) => prev === 0 ? banners.length - 1 : prev - 1);
                 }
               }}
@@ -122,14 +121,17 @@ export default function AdvertisementBanner({ onPostAdClick }: { onPostAdClick?:
                   <div className="w-full h-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 flex flex-col items-center justify-center p-4 text-center transition duration-300 group-hover:scale-[1.02]">
                     <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
                     <div className="relative z-10 w-full max-w-3xl mx-auto flex flex-col items-center">
-                      <h2 className="text-white text-2xl md:text-4xl lg:text-5xl font-black italic tracking-wider mb-2 drop-shadow-md">
-                        PROMOTE YOUR BRAND WITH US
+                      <h2 className="text-yellow-300 text-2xl md:text-4xl lg:text-5xl font-black italic tracking-wider mb-1 md:mb-2 drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] flex items-center justify-center gap-2">
+                        🔥 SPECIAL OFFER 🔥
                       </h2>
-                      <p className="text-white/95 text-sm md:text-xl lg:text-2xl font-bold max-w-2xl mx-auto mb-4 md:mb-6 drop-shadow-sm">
-                        Advertise Your Shop, Website, or Anything Else on Our Platform.
+                      <div className="bg-red-600/90 border-2 border-yellow-400 text-white px-4 py-1 rounded-full animate-pulse shadow-[0_0_15px_rgba(255,0,0,0.6)] mb-2 md:mb-4">
+                        <span className="font-extrabold text-lg md:text-2xl tracking-widest text-yellow-300 drop-shadow-md">UP TO 79% OFF! 🎉</span>
+                      </div>
+                      <p className="text-white/95 text-xs md:text-lg lg:text-xl font-bold max-w-2xl mx-auto mb-3 md:mb-5 drop-shadow-sm leading-tight md:leading-normal">
+                        Boost your business & get insane discounts on Advertising! 🚀<br className="hidden md:block"/> Hurry up, this is a <span className="text-yellow-300 underline decoration-red-500 decoration-2">LIMITED TIME EVENT!</span> ⏰
                       </p>
-                      <div className="inline-flex items-center justify-center bg-gradient-to-r from-orange-500 to-rose-600 text-white font-black text-sm md:text-lg px-6 md:px-10 py-2.5 md:py-4 rounded-full shadow-xl shadow-orange-500/40 transform group-hover:-translate-y-1 group-hover:shadow-orange-500/60 transition-all duration-300 border border-orange-400">
-                        Click Here to Post Your Ad
+                      <div className="inline-flex items-center justify-center bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 text-white font-black text-sm md:text-xl px-6 md:px-10 py-2 md:py-4 rounded-full shadow-[0_0_20px_rgba(255,165,0,0.6)] transform group-hover:scale-105 transition-all duration-300 border-2 border-yellow-300">
+                         👉 CLICK HERE TO CLAIM 👈
                       </div>
                     </div>
                   </div>

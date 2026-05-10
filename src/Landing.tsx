@@ -3,12 +3,31 @@ import { Bot, ArrowRight, CheckCircle, Globe, Shield, Zap } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Language, t } from './i18n';
 import TopTicker from './TopTicker';
-import AdvertisementBanner from './AdvertisementBanner';
+import { Youtube, Facebook, Instagram, Twitter } from 'lucide-react';
 import { getFlag } from './utils';
 import { TelemarketLogo } from './App';
 
+function TypewriterText({ text, delay = 0, totalDuration = 1.5 }: { text: string, delay?: number, totalDuration?: number }) {
+  const characters = text.split("");
+  const speed = totalDuration / Math.max(characters.length, 1);
+  return (
+    <span>
+      {characters.map((char, index) => (
+        <motion.span
+          key={index}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.1, delay: delay + index * speed, ease: "easeOut" }}
+        >
+          {char}
+        </motion.span>
+      ))}
+    </span>
+  );
+}
+
 interface LandingProps {
-  onGetStarted: () => void;
+  onGetStarted: (mode?: 'login' | 'signup') => void;
   lang: Language;
   setLang: (l: Language) => void;
   countries?: any[];
@@ -60,7 +79,7 @@ export default function Landing({ onGetStarted, lang, setLang, countries = [], m
               </select>
             </div>
             <button 
-              onClick={onGetStarted}
+              onClick={() => onGetStarted('login')}
               className="bg-[#2AABEE] hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm hidden md:block"
             >
               Sign In
@@ -69,10 +88,9 @@ export default function Landing({ onGetStarted, lang, setLang, countries = [], m
         </div>
       </header>
 
-      <AdvertisementBanner />
-
       {/* Hero Section */}
       <main className="flex-1">
+
         <div className="w-full bg-white shadow-sm pb-16 overflow-hidden">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-8 md:pt-24 lg:pt-32 flex flex-col lg:flex-row items-center gap-12">
             <motion.div 
@@ -84,19 +102,28 @@ export default function Landing({ onGetStarted, lang, setLang, countries = [], m
               <span className="inline-block bg-blue-50 text-blue-700 font-bold px-4 py-1.5 rounded-full text-sm mb-6 border border-blue-100 shadow-sm tracking-wide">
                 {i18n.landingBadge || '🚀 The Ultimate Auto-Delivery Marketplace'}
               </span>
-              <h2 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-gray-900 leading-tight mb-6 tracking-tighter">
-                {i18n.landingHeadline || 'Premium Telegram Accounts. Instantly.'}
+              <h2 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-gray-900 leading-tight mb-6 tracking-tighter min-h-[100px] md:min-h-[120px]">
+                <TypewriterText text={i18n.landingHeadline || 'Premium Telegram Accounts. Instantly.'} totalDuration={1} />
               </h2>
-              <p className="text-lg md:text-xl text-gray-600 mb-8 max-w-2xl mx-auto lg:mx-0 font-medium leading-relaxed">
-                {i18n.landingSub || 'The most advanced, fully automated marketplace for premium Telegram accounts.'}
+              <p className="text-lg md:text-xl text-gray-600 mb-8 max-w-2xl mx-auto lg:mx-0 font-medium leading-relaxed min-h-[140px] md:min-h-[100px]">
+                <TypewriterText text={i18n.landingSub || 'The most advanced, fully automated marketplace for premium Telegram accounts.'} delay={1} totalDuration={2} />
               </p>
               
               <div className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
-                <button 
-                  onClick={onGetStarted}
-                  className="w-full sm:w-auto bg-gradient-to-r from-[#2AABEE] to-[#1a8bc5] hover:from-[#1a8bc5] hover:to-[#126b99] text-white px-8 py-4 rounded-xl text-lg font-bold transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 transform hover:-translate-y-0.5"
+                <motion.button 
+                  onClick={() => onGetStarted('signup')}
+                  animate={{ scale: [1, 1.05, 1], rotate: [0, -1, 1, -1, 0] }}
+                  transition={{ repeat: Infinity, duration: 2, ease: "easeInOut", repeatDelay: 1 }}
+                  className="w-full sm:w-auto bg-gradient-to-r from-[#2AABEE] to-[#1a8bc5] hover:from-[#1a8bc5] hover:to-[#126b99] text-white px-8 py-4 rounded-xl text-lg font-bold transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
                 >
                   {i18n.landingCreateBtn || 'Create an Account'} <ArrowRight className="w-5 h-5" />
+                </motion.button>
+
+                <button 
+                  onClick={() => onGetStarted('login')}
+                  className="w-full sm:w-auto bg-white/60 hover:bg-white text-gray-800 px-6 py-4 rounded-xl text-md font-bold transition-all border border-gray-200/60 shadow-sm hover:shadow flex items-center justify-center gap-2 backdrop-blur-sm"
+                >
+                  {i18n.landingLoginBtn || 'Already have an account? Login'}
                 </button>
               </div>
 
@@ -189,7 +216,25 @@ export default function Landing({ onGetStarted, lang, setLang, countries = [], m
                      <svg className="w-8 h-8 text-[#F3BA2F] fill-current" viewBox="0 0 24 24"><path d="M12 2L6 8l1.5 1.5L12 5l4.5 4.5L18 8l-6-6zm0 20l-6-6 1.5-1.5L12 19l4.5-4.5L18 16l-6 6zM6 16H3v-2h3v2zm12 0h3v-2h-3v2zm-6-2l-4.5-4.5L12 5l4.5 4.5L12 14z"/></svg>
                      Binance
                   </div>
+                
+                  <div className="flex items-center gap-2 font-bold text-gray-400 text-xl md:text-2xl ml-4">
+                     <Youtube className="w-8 h-8 text-red-500 fill-red-500" />
+                     YouTube
+                  </div>
+                  <div className="flex items-center gap-2 font-bold text-gray-400 text-xl md:text-2xl ml-4">
+                     <Facebook className="w-8 h-8 text-blue-500 fill-blue-500" />
+                     Facebook
+                  </div>
+                  <div className="flex items-center gap-2 font-bold text-gray-400 text-xl md:text-2xl ml-4">
+                     <Instagram className="w-8 h-8 text-pink-500" />
+                     Instagram
+                  </div>
+                  <div className="flex items-center gap-2 font-bold text-gray-400 text-xl md:text-2xl ml-4">
+                     <svg className="w-8 h-8 text-blue-400 fill-blue-400" viewBox="0 0 24 24"><path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/></svg>
+                     Twitter
+                  </div>
                 </React.Fragment>
+
               ))}
            </div>
         </div>

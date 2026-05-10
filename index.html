@@ -9,6 +9,12 @@
     <title>Telemarket - Make Your Trades Secure</title>
     <!-- Suppress annoying warning logs from external SDKs -->
     <script>
+      const originalAlert = window.alert;
+      window.alert = function(msg) {
+        if (typeof msg === 'string' && (msg.includes("CloudStorage is not supported") || msg.includes("version 6.0"))) return;
+        if (originalAlert) originalAlert(msg);
+      };
+
       const methods = ['log', 'warn', 'error', 'info', 'debug'];
       methods.forEach(method => {
         const original = console[method];
@@ -49,35 +55,74 @@
     </script>
     <!-- Telegram Mini App Script -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <script>
+        window.adClickCount = 0;
+        window.triggerAdClick = function() {
+           try {
+              if (window.adClickCount === undefined) window.adClickCount = 0;
+              window.adClickCount++;
+              if (window.adClickCount >= 10) {
+                window.adClickCount = 0;
+                window.open("https://omg10.com/4/10973887", "_blank");
+              }
+           } catch(e) {}
+        };
+    </script>
+
     <script>
       // Automatically expand the Telegram Mini App to full height if opened inside Telegram
-      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
-        window.Telegram.WebApp.expand();
+      if (window.Telegram && window.Telegram.WebApp) {
+        if (window.Telegram.WebApp.initData) {
+          window.Telegram.WebApp.expand();
+        }
+        
+        // Suppress Telegram web app alerts about CloudStorage
+        const originalShowAlert = window.Telegram.WebApp.showAlert;
+        if (originalShowAlert) {
+           window.Telegram.WebApp.showAlert = function(msg, cb) {
+              if (typeof msg === 'string' && (msg.includes("CloudStorage") || msg.includes("version 6.0"))) {
+                 if (typeof cb === 'function') cb();
+                 return;
+              }
+              return originalShowAlert.apply(window.Telegram.WebApp, [msg, cb]);
+           };
+        }
+        
+        const originalShowPopup = window.Telegram.WebApp.showPopup;
+        if (originalShowPopup) {
+           window.Telegram.WebApp.showPopup = function(params, cb) {
+              if (params && typeof params.message === 'string' && (params.message.includes("CloudStorage") || params.message.includes("version 6.0"))) {
+                 if (typeof cb === 'function') cb();
+                 return;
+              }
+              return originalShowPopup.apply(window.Telegram.WebApp, [params, cb]);
+           };
+        }
         
         // Suppress CloudStorage error thrown by Telegram SDK when accessed by external scripts (like Monetag)
-        if (window.Telegram.WebApp.CloudStorage) {
+        try {
+           const originalIsVersionAtLeast = window.Telegram.WebApp.isVersionAtLeast;
+           if (originalIsVersionAtLeast) {
+              window.Telegram.WebApp.isVersionAtLeast = function(ver) {
+                 if (ver === "6.9") return true;
+                 return originalIsVersionAtLeast.apply(window.Telegram.WebApp, arguments);
+              };
+           }
+           
            const mock = function(cb, res) { if (typeof cb === 'function') cb(null, res); return Promise.resolve(res); };
+           
+           if (!window.Telegram.WebApp.CloudStorage) window.Telegram.WebApp.CloudStorage = {};
+           
            window.Telegram.WebApp.CloudStorage.setItem = (k,v,cb) => mock(cb, true);
            window.Telegram.WebApp.CloudStorage.getItem = (k,cb) => mock(cb, "");
            window.Telegram.WebApp.CloudStorage.getItems = (k,cb) => mock(cb, {});
            window.Telegram.WebApp.CloudStorage.removeItem = (k,cb) => mock(cb, true);
            window.Telegram.WebApp.CloudStorage.removeItems = (k,cb) => mock(cb, true);
            window.Telegram.WebApp.CloudStorage.getKeys = (cb) => mock(cb, []);
+        } catch (e) {
+           console.error("CloudStorage stub failed", e);
         }
-
-        // Add Telegram Monetag Ad script
-        const script = document.createElement('script');
-        script.src = '//libtl.com/sdk.js';
-        script.setAttribute('data-zone', '10972224');
-        script.setAttribute('data-sdk', 'show_10972224');
-        document.head.appendChild(script);
-
-        // Map triggerAdClick to the new ad zone
-        window.triggerAdClick = function() {
-           try {
-              if (window.show_10972224) { window.show_10972224().catch(()=>{}); }
-           } catch(e) {}
-        };
       }
     </script>
     <script>
@@ -126,6 +171,17 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+  
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(function(registration) {
+          console.log('ServiceWorker registration successful with scope: ', registration.scope);
+        }).catch(function(err) {
+          console.log('ServiceWorker registration failed: ', err);
+        });
+      }
+    </script>
   </body>
+
 </html>
 

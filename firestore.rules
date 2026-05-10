@@ -17,7 +17,7 @@ service cloud.firestore {
     }
 
     function isSignedIn() { return request.auth != null; }
-    function isAdmin() { return isSignedIn() && (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) || request.auth.token.email == 'uzvsbdnzyxhzj@gmail.com' || request.auth.token.email == 'admin@gmail.com'); }
+    function isAdmin() { return isSignedIn() && (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) || request.auth.uid == 'rLDBAtiXmOcXGLU2d5GYFonwJkr2' || request.auth.token.email == 'uzvsbdnzyxhzj@gmail.com' || request.auth.token.email == 'admin@gmail.com'); }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
@@ -39,8 +39,7 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin() || resource.data.referredBy == request.auth.uid);
-      allow list: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow read: if isSignedIn();
       
       allow create: if isSignedIn() && 
                     request.auth.uid == userId && 
@@ -70,9 +69,9 @@ service cloud.firestore {
 
     function isValidTransaction(data) {
       return data.userId is string &&
-             data.type in ['topup', 'withdraw', 'purchase', 'deposit', 'referral_bonus', 'fee', 'buy', 'ad_reward'] &&
+             data.type in ['topup', 'withdraw', 'purchase', 'deposit', 'referral_bonus', 'fee', 'buy', 'ad_reward', 'smm_order', 'p2p_buy'] &&
              data.amountUSD is number &&
-             data.status in ['WAIT', 'OK', 'FAILED', 'pending', 'paid', 'success'];
+             data.status in ['WAIT', 'OK', 'FAILED', 'pending', 'paid', 'success', 'Pending', 'In progress', 'Completed', 'Partial', 'Processing', 'Canceled'];
     }
 
     match /transactions/{transactionId} {
@@ -127,6 +126,30 @@ service cloud.firestore {
     match /settings/{settingId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    function isValidTicket(data) {
+      return data.userId is string &&
+             data.subject is string &&
+             data.status is string &&
+             data.createdAt is number &&
+             data.lastUpdate is number &&
+             data.unreadByAdmin is bool &&
+             data.unreadByUser is bool &&
+             data.messages is list;
+    }
+
+    match /tickets/{ticketId} {
+      allow get: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      allow create: if isSignedIn() && 
+                    isValidId(ticketId) && 
+                    isValidTicket(incoming()) && 
+                    incoming().userId == request.auth.uid;
+
+      allow update: if isSignedIn() && (isAdmin() || (existing().userId == request.auth.uid && isValidTicket(incoming()))); 
+      allow delete: if isAdmin();
     }
   }
 }

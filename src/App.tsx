@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import toast, { Toaster } from "react-hot-toast";
 import { motion, AnimatePresence } from "motion/react";
 import { CountryData } from "./types";
 import { t, Language } from "./i18n";
@@ -43,6 +44,14 @@ import {
   Gamepad2,
   RefreshCw,
   Info,
+  ArrowLeft,
+  Facebook,
+  Youtube,
+  Instagram,
+  Twitter,
+  Copy,
+  MessageSquare,
+  Ticket
 } from "lucide-react";
 import { auth, db } from "./firebase";
 
@@ -59,7 +68,6 @@ import {
   onAuthStateChanged,
   User as FirebaseUser,
   signOut,
-  sendEmailVerification,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile
@@ -86,9 +94,12 @@ import AdvertisementBanner from "./AdvertisementBanner";
 import PostAd from "./PostAd";
 import MyAdsProfile from "./MyAdsProfile";
 import AdminUserManagement from "./AdminUserManagement";
-import ChatBot from "./ChatBot";
+import AdminSMMPricing from "./AdminSMMPricing";
+import SupportTickets from "./SupportTickets";
+import AdminTickets from "./AdminTickets";
+import SocialServices from "./SocialServices";
 
-type View =
+export type View =
   | "buy"
   | "sell"
   | "dashboard"
@@ -96,6 +107,8 @@ type View =
   | "records"
   | "profile"
   | "wallet-history"
+  | "smm"
+  | "tickets"
   | "post-ad";
 
 import {
@@ -180,10 +193,63 @@ export default function App() {
   const [showWelcome, setShowWelcome] = useState(true);
 
   const [currentView, setCurrentView] = useState<View>("dashboard");
+  const [recordsTab, setRecordsTab] = useState<"buy" | "smm">("buy");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Dynamic Monetag loading (only when logged in)
+  useEffect(() => {
+    if (!currentUser) return; // Do not load on login/register pages
+    
+    
+    
+    
+  }, [currentUser]);
+
   const [countries, setCountries] = useState<CountryData[]>([]);
   const [loading, setLoading] = useState(true);
   const [markupPercent, setMarkupPercent] = useState(20);
+  const [socialMarkupPercent, setSocialMarkupPercent] = useState(25);
+  const [smmMarkupData, setSmmMarkupData] = useState<Record<string, any>>({});
+
+    useEffect(() => {
+    const unsub = onSnapshot(doc(db, "settings", "smm_markup"), (docSnap) => {
+      if (docSnap.exists()) {
+        setSmmMarkupData(docSnap.data());
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // Load global markup
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "settings", "markup"), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.telegram !== undefined) setMarkupPercent(data.telegram);
+        if (data.social !== undefined) setSocialMarkupPercent(data.social);
+      }
+    }, (error) => console.error("markup onSnapshot error", error));
+    return () => unsub();
+  }, []);
+
+  // Monetag 5-click direct link logic (only triggered by explicit top/main nav buttons)
+  useEffect(() => {
+    let clickCount = 0;
+    const monetagLink = "https://omg10.com/4/10973887";
+    
+    (window as any).triggerAdClick = () => {
+      clickCount++;
+      if (clickCount >= 5) {
+        clickCount = 0;
+        window.open(monetagLink, "_blank");
+      }
+    };
+
+    return () => {
+      delete (window as any).triggerAdClick;
+    }
+  }, []);
+
 
   // User Dashboard State
   const [balanceUSD, setBalanceUSD] = useState(0);
@@ -195,6 +261,10 @@ export default function App() {
     amount: string;
   } | null>(null);
   const [topupModal, setTopupModal] = useState(false);
+  const [binanceTransferAmount, setBinanceTransferAmount] = useState<number | null>(null);
+  const [binanceOrderId, setBinanceOrderId] = useState("");
+  const [binanceStep, setBinanceStep] = useState<1 | 2>(1);
+  const [isSubmitBinance, setIsSubmitBinance] = useState(false);
   const [p2pModal, setP2pModal] = useState<any>(null);
   const [topupStep, setTopupStep] = useState<1 | 2>(1);
   const [topupMethod, setTopupMethod] = useState<
@@ -243,7 +313,22 @@ export default function App() {
   const [topupError, setTopupError] = useState("");
   const [withdrawError, setWithdrawError] = useState("");
 
-  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [binanceConfig, setBinanceConfig] = useState({ id: "1174790336", qrUrl: "" });
+  const [adminBinanceConfig, setAdminBinanceConfig] = useState({ id: "1174790336", qrUrl: "" });
+  const [isPublishingBinance, setIsPublishingBinance] = useState(false);
+
+  // Load Binance config
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "settings", "binance"), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const conf = { id: data.id || "1174790336", qrUrl: data.qrUrl || "" };
+        setBinanceConfig(conf);
+        setAdminBinanceConfig(conf);
+      }
+    });
+    return () => unsub();
+  }, []);
 
   // Load global banner data
   useEffect(() => {
@@ -293,8 +378,9 @@ export default function App() {
 
   // Monetag Popunder Ad Initialization
   useEffect(() => {
+    if (!currentUser) return;
     let clickCount = 0;
-    let targetClicks = 8; // trigger every 8 clicks as requested
+    let targetClicks = 5; // trigger every 5 clicks as requested
 
     const triggerPop = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -322,13 +408,13 @@ export default function App() {
           console.error(err);
         }
         clickCount = 0;
-        targetClicks = 8;
+        targetClicks = 5;
       }
     };
     
     document.addEventListener("click", triggerPop);
     return () => document.removeEventListener("click", triggerPop);
-  }, []);
+  }, [currentUser]);
 
   // Load admin data
   useEffect(() => {
@@ -346,8 +432,8 @@ export default function App() {
         snapshot.docChanges().forEach((change) => {
           if (change.type === "added") {
             const tx = change.doc.data();
-            if (tx.status === "pending" && (tx.type === "withdraw" || tx.type === "topup")) {
-              sendNotification(`New ${tx.type === 'withdraw' ? 'Withdrawal' : 'Topup'} Request`, {
+            if (tx.status === "pending" && tx.type === "withdraw") {
+              sendNotification(`New Withdrawal Request`, {
                 body: `User requested a ${tx.type} of \$${tx.amountUSD?.toFixed(2)}`,
               });
             }
@@ -389,6 +475,7 @@ export default function App() {
   const i18n = t[lang];
 
   const [showAuth, setShowAuth] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [showLanding, setShowLanding] = useState(false);
 
   // Fetch bot countries from backend
@@ -412,11 +499,11 @@ export default function App() {
         }
         // Fallback data in case of complete network failure
         setCountries([
-          { id: "1", country: "Bangladesh", code: "+880", flag: "🇧🇩", stock: "500", basePrice: 0.20 },
-          { id: "2", country: "India", code: "+91", flag: "🇮🇳", stock: "1000", basePrice: 0.15 },
-          { id: "3", country: "USA", code: "+1", flag: "🇺🇸", stock: "200", basePrice: 0.50 },
-          { id: "4", country: "Indonesia", code: "+62", flag: "🇮🇩", stock: "1500", basePrice: 0.18 },
-          { id: "5", country: "Russia", code: "+7", flag: "🇷🇺", stock: "800", basePrice: 0.12 }
+          { id: "1", country: "Bangladesh", code: "+880", flag: "🇧🇩", stock: 500, basePrice: 0.20 },
+          { id: "2", country: "India", code: "+91", flag: "🇮🇳", stock: 1000, basePrice: 0.15 },
+          { id: "3", country: "USA", code: "+1", flag: "🇺🇸", stock: 200, basePrice: 0.50 },
+          { id: "4", country: "Indonesia", code: "+62", flag: "🇮🇩", stock: 1500, basePrice: 0.18 },
+          { id: "5", country: "Russia", code: "+7", flag: "🇷🇺", stock: 800, basePrice: 0.12 }
         ]);
         setLoading(false);
       });
@@ -467,6 +554,58 @@ export default function App() {
     );
     return () => unsub();
   }, [currentUser]);
+
+  // Sync SMM order statuses when opening SMM orders tab
+  useEffect(() => {
+    if (!currentUser || recordsTab !== "smm" || transactions.length === 0) return;
+
+    const syncSmmOrders = async () => {
+      const pendingOrders = transactions.filter(t => 
+          t.type === "smm_order" && 
+          t.providerOrderId && 
+          !["Completed", "Canceled", "Partial"].includes(t.status)
+      );
+      
+      if (pendingOrders.length === 0) return;
+      
+      try {
+        const orderIds = pendingOrders.map(t => t.providerOrderId).join(",");
+        const res = await fetch("/api/proxy/smm/status", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orders: orderIds })
+        });
+        const data = await res.json();
+        
+        if (data && typeof data === 'object' && !data.error) {
+            // Bulk status returns object mapped by order ID
+            const updates: Promise<void>[] = [];
+            
+            for (const order of pendingOrders) {
+               const orderStatus = orderIds.includes(",") ? data[order.providerOrderId] : data;
+               
+               if (orderStatus && orderStatus.status && orderStatus.status !== order.status) {
+                  // status changed, update firestore
+                  if (order.id) {
+                     updates.push(updateDoc(doc(db, "transactions", order.id), {
+                         status: orderStatus.status
+                     }));
+                  }
+               }
+            }
+            
+            if (updates.length > 0) {
+                await Promise.all(updates);
+                console.log(`Synced ${updates.length} SMM orders`);
+            }
+        }
+      } catch (err) {
+         console.error("Failed to sync SMM orders", err);
+      }
+    };
+    
+    syncSmmOrders();
+  }, [recordsTab, currentUser, transactions.length]);
 
   // Real-time user details sync
   useEffect(() => {
@@ -616,10 +755,7 @@ export default function App() {
         setAuthLoading(false);
       } else {
         setCurrentUser(null);
-        if (localStorage.getItem("skip_auto_login") === "true") {
-           setAuthLoading(false);
-           return;
-        }
+        if (localStorage.getItem("skip_auto_login") === "true") { setShowAuth(true); setAuthLoading(false); return; }
         // Automatic Guest / Telegram Login
         let deviceId = localStorage.getItem("device_id");
         if (!deviceId) {
@@ -702,7 +838,7 @@ export default function App() {
                     }
                 }
              }
-             alert("Topup Successful and Credited to your account!");
+             toast("Topup Successful and Credited to your account!");
              window.history.replaceState({}, document.title, window.location.pathname);
           }
         } catch (e) {
@@ -732,9 +868,9 @@ export default function App() {
   const handleSetCustomReferralCode = async (code: string) => {
     if (!currentUser) return;
     const cleanCode = code.trim().toLowerCase();
-    if (!cleanCode) return alert("Please enter a valid code.");
-    if (cleanCode.length < 3 || cleanCode.length > 20) return alert("Code must be between 3 and 20 characters.");
-    if (!/^[a-z0-9_]+$/.test(cleanCode)) return alert("Code can only contain letters, numbers, and underscores.");
+    if (!cleanCode) return toast("Please enter a valid code.");
+    if (cleanCode.length < 3 || cleanCode.length > 20) return toast("Code must be between 3 and 20 characters.");
+    if (!/^[a-z0-9_]+$/.test(cleanCode)) return toast("Code can only contain letters, numbers, and underscores.");
 
     try {
       // Check if it's already taken
@@ -743,7 +879,7 @@ export default function App() {
       if (!qCustomSnap.empty) {
         // If it's taken by someone else
         if (qCustomSnap.docs[0].id !== currentUser.uid) {
-          return alert("This referral code is already taken. Please choose another.");
+          return toast("This referral code is already taken. Please choose another.");
         }
       }
       
@@ -751,17 +887,17 @@ export default function App() {
         customReferralCode: cleanCode,
         updatedAt: Date.now()
       });
-      alert("Custom referral code set successfully!");
+      toast("Custom referral code set successfully!");
     } catch (e: any) {
       console.error(e);
-      alert("Failed to set your referral code.");
+      toast("Failed to set your referral code.");
     }
   };
 
   const handleBindReferral = async (code: string) => {
     if (!currentUser) return;
-    if (!code.trim()) return alert(i18n.errorInvalidRefCode || "Please enter a valid referral code.");
-    if (userReferredBy) return alert(i18n.errorAlreadyReferred || "You have already bound a referral code.");
+    if (!code.trim()) return toast(i18n.errorInvalidRefCode || "Please enter a valid referral code.");
+    if (userReferredBy) return toast(i18n.errorAlreadyReferred || "You have already bound a referral code.");
 
     let finalReferredBy: string | null = null;
     
@@ -785,15 +921,15 @@ export default function App() {
       }
     } catch (e) {
       console.error(e);
-      return alert("Error looking up referral code.");
+      return toast("Error looking up referral code.");
     }
 
     if (!finalReferredBy) {
-      return alert(i18n.errorRefCodeNotFound || "Referral code not found.");
+      return toast(i18n.errorRefCodeNotFound || "Referral code not found.");
     }
 
     if (finalReferredBy === currentUser.uid) {
-      return alert(i18n.errorSelfReferral || "You cannot use your own referral code.");
+      return toast(i18n.errorSelfReferral || "You cannot use your own referral code.");
     }
 
     try {
@@ -802,18 +938,18 @@ export default function App() {
         updatedAt: Date.now()
       });
       setUserReferredBy(finalReferredBy);
-      alert(i18n.successRefCodeBound || "Referral code bound successfully!");
+      toast(i18n.successRefCodeBound || "Referral code bound successfully!");
     } catch (e: any) {
       console.error(e);
-      alert("Failed to bind referral code.");
+      toast("Failed to bind referral code.");
     }
   };
 
   const handleAdminAddBalance = async () => {
     if (!adminAddBalanceUid.trim())
-      return alert("Please enter a User ID or Numeric UID");
+      return toast("Please enter a User ID or Numeric UID");
     const amount = Number(adminAddBalanceAmount);
-    if (!amount || amount <= 0) return alert("Please enter a valid amount");
+    if (!amount || amount <= 0) return toast("Please enter a valid amount");
 
     try {
       let targetUserRef;
@@ -837,7 +973,7 @@ export default function App() {
       }
 
       if (!targetUserDoc || !targetUserDoc.exists()) {
-        return alert("User not found with this UID.");
+        return toast("User not found with this UID.");
       }
 
       const currentTargetBalance = targetUserDoc.data().balanceUSD || 0;
@@ -861,14 +997,14 @@ export default function App() {
         createdAt: Date.now(),
       });
 
-      alert(
+      toast(
         `Successfully added $${amount} to user ${targetUserDoc.data().numericId || targetUserDoc.id}. Previous balance: $${currentTargetBalance.toFixed(2)}, New balance: ${(currentTargetBalance + amount).toFixed(2)}`
       );
       setAdminAddBalanceUid("");
       setAdminAddBalanceAmount("");
     } catch (error: any) {
       console.error(error);
-      alert("Error adding balance: " + error.message);
+      toast("Error adding balance: " + error.message);
     }
   };
 
@@ -909,7 +1045,7 @@ export default function App() {
         // Redirect to payment URL
         window.open(data.payment_url, "_blank");
       } else if (data.success && currentUser) {
-        alert(`Top-up request for $${finalAmount} submitted! Please wait for Admin approval. (Secure Mode)`);
+        toast(`Top-up request for $${finalAmount} submitted! Please wait for Admin approval. (Secure Mode)`);
 
         try {
           const txRef = doc(collection(db, "transactions"));
@@ -928,15 +1064,16 @@ export default function App() {
           console.error("Error setting pending topup", e);
         }
       } else {
-        alert("Payment failed: " + (data.message || "Unknown error"));
+        toast("Payment failed: " + (data.message || "Unknown error"));
       }
     } catch (err) {
       console.error(err);
-      alert("Payment request failed.");
+      toast("Payment request failed.");
     }
   };
 
   const handleBuy = async (country: CountryData, finalPrice: number) => {
+    if (!currentUser) return requireAuth();
     setBuyErrorId(null);
     if (balanceUSD < finalPrice) {
       setBuyErrorId(country.id);
@@ -983,12 +1120,12 @@ export default function App() {
             } else {
               setPurchasedNumber({ number: data.Number });
             }
-            alert(i18n.buySuccessTxt);
+            toast(i18n.buySuccessTxt);
           } else {
-            alert("Failed to get number from API: " + JSON.stringify(data));
+            toast("Failed to get number from API: " + JSON.stringify(data));
           }
         } catch (error) {
-          alert("Network error while buying account.");
+          toast("Network error while buying account.");
         }
       }
   };
@@ -1023,10 +1160,10 @@ export default function App() {
           });
         }
       } else {
-        alert("Code not ready yet. Please wait a moment and try again.");
+        toast("Code not ready yet. Please wait a moment and try again.");
       }
     } catch (error) {
-      alert("Network error while fetching code.");
+      toast("Network error while fetching code.");
     }
   };
 
@@ -1079,7 +1216,7 @@ export default function App() {
             onClick={async () => {
               if (!currentUser) return requireAuth();
                 if (balanceUSD < totalToPay)
-                  return alert(
+                  return toast(
                     `Insufficient balance. You need $${totalToPay.toFixed(2)}.`,
                   );
 
@@ -1128,12 +1265,12 @@ export default function App() {
                   }
 
                   setP2pModal(null);
-                  alert(
+                  toast(
                     "P2P Order Pending! Support will transfer the account to you shortly. (Secure Mode)",
                   );
                 } catch (error) {
                   console.error("Purchase error", error);
-                alert("Something went wrong with the purchase.");
+                toast("Something went wrong with the purchase.");
               }
             }}
             className="w-full py-3 bg-[#2AABEE] hover:bg-blue-500 text-white font-bold rounded-lg transition"
@@ -1425,8 +1562,7 @@ export default function App() {
                       <span>
                         $
                         {(
-                          Number(topupInputUsd) +
-                          getUsdFee(Number(topupInputUsd))
+                          Number(topupInputUsd) + getUsdFee(Number(topupInputUsd))
                         ).toFixed(2)}
                       </span>
                     </div>
@@ -1435,7 +1571,7 @@ export default function App() {
                   <div className="bg-blue-50 border-l-4 border-blue-500 p-3 mb-4 rounded-r-lg">
                     <p className="text-sm text-blue-800 font-medium leading-relaxed">
                       <span className="font-bold">Important Instruction:</span>{" "}
-                      {topupMethod === "binance" ? "In Paymently, choose Global and select Binance Pay to complete your transaction in USDT." : "You will be redirected directly to the Crypto gateway to complete your transaction securely."}
+                      {topupMethod === "binance" ? "You will make an internal transfer to our Binance account and verify with the Order ID." : "You will be redirected directly to the Crypto gateway to complete your transaction securely."}
                     </p>
                   </div>
 
@@ -1454,7 +1590,13 @@ export default function App() {
                       }
                       setTopupAmount(enteredUSD);
                       setTopupError("");
-                      handleTopup(topupMethod!, enteredUSD);
+                      if (topupMethod === "binance") {
+                        setBinanceTransferAmount(enteredUSD);
+                        setBinanceStep(1);
+                        setTopupModal(false);
+                      } else {
+                        handleTopup(topupMethod!, enteredUSD);
+                      }
                     }}
                     className={`w-full py-3 rounded-lg font-bold transition flex items-center justify-center gap-2 mb-2 ${topupMethod === "binance" ? "bg-[#1e2329] text-[#f3ba2f] hover:bg-[#15191d]" : "bg-white border border-gray-200 text-gray-800 hover:bg-gray-50"} shadow-sm`}
                   >
@@ -1669,10 +1811,10 @@ export default function App() {
                       },
                       createdAt: Date.now(),
                     });
-                    alert(i18n.withdrawSuccessTxt);
+                    toast(i18n.withdrawSuccessTxt);
                     setWithdrawModal(false);
                   } catch (e: any) {
-                    alert("Error during withdrawal: " + e.message);
+                    toast("Error during withdrawal: " + e.message);
                     console.error(e);
                   }
                 }
@@ -1710,7 +1852,7 @@ export default function App() {
                           onClick={() => {
                             if (tx.id) {
                               navigator.clipboard.writeText(tx.id);
-                              alert("Transaction ID copied to clipboard: " + tx.id);
+                              toast("Transaction ID copied to clipboard: " + tx.id);
                             }
                           }}
                           className="text-[10px] font-mono text-gray-400 cursor-pointer hover:text-gray-600 transition truncate max-w-[120px] bg-gray-200/50 px-1.5 py-0.5 rounded"
@@ -1761,6 +1903,7 @@ export default function App() {
       <Login
         lang={lang}
         setLang={setLang}
+        initialMode={authMode}
         onBack={() => {
           setShowAuth(false);
           setShowLanding(true);
@@ -1774,7 +1917,8 @@ export default function App() {
       <Landing
         lang={lang}
         setLang={setLang}
-        onGetStarted={() => {
+        onGetStarted={(mode?: 'login' | 'signup') => {
+          setAuthMode(mode || 'signup');
           setShowLanding(false);
           setShowAuth(true);
         }}
@@ -1786,51 +1930,284 @@ export default function App() {
   }
 
    // Email verification requirement removed to allow instant sign in
-  /* if (!currentUser.emailVerified) {
+  
+
+  if (binanceTransferAmount !== null) {
+    const usdFee = binanceTransferAmount < 5 ? 0.10 + (binanceTransferAmount * 0.02) : binanceTransferAmount < 10 ? 0.08 + (binanceTransferAmount * 0.018) : 0.05 + (binanceTransferAmount * 0.015);
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-sans">
-        <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 max-w-md w-full text-center">
-          <Mail className="w-16 h-16 text-[#2AABEE] mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Verify your email
-          </h2>
-          <p className="text-gray-600 mb-6">
-            We need to verify your email address before you can continue. Please
-            verify <strong>{currentUser.email}</strong>.
-          </p>
-          <div className="space-y-3">
-            <button
-              onClick={async () => {
-                try {
-                  await sendEmailVerification(currentUser);
-                  alert(
-                    "Verification email sent! Please check your inbox (and spam folder).",
-                  );
-                } catch (e: any) {
-                  alert("Error: " + e.message);
-                }
-              }}
-              className="w-full bg-[#2AABEE] text-white py-2.5 rounded-lg font-bold hover:bg-[#209adf] transition shadow-sm"
-            >
-              Send Verification Email
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 font-sans sm:py-8">
+        <div className="bg-white/0 absolute inset-0" onClick={() => setBinanceTransferAmount(null)} />
+        
+        <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col border border-gray-200 relative z-10 animate-in fade-in duration-300">
+          <div className="p-4 flex items-center justify-between border-b border-gray-100">
+            <h2 className="text-xl font-medium text-gray-800 tracking-tight">Binance internal transfer</h2>
+            <button onClick={() => setBinanceTransferAmount(null)} className="text-gray-400 hover:text-gray-600 transition p-1">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
-            <button
-              onClick={() => window.location.reload()}
-              className="w-full bg-gray-100 text-gray-700 py-2.5 rounded-lg font-bold hover:bg-gray-200 transition"
-            >
-              I've verified my email
-            </button>
-            <button
-              onClick={() => auth.signOut()}
-              className="w-full text-red-500 py-2.5 font-bold hover:underline"
-            >
-              Sign Out
-            </button>
+          </div>
+          
+          <div className="p-5 flex flex-col gap-6">
+            {/* Steps Indicator */}
+            <div className="flex items-center justify-center relative my-2">
+              <div className="absolute left-1/2 top-[1rem] -translate-y-1/2 -translate-x-1/2 w-48 h-[2px] bg-gray-200" />
+              <div
+                className="absolute left-[calc(50%-6rem)] top-[1rem] -translate-y-1/2 h-[2px] bg-[#3b71ca] transition-all duration-300"
+                style={{ width: binanceStep === 2 ? '12rem' : '0' }}
+              />
+              
+              <div className="flex justify-between w-48 relative z-10">
+                <div className="flex flex-col items-center gap-2">
+                  <div className={"w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white transition-colors duration-300 " + (binanceStep >= 1 ? "bg-[#3b71ca]" : "bg-gray-400")}>
+                    1
+                  </div>
+                  <span className={"text-[13px] font-medium whitespace-nowrap " + (binanceStep >= 1 ? "text-gray-800" : "text-gray-500")}>Make payment</span>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                  <div className={"w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white transition-colors duration-300 " + (binanceStep === 2 ? "bg-[#3b71ca]" : "bg-gray-400")}>
+                    2
+                  </div>
+                  <span className={"text-[13px] font-medium whitespace-nowrap " + (binanceStep === 2 ? "text-gray-800" : "text-gray-500")}>Verify payment</span>
+                </div>
+              </div>
+            </div>
+
+            {binanceStep === 1 ? (
+              <div className="animate-in slide-in-from-left-4 fade-in duration-300 mt-2">
+                <div className="text-center mb-6 pt-2">
+                  <div className="text-4xl font-bold text-gray-800">
+                    {(binanceTransferAmount + usdFee).toFixed(2)} <span className="text-2xl font-semibold text-gray-600 ml-1">USDT</span>
+                  </div>
+                  <div className="text-[13px] font-medium text-gray-400 mt-1">Total (incl. fee)</div>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-[15px] font-bold text-gray-800 mb-1.5">Send to Binance ID</label>
+                  <div className="flex bg-[#f5f5f5] rounded border border-gray-200 overflow-hidden">
+                    <input 
+                      type="text" 
+                      readOnly 
+                      value={binanceConfig.id} 
+                      className="flex-1 bg-transparent px-3 py-2.5 text-gray-600 outline-none w-full font-sans"
+                    />
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText(binanceConfig.id);
+                        toast("Copied Binance ID: " + binanceConfig.id);
+                      }}
+                      className="flex items-center gap-1.5 px-4 bg-white border-l border-gray-200 hover:bg-gray-50 text-gray-700 font-medium transition"
+                    >
+                      <Copy className="w-4 h-4" /> Copy
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="bg-[#181a20] rounded-xl overflow-hidden shadow-xl mb-6 relative">
+                  {/* Decorative faint dots background */}
+                  <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(#ffffff 1.5px, transparent 1.5px)', backgroundSize: '16px 16px' }} />
+                  
+                  {/* Header Text - BINANCE */}
+                  <div className="flex items-center justify-center gap-2 pt-6 pb-2 relative z-10 w-full text-[#f0b90b] text-[22px] font-bold tracking-wide">
+                    <svg className="w-6 h-6 fill-current mb-0.5" viewBox="-52.785 -88 457.47 528"><path d="M79.5 176l-39.7 39.7L0 176l39.7-39.7zM176 79.5l68.1 68.1 39.7-39.7L176 0 68.1 107.9l39.7 39.7zm136.2 56.8L272.5 176l39.7 39.7 39.7-39.7zM176 272.5l-68.1-68.1-39.7 39.7L176 352l107.8-107.9-39.7-39.7zm0-56.8l39.7-39.7-39.7-39.7-39.8 39.7z"/></svg>
+                    BINANCE
+                  </div>
+
+                  <div className="p-5 mt-2 bg-[#1e2329] mx-4 mb-3 rounded-[10px] border border-[#2b3139] flex flex-col items-center relative z-10 shadow-lg">
+                    <div className="text-white/90 text-[15.5px] font-medium mb-6">Scan with Binance App to pay</div>
+                    
+                    <div className="bg-white p-3 rounded-lg border-[3px] border-white shadow-2xl relative max-w-[200px] w-full mb-6 mx-auto overflow-hidden">
+                      <img src={binanceConfig.qrUrl || `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${binanceConfig.id}&margin=0`} alt="QR" className="w-full h-auto aspect-square object-contain" />
+                      {!binanceConfig.qrUrl && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <div className="bg-white w-11 h-11 flex items-center justify-center rounded-[6px] shadow-[0_0_0_4px_white]">
+                            <svg className="w-[1.75rem] h-[1.75rem] text-[#f0b90b] fill-current" viewBox="-52.785 -88 457.47 528">
+                              <path d="M79.5 176l-39.7 39.7L0 176l39.7-39.7zM176 79.5l68.1 68.1 39.7-39.7L176 0 68.1 107.9l39.7 39.7zm136.2 56.8L272.5 176l39.7 39.7 39.7-39.7zM176 272.5l-68.1-68.1-39.7 39.7L176 352l107.8-107.9-39.7-39.7zm0-56.8l39.7-39.7-39.7-39.7-39.8 39.7z"/>
+                            </svg>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="text-white text-[16px] tracking-wide mb-1">TeleMarket Pay</div>
+                  </div>
+
+                  {/* Footer App Download Section */}
+                  <div className="bg-[#2b3139] p-4 flex items-center gap-3 relative z-10">
+                    <div className="bg-white p-1 rounded-sm w-[42px] h-[42px] flex-shrink-0 shadow-sm relative overflow-hidden">
+                      <img src={binanceConfig.qrUrl || `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${binanceConfig.id}&margin=0`} alt="App QR" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="text-left flex-1 pl-1">
+                      <div className="text-[#eaecef] text-[15px] font-medium leading-tight">Pay Anywhere</div>
+                      <div className="text-[#848e9c] text-[13px] mt-0.5 font-medium">Download the Binance app</div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="text-left text-[14px] text-gray-700 space-y-2 leading-relaxed font-sans mb-6 bg-blue-50/60 p-4 rounded-xl border border-blue-100">
+                  <p className="flex gap-2.5"><span className="text-blue-600 font-bold">1.</span> Scan the QR above or send funds using the Binance ID.</p>
+                  <p className="flex gap-2.5"><span className="text-blue-600 font-bold">2.</span> After completing payment, tap "Confirm payment".</p>
+                </div>
+
+                <div className="relative">
+                  <button
+                    onClick={() => setBinanceStep(2)}
+                    className="w-full bg-[#3b71ca] hover:bg-[#3260ab] text-white font-medium py-3 rounded text-[16px] transition shadow flex items-center justify-center relative z-10"
+                  >
+                    Confirm payment
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="animate-in slide-in-from-right-4 fade-in duration-300 mt-2">
+                
+                <div className="bg-[#f5f5f5] rounded-md p-4 flex justify-between items-center mb-6 border border-gray-100">
+                  <div>
+                    <div className="text-[13px] text-gray-500 mb-0.5">Amount</div>
+                    <div className="text-[16px] font-medium text-gray-800">{(binanceTransferAmount + usdFee).toFixed(2)} <span className="text-[13px]">USDT</span></div>
+                  </div>
+                  <div>
+                    <div className="text-[13px] text-gray-500 mb-0.5">Send to Binance ID</div>
+                    <div className="text-[16px] font-medium text-gray-800 flex items-center gap-1.5">
+                      {binanceConfig.id} 
+                      <button onClick={() => { navigator.clipboard.writeText(binanceConfig.id); toast("Copied!"); }} className="text-[#3b71ca] hover:text-[#3260ab] transition ml-0.5">
+                        <Copy className="w-[18px] h-[18px]" strokeWidth={1.5} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mb-6 space-y-2">
+                  <label className="block text-[15px] font-bold text-gray-800">Enter you Binance Order ID</label>
+                  <input
+                    type="text"
+                    onChange={e => setBinanceOrderId(e.target.value)}
+                    value={binanceOrderId}
+                    className="w-full px-3 py-2.5 bg-white border border-[#3b71ca] rounded outline-none shadow-[0_0_0_1px_rgba(59,113,202,0.3)] focus:shadow-[0_0_0_2px_rgba(59,113,202,0.8)] transition font-sans"
+                  />
+                </div>
+
+                <div className="bg-[#f6f6f6] rounded-xl p-5 mb-6 shadow-sm border border-gray-100 text-[14.5px] text-gray-700">
+                   <div className="text-center mb-5 pb-5 border-b border-gray-200">
+                      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 inline-block w-full max-w-[240px]">
+                        <div className="w-8 h-8 rounded-full bg-green-100 text-green-500 flex items-center justify-center mx-auto mb-2">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                        </div>
+                        <div className="text-[11px] text-gray-500 mb-1 font-bold">Payment Successful</div>
+                        <div className="font-bold text-[17px] mb-4 text-gray-800 border-b border-gray-100 pb-3">{(binanceTransferAmount + usdFee).toFixed(3)} USDT <br/><span className="text-[10px] text-gray-400 font-normal">The recipient can check the balance in the funding wallet.</span></div>
+                        
+                        <div className="flex flex-col items-start bg-blue-50/50 border border-blue-100 px-3 py-2 rounded text-xs gap-1.5 relative">
+                          <div className="flex w-full justify-between items-center">
+                            <span className="text-gray-500 font-medium">To</span>
+                            <div className="h-2 w-10 bg-gray-300 rounded-sm"></div>
+                          </div>
+                          <div className="flex w-full justify-between items-center shadow-[0_0_0_1px_rgba(59,113,202,0.3)] bg-white p-1 rounded-sm relative z-10 -mx-1 px-2">
+                            <span className="text-gray-500 font-medium">Order ID</span>
+                            <div className="font-mono font-medium text-gray-700 flex items-center gap-2 relative">
+                              <div className="h-[12px] w-20 bg-gradient-to-r from-gray-300 to-gray-200 rounded-sm"></div>
+                              <Copy className="w-[12px] h-[12px] text-gray-500 bg-white" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                   </div>
+
+                   <div className="space-y-4 leading-relaxed text-left font-sans">
+                     <p>1. Copy the Order ID from the successful payment details in your Binance account.</p>
+                     <p>2. Paste it into the field above and tap "Verify payment".</p>
+                   </div>
+                </div>
+
+                <div className="relative">
+                  <button
+                    disabled={!binanceOrderId || isSubmitBinance}
+                    onClick={async () => {
+                      setIsSubmitBinance(true);
+                      try {
+                        const res = await fetch('/api/payment/binance/check', {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            orderId: binanceOrderId,
+                            amount: Number((binanceTransferAmount + usdFee).toFixed(2)),
+                            uid: currentUser?.uid
+                          })
+                        });
+                        const data = await res.json();
+                        
+                        const txRef = doc(collection(db, "transactions"));
+                        await setDoc(txRef, {
+                          userId: currentUser?.uid,
+                          userEmail: currentUser?.email,
+                          userNumericId: numericId,
+                          type: "topup",
+                          txType: "Credit",
+                          amountUSD: binanceTransferAmount,
+                          status: data.success ? "paid" : "pending",
+                          details: { method: 'binance_manual', orderId: binanceOrderId, totalSent: binanceTransferAmount + usdFee },
+                          createdAt: Date.now(),
+                        });
+                        
+                        if (data.success) {
+                           await updateDoc(doc(db, "users", currentUser?.uid), {
+                              balanceUSD: increment(binanceTransferAmount),
+                              total_deposited: increment(binanceTransferAmount),
+                              last_update: Date.now()
+                           });
+                           const userDoc = await getDoc(doc(db, "users", currentUser?.uid));
+                           if (userDoc.exists() && userDoc.data().referredBy) {
+                              const referrerId = userDoc.data().referredBy;
+                              const referrerRef = doc(db, "users", referrerId);
+                              const referrerDoc = await getDoc(referrerRef);
+                              if (referrerDoc.exists()) {
+                                  const bonusAmount = binanceTransferAmount * 0.01;
+                                  await updateDoc(referrerRef, {
+                                      balanceUSD: increment(bonusAmount),
+                                      total_deposited: increment(bonusAmount),
+                                      referralEarnings: increment(bonusAmount),
+                                      last_update: Date.now()
+                                  });
+                                  const refTxRef = doc(collection(db, "transactions"));
+                                  await setDoc(refTxRef, {
+                                      userId: referrerId,
+                                      type: "referral_bonus",
+                                      txType: "Credit",
+                                      amountUSD: bonusAmount,
+                                      status: "paid",
+                                      details: { fromUserId: currentUser?.uid },
+                                      createdAt: Date.now(),
+                                  });
+                              }
+                           }
+                           setBinanceTransferAmount(null);
+                           setTopupModal(false);
+                           setBinanceOrderId("");
+                           toast("Binance Verified Instantly! Balance updated.");
+                           return;
+                        }
+
+                        toast("Your Order is submitted for review! It could not be instantly verified, an admin will review.");
+                        setBinanceTransferAmount(null);
+                        setTopupModal(false);
+                        setBinanceOrderId("");
+                      } catch(e) {
+                        console.error(e);
+                        toast("Error submitting. Try again.");
+                      }
+                      setIsSubmitBinance(false);
+                    }}
+                    className="w-full bg-[#3b71ca] disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#3260ab] text-white font-medium py-3 rounded text-[16px] transition shadow flex justify-center items-center gap-2 relative z-10"
+                  >
+                    {isSubmitBinance ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    ) : "Verify payment"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
     );
-  } */
+  }
 
   if (mockCheckout) {
     return (
@@ -1970,7 +2347,16 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans text-gray-900 flex flex-col">
+    <div className="min-h-screen bg-gray-50/80 font-sans text-gray-900 flex flex-col relative overflow-hidden">
+      <Toaster position="top-center" />
+      {/* Animated Background */}
+      <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none bg-gradient-to-br from-[#f8fafc] to-[#e0f2fe]/50">
+        <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] max-w-[600px] max-h-[600px] rounded-full bg-[#38bdf8]/20 blur-[80px] md:blur-[120px] animate-blob mix-blend-multiply"></div>
+        <div className="absolute top-[20%] right-[-10%] w-[60vw] h-[60vw] max-w-[700px] max-h-[700px] rounded-full bg-[#818cf8]/20 blur-[90px] md:blur-[130px] animate-blob animation-delay-2000 mix-blend-multiply"></div>
+        <div className="absolute bottom-[-20%] left-[20%] w-[55vw] h-[55vw] max-w-[600px] max-h-[600px] rounded-full bg-[#34d399]/20 blur-[80px] md:blur-[120px] animate-blob animation-delay-4000 mix-blend-multiply"></div>
+        {/* Subtle noise texture */}
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIj4KICA8ZmlsdGVyIGlkPSJub2lzZSIgeD0iMCIgeT0iMCIgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSI+CiAgICA8ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iMC44IiBucdW1PY3RhdmVzPSIzIiBzdGl0Y2hUaWxlcz0ic3RpdGNoIi8+CiAgPC9maWx0ZXI+CiAgPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsdGVyPSJ1cmwoI25vaXNlKSIgb3BhY2l0eT0iMC4wNiIvPgo8L3N2Zz4=')] mix-blend-overlay"></div>
+      </div>
       <AnimatePresence>
         {showWelcome && (
           <motion.div
@@ -1996,8 +2382,8 @@ export default function App() {
                 </h2>
                 <div className="text-gray-600 mb-6 text-sm leading-relaxed space-y-4">
                   <p>
-                    The premier marketplace to securely buy and sell Telegram accounts.
-                    Browse our directory of verified and highly active accounts.
+                    The premier marketplace to securely buy and sell Telegram accounts, and access high-quality social media services (SMM).
+                    Browse our directory of verified accounts and supercharge your social presence!
                   </p>
                   <div className="bg-blue-50 p-4 rounded-xl text-left border border-blue-100">
                     <p className="font-bold text-blue-900 mb-2 flex items-center gap-2">
@@ -2026,12 +2412,12 @@ export default function App() {
 
       <TopTicker />
       {/* Navbar */}
-      <header className="bg-white text-gray-800 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] sticky top-0 z-50 border-b border-gray-100">
+      <header className="bg-white/80 backdrop-blur-md text-gray-800 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] sticky top-0 z-50 border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex justify-between items-center w-full md:w-auto">
               <div
                 className="flex items-center space-x-2 cursor-pointer"
-                onClick={() => setCurrentView("dashboard")}
+                onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("dashboard"); }}
               >
                 <TelemarketLogo className="h-10 md:h-12" />
               </div>
@@ -2064,14 +2450,14 @@ export default function App() {
                 </div>
                 <div 
                   className="flex items-center gap-1 bg-[#1cd435] hover:bg-green-600 text-white px-3 py-1.5 rounded-full cursor-pointer transition shadow-sm"
-                  onClick={() => { (window as any).triggerAdClick?.(); requireAuth(() => setTopupModal(true)); }}
+                  onClick={() => { requireAuth(() => setTopupModal(true)); }}
                 >
                   <Wallet className="w-4 h-4" />
                   <span className="font-bold text-sm">${balanceUSD.toFixed(0)}</span>
                 </div>
                 <div
                   className={`w-9 h-9 bg-[#5b8735] hover:opacity-90 text-white rounded-full flex items-center justify-center font-bold text-base cursor-pointer shadow-sm uppercase tracking-wider relative ${currentUser?.photoURL ? '' : 'overflow-hidden'}`}
-                  onClick={() => requireAuth(() => setCurrentView("profile"))}
+                  onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("profile"); })}
                 >
                   {currentUser?.photoURL ? (
                     <img src={currentUser.photoURL} alt="Avatar" className="w-full h-full rounded-full object-cover" />
@@ -2085,23 +2471,23 @@ export default function App() {
             {/* Desktop Navbar right side */}
             <div className="hidden md:flex w-full md:w-auto items-center gap-2 lg:gap-4 overflow-x-auto no-scrollbar">
               <nav className="flex items-center gap-1 lg:gap-2 font-medium min-w-max">
-                <button onClick={() => setCurrentView("dashboard")} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "dashboard" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
+                <button onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("dashboard"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "dashboard" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
                   <LayoutDashboard className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.dashboardNav}</span>
                 </button>
                 <button onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("buy"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "buy" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
                   <ShoppingCart className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.buyNav}</span>
                 </button>
-                <button onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("sell"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "sell" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
+                <button onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("sell"); })} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "sell" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
                   <PlusCircle className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.sellNav}</span>
                 </button>
-                <button onClick={() => requireAuth(() => setCurrentView("records"))} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "records" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
+                <button onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("records"); })} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "records" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
                   <FileText className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.recordsNav || "My Orders"}</span>
                 </button>
-                <button onClick={() => requireAuth(() => setCurrentView("profile"))} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "profile" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
+                <button onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("profile"); })} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "profile" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
                   <User className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.profileNav || "Profile"}</span>
                 </button>
-                {currentUser?.email && (currentUser.email === "admin@gmail.com" || currentUser.email === "uzvsbdnzyxhzj@gmail.com") && (
-                  <button onClick={() => setCurrentView("admin")} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm bg-red-100 text-red-600 hover:bg-red-200 font-bold`}>
+                {((currentUser?.email && (currentUser.email === "admin@gmail.com" || currentUser.email === "uzvsbdnzyxhzj@gmail.com")) || currentUser?.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2") && (
+                  <button onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("admin"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm bg-red-100 text-red-600 hover:bg-red-200 font-bold`}>
                     <Settings className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.adminNav}</span>
                   </button>
                 )}
@@ -2135,14 +2521,14 @@ export default function App() {
 
               <div 
                 className="flex items-center gap-1.5 bg-[#1cd435] hover:bg-green-600 text-white px-3 py-1.5 rounded-full cursor-pointer transition shadow-sm shrink-0"
-                onClick={() => { (window as any).triggerAdClick?.(); requireAuth(() => setTopupModal(true)); }}
+                onClick={() => { requireAuth(() => setTopupModal(true)); }}
               >
                 <Wallet className="w-4 h-4" />
                 <span className="font-bold text-sm">${balanceUSD.toFixed(0)}</span>
               </div>
               <div
                 className={`w-9 h-9 lg:w-10 lg:h-10 bg-[#5b8735] hover:opacity-90 text-white rounded-full flex items-center justify-center font-bold text-lg cursor-pointer shadow-sm uppercase tracking-wider relative shrink-0 ${currentUser?.photoURL ? '' : 'overflow-hidden'}`}
-                onClick={() => requireAuth(() => setCurrentView("profile"))}
+                onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("profile"); })}
               >
                 {currentUser?.photoURL ? (
                   <img src={currentUser.photoURL} alt="Avatar" className="w-full h-full rounded-full object-cover" />
@@ -2151,7 +2537,7 @@ export default function App() {
                 )}
               </div>
               <button
-                onClick={() => { localStorage.setItem("skip_auto_login", "true"); signOut(auth); }}
+                onClick={() => { localStorage.setItem("skip_auto_login", "true"); signOut(auth); setShowAuth(true); setAuthMode('login'); }}
                 className="flex items-center justify-center w-9 h-9 lg:w-10 lg:h-10 bg-gray-100 hover:bg-red-100 hover:text-red-600 text-gray-500 rounded-full transition shrink-0"
                 title="Sign Out"
               >
@@ -2164,7 +2550,7 @@ export default function App() {
       <AdvertisementBanner onPostAdClick={() => requireAuth(() => setCurrentView("post-ad"))} />
 
       {/* Main Content Area */}
-      <main data-view={currentView} className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
+      <main data-view={currentView} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 py-5 sm:py-8 pb-20 md:pb-8">
         {currentView === "post-ad" && (
           <PostAd
             balanceUSD={balanceUSD}
@@ -2172,11 +2558,30 @@ export default function App() {
             uid={currentUser?.uid || ""}
           />
         )}
+        {currentView === "tickets" && (
+          <div className="max-w-4xl mx-auto py-8">
+             <button
+              onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("dashboard"); }}
+              className="md:hidden flex items-center text-gray-600 hover:text-gray-900 mb-2 font-medium bg-white px-4 py-2 rounded-full shadow-sm"
+             >
+               <ArrowLeft className="w-5 h-5 mr-2" /> Back to Dashboard
+             </button>
+             <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+               <Ticket className="w-6 h-6 text-[#2AABEE]" /> Support Tickets
+             </h2>
+             <SupportTickets />
+          </div>
+        )}
+        {currentView === "smm" && (
+          <div className="w-full h-[calc(100vh-140px)] md:h-[calc(100vh-80px)] -mt-4 sm:-mt-8 -mx-3 sm:-mx-6 lg:-mx-8 p-0 relative">
+            <SocialServices currentUser={currentUser} onNavigate={setCurrentView} balanceUSD={balanceUSD} socialMarkupPercent={socialMarkupPercent} smmMarkupData={smmMarkupData} />
+          </div>
+        )}
         {/* BUY VIEW */}
         {currentView === "buy" && (
           <div className="space-y-6">
             <button
-              onClick={() => setCurrentView("dashboard")}
+              onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("dashboard"); }}
               className="md:hidden flex items-center text-gray-600 hover:text-gray-900 mb-2 font-medium bg-white px-4 py-2 rounded-full shadow-sm"
             >
               <ArrowLeft className="w-5 h-5 mr-2" /> Back to Dashboard
@@ -2280,7 +2685,7 @@ export default function App() {
         {currentView === "sell" && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center max-w-2xl mx-auto my-8">
             <button
-              onClick={() => setCurrentView("dashboard")}
+              onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("dashboard"); }}
               className="md:hidden flex items-center text-gray-600 hover:text-gray-900 mb-6 font-medium bg-gray-50 px-4 py-2 rounded-full mx-auto shadow-sm"
             >
               <ArrowLeft className="w-5 h-5 mr-2" /> Back
@@ -2306,7 +2711,7 @@ export default function App() {
                 History
               </h2>
               <button
-                onClick={() => requireAuth(() => setCurrentView("profile"))}
+                onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("profile"); })}
                 className="text-sm font-medium text-[#2AABEE] hover:underline bg-[#2AABEE]/10 px-3 py-1.5 rounded-lg border border-[#2AABEE]/20"
               >
                 Back to Profile
@@ -2382,7 +2787,7 @@ export default function App() {
                               e.stopPropagation();
                               if (tx.id) {
                                 navigator.clipboard.writeText(tx.id);
-                                alert("Transaction ID copied to clipboard: " + tx.id);
+                                toast("Transaction ID copied to clipboard: " + tx.id);
                               }
                             }}
                           >
@@ -2407,110 +2812,188 @@ export default function App() {
 
         {/* RECORDS VIEW */}
         {currentView === "records" && (
-          <div className="bg-[#121218] min-h-[500px] text-white rounded-lg overflow-hidden shadow-2xl relative">
+          <div className="bg-white min-h-[500px] text-gray-900 rounded-xl overflow-hidden shadow-sm border border-gray-200 relative">
             <button
-              onClick={() => setCurrentView("dashboard")}
-              className="md:hidden absolute top-4 right-4 flex items-center text-gray-300 hover:text-white font-medium bg-gray-800 px-3 py-1.5 rounded-full shadow-sm z-10"
+              onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("dashboard"); }}
+              className="md:hidden absolute top-4 right-4 flex items-center text-gray-600 hover:text-gray-900 font-medium bg-gray-100 px-3 py-1.5 rounded-full shadow-sm z-10"
             >
               <ArrowLeft className="w-4 h-4 mr-1" /> Back
             </button>
             {/* Header / Tabs */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 pt-14 sm:pt-4 border-b border-gray-800">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 pt-14 sm:pt-4 border-b border-gray-100">
               <h2 className="text-xl font-bold mb-4 sm:mb-0">
                 {i18n.recordsTitle || "Transaction Ledger"}
               </h2>
-              <div className="flex items-center gap-2">
-                <button className="text-[#2AABEE] border-b-2 border-[#2AABEE] px-4 py-2 font-bold">
-                  {i18n.buyTab || "BUY"}
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 hide-scrollbar shrink-0">
+                <button 
+                   onClick={() => setRecordsTab("buy")}
+                   className={`px-4 py-2 font-bold whitespace-nowrap transition-colors ${recordsTab === "buy" ? "text-[#2AABEE] border-b-2 border-[#2AABEE]" : "text-gray-500 hover:text-gray-300 border-b-2 border-transparent"}`}>
+                  BUY TELEGRAM ACCOUNTS
                 </button>
-                <button className="text-gray-500 hover:text-gray-300 px-4 py-2 font-bold cursor-not-allowed">
-                  {i18n.sellTab || "SELL"}
+                <button 
+                   onClick={() => setRecordsTab("smm")}
+                   className={`px-4 py-2 font-bold whitespace-nowrap transition-colors ${recordsTab === "smm" ? "text-[#2AABEE] border-b-2 border-[#2AABEE]" : "text-gray-500 hover:text-gray-300 border-b-2 border-transparent"}`}>
+                  SMM ORDERS
+                </button>
+                <button className="text-gray-600 hover:text-gray-500 px-4 py-2 font-bold whitespace-nowrap cursor-not-allowed border-b-2 border-transparent">
+                  SELL TELEGRAM ACCOUNTS
                 </button>
               </div>
             </div>
 
             {/* Table */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="text-gray-500 tracking-wider text-xs uppercase border-b border-gray-800">
-                  <tr>
-                    <th className="px-6 py-4">{i18n.colPhone || "PHONE"}</th>
-                    <th className="px-6 py-4">{i18n.colPrice || "PRICE"}</th>
-                    <th className="px-6 py-4">{i18n.colDate || "DATE"}</th>
-                    <th className="px-6 py-4">{i18n.colStatus || "STATUS"}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-800">
-                  {transactions
-                    .filter((t) => t.type === "purchase")
-                    .map((tx) => (
-                      <tr
-                        key={tx.id}
-                        className="hover:bg-white/5 transition-colors"
-                      >
-                        <td className="px-6 py-4 font-mono font-bold text-gray-200">
-                          {tx.details?.phone || "Loading..."}
-                        </td>
-                        <td className="px-6 py-4 text-gray-400">
-                          {tx.amountUSD?.toFixed(2)} USD
-                        </td>
-                        <td className="px-6 py-4 text-gray-500">
-                          {new Date(tx.createdAt).toLocaleString(undefined, {
-                            year: "numeric",
-                            month: "2-digit",
-                            day: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: true,
-                          })}
-                        </td>
-                        <td className="px-6 py-4">
-                          {tx.status === "WAIT" ? (
-                            <div className="flex items-center gap-4">
-                              <span className="text-yellow-500 font-bold uppercase">
-                                WAIT
-                              </span>
-                              <button
-                                onClick={() =>
-                                  handleGetCode(tx.details?.phone, tx.id)
-                                }
-                                className="bg-[#2AABEE]/10 text-[#2AABEE] border border-[#2AABEE]/30 hover:bg-[#2AABEE]/20 px-3 py-1.5 rounded-lg text-xs transition font-bold shadow-sm"
-                              >
-                                {i18n.getCodeBtnRecord || "Get Code"}
-                              </button>
-                            </div>
-                          ) : tx.status === "OK" ? (
-                            <div className="flex flex-col gap-1 items-start">
-                              <span className="text-green-500 font-bold uppercase">
-                                OK
-                              </span>
-                              {tx.details?.code && (
-                                <span className="font-mono text-xs bg-green-500/10 text-green-400 px-2 py-0.5 rounded inline-block shadow-sm">
-                                  Code: {tx.details.code}
+              {recordsTab === "buy" ? (
+                <table className="w-full text-left text-sm whitespace-nowrap">
+                  <thead className="bg-gray-50 text-gray-500 tracking-wider text-xs uppercase border-b border-gray-200">
+                    <tr>
+                      <th className="px-6 py-4">{i18n.colPhone || "PHONE"}</th>
+                      <th className="px-6 py-4">{i18n.colPrice || "PRICE"}</th>
+                      <th className="px-6 py-4">{i18n.colDate || "DATE"}</th>
+                      <th className="px-6 py-4">{i18n.colStatus || "STATUS"}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {transactions
+                      .filter((t) => t.type === "purchase")
+                      .map((tx) => (
+                        <tr
+                          key={tx.id}
+                          className="hover:bg-gray-50 transition-colors"
+                        >
+                          <td className="px-6 py-4 font-mono font-bold text-gray-900">
+                            {tx.details?.phone || "Loading..."}
+                          </td>
+                          <td className="px-6 py-4 text-gray-600">
+                            {tx.amountUSD?.toFixed(2)} USD
+                          </td>
+                          <td className="px-6 py-4 text-gray-500">
+                            {new Date(tx.createdAt).toLocaleString(undefined, {
+                              year: "numeric",
+                              month: "2-digit",
+                              day: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true,
+                            })}
+                          </td>
+                          <td className="px-6 py-4">
+                            {tx.status === "WAIT" ? (
+                              <div className="flex items-center gap-4">
+                                <span className="text-yellow-500 font-bold uppercase">
+                                  WAIT
                                 </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-red-500 font-bold">
-                              {tx.status}
-                            </span>
-                          )}
+                                <button
+                                  onClick={() =>
+                                    handleGetCode(tx.details?.phone, tx.id)
+                                  }
+                                  className="bg-[#2AABEE]/10 text-[#2AABEE] border border-[#2AABEE]/30 hover:bg-[#2AABEE]/20 px-3 py-1.5 rounded-lg text-xs transition font-bold shadow-sm"
+                                >
+                                  {i18n.getCodeBtnRecord || "Get Code"}
+                                </button>
+                              </div>
+                            ) : tx.status === "OK" ? (
+                              <div className="flex flex-col gap-1 items-start">
+                                <span className="text-green-500 font-bold uppercase">
+                                  OK
+                                </span>
+                                {tx.details?.code && (
+                                  <span className="font-mono text-xs bg-green-500/10 text-green-400 px-2 py-0.5 rounded inline-block shadow-sm">
+                                    Code: {tx.details.code}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-red-500 font-bold">
+                                {tx.status}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    {transactions.filter((t) => t.type === "purchase").length ===
+                      0 && (
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className="px-6 py-8 text-center text-gray-500 italic"
+                        >
+                          No transactions found
                         </td>
                       </tr>
-                    ))}
-                  {transactions.filter((t) => t.type === "purchase").length ===
-                    0 && (
+                    )}
+                  </tbody>
+                </table>
+              ) : (
+                <table className="w-full text-left text-sm whitespace-nowrap">
+                  <thead className="bg-gray-50 text-gray-500 tracking-wider text-xs uppercase border-b border-gray-200">
                     <tr>
-                      <td
-                        colSpan={4}
-                        className="px-6 py-8 text-center text-gray-500 italic"
-                      >
-                        No transactions found
-                      </td>
+                      <th className="px-6 py-4">ID</th>
+                      <th className="px-6 py-4">SERVICE</th>
+                      <th className="px-6 py-4">QTY / LINK</th>
+                      <th className="px-6 py-4">PRICE</th>
+                      <th className="px-6 py-4">DATE</th>
+                      <th className="px-6 py-4">STATUS</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {transactions
+                      .filter((t) => t.type === "smm_order")
+                      .map((tx) => (
+                        <tr
+                          key={tx.id}
+                          className="hover:bg-gray-50 transition-colors"
+                        >
+                          <td className="px-6 py-4 font-mono font-bold text-[#2AABEE]">
+                            {tx.providerOrderId || tx.id}
+                          </td>
+                          <td className="px-6 py-4 text-gray-800">
+                            <div className="max-w-[200px] truncate">{tx.serviceName}</div>
+                            <div className="text-xs text-gray-500 mt-1">{tx.category}</div>
+                          </td>
+                          <td className="px-6 py-4 text-gray-600">
+                            <div className="font-bold text-gray-800">{tx.quantity}</div>
+                            <a href={tx.link} target="_blank" rel="noopener noreferrer" className="text-[#2AABEE] text-xs hover:underline truncate max-w-[150px] block mt-1">{tx.link}</a>
+                          </td>
+                          <td className="px-6 py-4 text-gray-600">
+                            {tx.amountUSD?.toFixed(2)} USD
+                          </td>
+                          <td className="px-6 py-4 text-gray-500">
+                            {new Date(tx.createdAt).toLocaleString(undefined, {
+                              year: "numeric",
+                              month: "2-digit",
+                              day: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true,
+                            })}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`font-bold uppercase ${
+                              tx.status === "Completed" ? "text-green-500" :
+                              tx.status === "Canceled" ? "text-red-500" :
+                              tx.status === "Pending" ? "text-yellow-500" :
+                              "text-blue-500"
+                            }`}>
+                              {tx.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    {transactions.filter((t) => t.type === "smm_order").length ===
+                      0 && (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          className="px-6 py-8 text-center text-gray-500 italic"
+                        >
+                          No SMM orders found.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         )}
@@ -2519,7 +3002,7 @@ export default function App() {
         {currentView === "profile" && (
           <div className="space-y-6">
             <button
-              onClick={() => setCurrentView("dashboard")}
+              onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("dashboard"); }}
               className="md:hidden flex items-center text-gray-600 hover:text-gray-900 font-medium bg-white px-4 py-2 rounded-full shadow-sm"
             >
               <ArrowLeft className="w-5 h-5 mr-2" /> Back to Dashboard
@@ -2528,22 +3011,33 @@ export default function App() {
               <h2 className="text-2xl font-bold text-gray-800">
                 {i18n.profileTitle || "My Profile"}
               </h2>
-              <button
-                onClick={() => {
-                  localStorage.setItem("skip_auto_login", "true");
-                  signOut(auth);
-                }}
-                className="flex items-center gap-2 bg-red-100 text-red-600 hover:bg-red-200 px-4 py-2 rounded-lg text-sm font-bold transition"
-                title="Sign Out"
-              >
-                <LogOut className="w-4 h-4" /> Sign Out
-              </button>
+              <div className="flex items-center gap-2">
+                {((currentUser?.email && (currentUser.email === "admin@gmail.com" || currentUser.email === "uzvsbdnzyxhzj@gmail.com")) || currentUser?.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2") && (
+                  <button onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("admin"); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg transition text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 font-bold hidden md:flex">
+                    <Settings className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">Admin Settings</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    localStorage.setItem("skip_auto_login", "true");
+                    signOut(auth); setShowAuth(true); setAuthMode('login'); }}
+                  className="flex items-center gap-2 bg-red-100 text-red-600 hover:bg-red-200 px-4 py-2 rounded-lg text-sm font-bold transition"
+                  title="Sign Out"
+                >
+                  <LogOut className="w-4 h-4" /> Sign Out
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
               <div className="space-y-6">
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden text-center p-6">
+                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden text-center p-6">
+                   {((currentUser?.email && (currentUser.email === "admin@gmail.com" || currentUser.email === "uzvsbdnzyxhzj@gmail.com")) || currentUser?.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2") && (
+                     <button onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("admin"); }} className="mb-4 mx-auto md:hidden flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl transition text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 font-bold w-full">
+                       <Settings className="w-5 h-5 shrink-0" /> <span>Admin Settings Dashboard</span>
+                     </button>
+                   )}
                   <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-[#1cd435] to-green-600 p-1 mb-4 flex items-center justify-center">
                     {currentUser?.photoURL ? (
                       <img src={currentUser.photoURL} alt="Profile Avatar" className="w-full h-full rounded-full object-cover border-4 border-white" />
@@ -2564,9 +3058,12 @@ export default function App() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="border border-[#1cd435] rounded-xl p-4 text-center shadow-sm">
-                      <div className="text-[#1cd435] font-bold text-xl mb-1">{numericId}</div>
-                      <div className="text-[#152e4d] font-bold text-sm">Support Pin</div>
+                    <div className="border border-[#1cd435] rounded-xl p-4 text-center shadow-sm relative group cursor-pointer" onClick={() => { navigator.clipboard.writeText(currentUser.uid); toast("UID copied!"); }}>
+                      <div className="text-[#1cd435] font-bold text-[10px] sm:text-xs mb-1 break-all flex items-center justify-center gap-1">
+                        {currentUser.uid}
+                        <Copy className="w-3 h-3 shrink-0" />
+                      </div>
+                      <div className="text-[#152e4d] flex items-center justify-center gap-1 font-bold text-xs sm:text-sm">Support ID (UID)</div>
                     </div>
                     <div className="border border-[#1cd435] rounded-xl p-4 text-center shadow-sm">
                       <div className="text-[#1cd435] font-bold text-xl mb-1">{transactions.filter(t => t.txType === "Credit").reduce((sum, t) => sum + (t.amountUSD || 0), 0).toFixed(2)} USD</div>
@@ -2639,7 +3136,7 @@ export default function App() {
                             navigator.clipboard.writeText(
                               `${window.location.origin}/?ref=${customReferralCode || numericId || currentUser?.uid}`,
                             );
-                            alert("Website Link Copied!");
+                            toast("Website Link Copied!");
                           }}
                           className="bg-white text-orange-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-orange-50 transition"
                         >
@@ -2661,7 +3158,7 @@ export default function App() {
                             navigator.clipboard.writeText(
                               `https://t.me/TeleMarket_official_bot?start=${customReferralCode || numericId || currentUser?.uid}`,
                             );
-                            alert("Bot Link Copied!");
+                            toast("Bot Link Copied!");
                           }}
                           className="bg-white text-orange-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-orange-50 transition"
                         >
@@ -2797,7 +3294,7 @@ export default function App() {
             </div>
 
             {/* My Advertisements Component */}
-            <MyAdsProfile currentUser={currentUser} onNavigate={setCurrentView} />
+            <MyAdsProfile currentUser={currentUser} onNavigate={(v) => setCurrentView(v as typeof currentView)} />
 
             {/* Quick Actions / Settings */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -2806,7 +3303,7 @@ export default function App() {
               </div>
               <div className="divide-y divide-gray-50">
                 <button
-                  onClick={() => requireAuth(() => setCurrentView("wallet-history"))}
+                  onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("wallet-history"); })}
                   className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left"
                 >
                   <div className="flex items-center gap-3">
@@ -2820,7 +3317,7 @@ export default function App() {
                   <ArrowRight className="w-4 h-4 text-gray-400" />
                 </button>
                 <button
-                  onClick={() => requireAuth(() => setCurrentView("records"))}
+                  onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("records"); })}
                   className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left"
                 >
                   <div className="flex items-center gap-3">
@@ -2836,7 +3333,7 @@ export default function App() {
                 <button
                   onClick={() => {
                     requestNotificationPermission();
-                    alert("Notifications Enabled");
+                    toast("Notifications Enabled");
                   }}
                   className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left"
                 >
@@ -2860,7 +3357,7 @@ export default function App() {
                   Recent Wallet History
                 </h3>
                 <button
-                  onClick={() => requireAuth(() => setCurrentView("wallet-history"))}
+                  onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("wallet-history"); })}
                   className="text-sm font-medium text-[#2AABEE] hover:underline"
                 >
                   View All
@@ -2915,7 +3412,7 @@ export default function App() {
                             e.stopPropagation();
                             if (tx.id) {
                               navigator.clipboard.writeText(tx.id);
-                              alert("Transaction ID copied to clipboard: " + tx.id);
+                              toast("Transaction ID copied to clipboard: " + tx.id);
                             }
                           }}
                           className="text-[10px] font-mono text-gray-400 cursor-pointer hover:text-gray-600 transition truncate max-w-[120px] bg-gray-100 px-1.5 py-0.5 rounded inline-block"
@@ -2942,15 +3439,7 @@ export default function App() {
             {/* Contact Support Section */}
             <div className="mt-8 pb-10">
               <h2 className="text-xl font-bold mb-4 text-gray-800 border-b pb-2">Contact Us</h2>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center justify-center gap-2 hover:bg-gray-50 transition">
-                  <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.04c-5.5 0-10 4.48-10 10.02c0 5.01 3.66 9.15 8.44 9.9v-7H7.9v-2.9h2.54V9.85c0-2.51 1.49-3.89 3.78-3.89c1.09 0 2.23.2 2.23.2v2.45h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.45 2.9h-2.33v7a10 10 0 0 0 8.44-9.9c0-5.54-4.5-10.02-10-10.02z"/></svg>
-                  <span className="font-bold text-gray-700">Facebook</span>
-                </a>
-                <a href="https://youtube.com" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center justify-center gap-2 hover:bg-gray-50 transition">
-                  <svg className="w-6 h-6 text-red-600" fill="currentColor" viewBox="0 0 24 24"><path d="M21.58 7.19c-.23-.86-.91-1.54-1.77-1.77C18.24 5 12 5 12 5s-6.24 0-7.81.42c-.86.23-1.54.91-1.77 1.77C2 8.76 2 12 2 12s0 3.24.42 4.81c.23.86.91 1.54 1.77 1.77C5.76 19 12 19 12 19s6.24 0 7.81-.42c.86-.23 1.54-.91 1.77-1.77C22 15.24 22 12 22 12s0-3.24-.42-4.81zM9.5 15.5v-7l6 3.5l-6 3.5z"/></svg>
-                  <span className="font-bold text-gray-700">YouTube</span>
-                </a>
+              <div className="grid grid-cols-2 lg:grid-cols-2 gap-4 mb-6">
                 <a href="https://t.me/your_telegram" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center justify-center gap-2 hover:bg-gray-50 transition">
                   <svg className="w-6 h-6 text-[#2AABEE]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.06-.2-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06 0 .13-.01.2z"/></svg>
                   <span className="font-bold text-gray-700">Telegram</span>
@@ -2981,16 +3470,6 @@ export default function App() {
                      </div>
                    </div>
                 </a>
-                
-                <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center justify-between hover:bg-gray-50 transition cursor-pointer">
-                   <div className="flex items-center gap-4">
-                     <svg className="w-10 h-10 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.04c-5.5 0-10 4.48-10 10.02c0 5.01 3.66 9.15 8.44 9.9v-7H7.9v-2.9h2.54V9.85c0-2.51 1.49-3.89 3.78-3.89c1.09 0 2.23.2 2.23.2v2.45h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.45 2.9h-2.33v7a10 10 0 0 0 8.44-9.9c0-5.54-4.5-10.02-10-10.02z"/></svg>
-                     <div>
-                       <h4 className="font-bold text-gray-800 flex items-center gap-1.5">Facebook HelpLine <CheckCircle className="w-4 h-4 text-blue-500 fill-blue-500/20" /></h4>
-                       <p className="text-gray-500 text-sm mt-0.5">Available 24 hours / 7 days</p>
-                     </div>
-                   </div>
-                </a>
               </div>
             </div>
           </div>
@@ -3003,9 +3482,19 @@ export default function App() {
               <h2 className="text-2xl font-bold text-gray-800">
                 {i18n.dashboardTitle}
               </h2>
-              {numericId && (
-                <div className="bg-gray-100 text-gray-800 px-3 py-1.5 rounded-lg text-sm font-bold font-mono border border-gray-200 flex items-center shadow-sm">
-                  My UID: {numericId}
+              {currentUser?.uid && (
+                <div className="bg-gray-100 text-gray-800 px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold font-mono border border-gray-200 flex items-center gap-1.5 shadow-sm max-w-full">
+                  <span className="truncate">My UID: {currentUser.uid}</span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(currentUser.uid);
+                      toast("UID copied to clipboard!");
+                    }}
+                    className="text-gray-500 hover:text-gray-800 p-1 bg-white hover:bg-gray-50 rounded shadow-sm border border-gray-200 transition shrink-0"
+                    title="Copy UID"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               )}
             </div>
@@ -3050,7 +3539,7 @@ export default function App() {
               </div>
 
               <div
-                onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("sell"); }}
+                onClick={() => requireAuth(() => { setCurrentView("sell"); })}
                 className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col"
               >
                 <div className="relative bg-gradient-to-br from-purple-500 to-purple-600 h-28 flex flex-col items-center justify-center px-4 pt-4 pb-2">
@@ -3083,7 +3572,49 @@ export default function App() {
               </div>
 
               <div
-                onClick={() => { (window as any).triggerAdClick?.(); requireAuth(() => setTopupModal(true)); }}
+                onClick={() => { requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("smm"); }) }}
+                className="col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col"
+              >
+                <div className="relative bg-gradient-to-br from-violet-600 to-fuchsia-600 h-28 flex flex-col items-center justify-center px-4 pt-4 pb-2 overflow-hidden">
+                  <div className="absolute top-2 left-2 flex gap-1.5 flex-wrap z-10">
+                    <span className="bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">Fast</span>
+                    <span className="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">Cheap Price</span>
+                    <span className="bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">High Quality</span>
+                  </div>
+                  <div className="flex gap-4 text-white mb-1 items-center z-10">
+                    <Facebook className="w-8 h-8 opacity-95 drop-shadow-md" />
+                    <Youtube className="w-9 h-9 opacity-95 drop-shadow-md" />
+                    <Instagram className="w-8 h-8 opacity-95 drop-shadow-md" />
+                  </div>
+                  <div className="text-white font-bold text-lg leading-tight tracking-tight mt-1 z-10 uppercase">
+                    All Social Media
+                  </div>
+                  {/* Decorative background icons */}
+                  <Twitter className="absolute -right-4 -top-4 w-20 h-20 text-white opacity-10 pointer-events-none" />
+                  <Globe className="absolute -left-4 -bottom-4 w-20 h-20 text-white opacity-10 pointer-events-none" />
+                </div>
+                <div className="p-3 sm:p-4 flex-1 flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-1 text-sm sm:text-base leading-tight">
+                      All Social Services
+                    </h3>
+                    <div className="flex items-center gap-0.5 mb-2">
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center text-xs text-gray-500 gap-1.5 mt-auto">
+                    <Heart className="w-3.5 h-3.5 shrink-0 text-violet-500" />
+                    <span className="truncate">FB, YT, IG, Web Traffic & more available</span>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                onClick={() => { requireAuth(() => setTopupModal(true)); }}
                 className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col"
               >
                 <div className="relative bg-gradient-to-br from-indigo-600 to-indigo-700 h-28 flex flex-col items-center justify-center p-4">
@@ -3106,7 +3637,7 @@ export default function App() {
               </div>
 
               <div
-                onClick={() => { (window as any).triggerAdClick?.(); requireAuth(() => setWithdrawModal(true)); }}
+                onClick={() => { requireAuth(() => setWithdrawModal(true)); }}
                 className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col"
               >
                 <div className="relative bg-gradient-to-br from-teal-500 to-emerald-600 h-28 flex flex-col items-center justify-center p-4">
@@ -3130,7 +3661,7 @@ export default function App() {
 
             {/* Invite & Earn Banner */}
             <div
-              onClick={() => requireAuth(() => setCurrentView("profile"))}
+              onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("profile"); })}
               className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl p-6 text-white cursor-pointer hover:shadow-xl transition transform hover:-translate-y-1 relative overflow-hidden group mb-6 mt-4 md:mt-0"
             >
               <div className="relative z-10 flex items-center justify-between">
@@ -3183,7 +3714,7 @@ export default function App() {
                   </p>
                 </div>
                 <button
-                  onClick={() => { (window as any).triggerAdClick?.(); requireAuth(() => setTopupModal(true)); }}
+                  onClick={() => { requireAuth(() => setTopupModal(true)); }}
                   className="w-full bg-[#2AABEE] text-white py-2.5 rounded-lg font-medium hover:bg-blue-500 transition shadow-sm"
                 >
                   {i18n.topupBtn}
@@ -3207,7 +3738,7 @@ export default function App() {
                   </p>
                 </div>
                 <button
-                  onClick={() => { (window as any).triggerAdClick?.(); requireAuth(() => setWithdrawModal(true)); }}
+                  onClick={() => { requireAuth(() => setWithdrawModal(true)); }}
                   className="w-full bg-slate-800 text-white py-2.5 rounded-lg font-medium hover:bg-slate-700 transition shadow-sm"
                 >
                   {i18n.withdrawBtn}
@@ -3255,15 +3786,7 @@ export default function App() {
             {/* Contact Support Section */}
             <div className="mt-8 pb-10">
               <h2 className="text-xl font-bold mb-4 text-gray-800 border-b pb-2">Contact Us</h2>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center justify-center gap-2 hover:bg-gray-50 transition">
-                  <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.04c-5.5 0-10 4.48-10 10.02c0 5.01 3.66 9.15 8.44 9.9v-7H7.9v-2.9h2.54V9.85c0-2.51 1.49-3.89 3.78-3.89c1.09 0 2.23.2 2.23.2v2.45h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.45 2.9h-2.33v7a10 10 0 0 0 8.44-9.9c0-5.54-4.5-10.02-10-10.02z"/></svg>
-                  <span className="font-bold text-gray-700">Facebook</span>
-                </a>
-                <a href="https://youtube.com" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center justify-center gap-2 hover:bg-gray-50 transition">
-                  <svg className="w-6 h-6 text-red-600" fill="currentColor" viewBox="0 0 24 24"><path d="M21.58 7.19c-.23-.86-.91-1.54-1.77-1.77C18.24 5 12 5 12 5s-6.24 0-7.81.42c-.86.23-1.54.91-1.77 1.77C2 8.76 2 12 2 12s0 3.24.42 4.81c.23.86.91 1.54 1.77 1.77C5.76 19 12 19 12 19s6.24 0 7.81-.42c.86-.23 1.54-.91 1.77-1.77C22 15.24 22 12 22 12s0-3.24-.42-4.81zM9.5 15.5v-7l6 3.5l-6 3.5z"/></svg>
-                  <span className="font-bold text-gray-700">YouTube</span>
-                </a>
+              <div className="grid grid-cols-2 lg:grid-cols-2 gap-4 mb-6">
                 <a href="https://t.me/your_telegram" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center justify-center gap-2 hover:bg-gray-50 transition">
                   <svg className="w-6 h-6 text-[#2AABEE]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.06-.2-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06 0 .13-.01.2z"/></svg>
                   <span className="font-bold text-gray-700">Telegram</span>
@@ -3290,16 +3813,6 @@ export default function App() {
                      <svg className="w-10 h-10 text-[#2AABEE]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.06-.2-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06 0 .13-.01.2z"/></svg>
                      <div>
                        <h4 className="font-bold text-gray-800 flex items-center gap-1.5">Telegram HelpLine <CheckCircle className="w-4 h-4 text-blue-500 fill-blue-500/20" /></h4>
-                       <p className="text-gray-500 text-sm mt-0.5">Available 24 hours / 7 days</p>
-                     </div>
-                   </div>
-                </a>
-                
-                <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center justify-between hover:bg-gray-50 transition cursor-pointer">
-                   <div className="flex items-center gap-4">
-                     <svg className="w-10 h-10 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.04c-5.5 0-10 4.48-10 10.02c0 5.01 3.66 9.15 8.44 9.9v-7H7.9v-2.9h2.54V9.85c0-2.51 1.49-3.89 3.78-3.89c1.09 0 2.23.2 2.23.2v2.45h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.45 2.9h-2.33v7a10 10 0 0 0 8.44-9.9c0-5.54-4.5-10.02-10-10.02z"/></svg>
-                     <div>
-                       <h4 className="font-bold text-gray-800 flex items-center gap-1.5">Facebook HelpLine <CheckCircle className="w-4 h-4 text-blue-500 fill-blue-500/20" /></h4>
                        <p className="text-gray-500 text-sm mt-0.5">Available 24 hours / 7 days</p>
                      </div>
                    </div>
@@ -3379,10 +3892,10 @@ export default function App() {
                         createdAt: Date.now(),
                       });
                     }
-                    alert("Seeded mock accounts!");
+                    toast("Seeded mock accounts!");
                   } catch (e) {
                     console.error(e);
-                    alert("Error seeding accounts.");
+                    toast("Error seeding accounts.");
                   }
                 }}
                 className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition"
@@ -3428,7 +3941,7 @@ export default function App() {
                               const file = e.target.files?.[0];
                               if (file) {
                                 if (file.size > 500000) {
-                                  alert("Image is too large. Please upload an image smaller than 500KB.");
+                                  toast("Image is too large. Please upload an image smaller than 500KB.");
                                   return;
                                 }
                                 const reader = new FileReader();
@@ -3503,9 +4016,9 @@ export default function App() {
                       setAdminBannerSettings({...adminBannerSettings, banners: cleanBanners}); // Update local state
                       
                       await setDoc(doc(db, "settings", "banner"), finalConfig);
-                      alert("Banner settings updated successfully! It is now live.");
+                      toast("Banner settings updated successfully! It is now live.");
                     } catch (e: any) {
-                      alert("Error updating banner: " + e.message);
+                      toast("Error updating banner: " + e.message);
                     } finally {
                       setIsPublishingBanner(false);
                     }
@@ -3517,7 +4030,87 @@ export default function App() {
               </div>
             </div>
 
+            {/* Binance Settings Tool */}
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <svg className="w-5 h-5 fill-current text-[#f0b90b]" viewBox="-52.785 -88 457.47 528"><path d="M79.5 176l-39.7 39.7L0 176l39.7-39.7zM176 79.5l68.1 68.1 39.7-39.7L176 0 68.1 107.9l39.7 39.7zm136.2 56.8L272.5 176l39.7 39.7 39.7-39.7zM176 272.5l-68.1-68.1-39.7 39.7L176 352l107.8-107.9-39.7-39.7zm0-56.8l39.7-39.7-39.7-39.7-39.8 39.7z"/></svg>
+                Binance Pay Settings
+              </h3>
+              <div className="flex flex-col gap-5">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Binance Pay ID</label>
+                  <input
+                    type="text"
+                    value={adminBinanceConfig.id}
+                    onChange={(e) => setAdminBinanceConfig({...adminBinanceConfig, id: e.target.value})}
+                    placeholder="Enter Binance Pay ID..."
+                    className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#f0b90b]"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Custom QR Code Image (Optional)</label>
+                  <p className="text-xs text-gray-500 mb-2">If left blank, App will generate an auto-QR code using the ID above. But you can upload a screenshot of your Binance QR logic to override.</p>
+                  
+                  {adminBinanceConfig.qrUrl && (
+                    <div className="relative inline-block border border-gray-200 rounded-lg p-2 mb-3 bg-gray-50">
+                      <img src={adminBinanceConfig.qrUrl} alt="Binance Config QR" className="max-w-[150px] aspect-square object-contain" />
+                      <button
+                        onClick={() => setAdminBinanceConfig({...adminBinanceConfig, qrUrl: ""})}
+                        className="absolute -top-3 -right-3 text-red-500 bg-white border border-red-200 rounded-full p-2 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (file.size > 1000000) {
+                          toast("Image is too large. Limit is 1MB.");
+                          return;
+                        }
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                           setAdminBinanceConfig({...adminBinanceConfig, qrUrl: reader.result as string});
+                        }
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="w-full p-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#f0b90b] text-sm"
+                  />
+                </div>
+
+                <button
+                  disabled={isPublishingBinance}
+                  onClick={async () => {
+                    setIsPublishingBinance(true);
+                    try {
+                      await setDoc(doc(db, "settings", "binance"), adminBinanceConfig);
+                      toast("Binance Pay settings saved!");
+                    } catch(err: any) {
+                      toast("Failed to save: " + err.message);
+                    } finally {
+                      setIsPublishingBinance(false);
+                    }
+                  }}
+                  className={`w-full md:w-auto self-start bg-[#f0b90b] text-gray-900 px-6 py-2.5 rounded-lg font-bold transition shadow hover:bg-[#d6a507] ${isPublishingBinance ? "opacity-70 cursor-not-allowed" : ""}`}
+                >
+                  {isPublishingBinance ? "Saving..." : "Save Binance Settings"}
+                </button>
+              </div>
+            </div>
+
             <AdminUserManagement />
+
+            <AdminTickets />
+
+            <AdminSMMPricing socialMarkupPercent={socialMarkupPercent} />
+
 
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
               <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
@@ -3631,10 +4224,10 @@ export default function App() {
               />
             </div>
 
-            {/* Pending Withdrawals Management */}
+            {/* Pending Transactions Management */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
               <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-                <h3 className="font-bold text-gray-800">Pending Withdrawals</h3>
+                <h3 className="font-bold text-gray-800">Pending Transactions</h3>
               </div>
               <div className="divide-y divide-gray-100">
                 {adminTxs
@@ -3648,7 +4241,7 @@ export default function App() {
                   )
                   .length === 0 ? (
                   <div className="p-4 text-center text-gray-500 italic">
-                    No pending withdrawals found
+                    No pending transactions found
                   </div>
                 ) : (
                   adminTxs
@@ -3689,7 +4282,7 @@ export default function App() {
                                 onClick={() => {
                                   if(adminTx.details?.account) {
                                       navigator.clipboard.writeText(adminTx.details.account);
-                                      alert("Copied to clipboard: " + adminTx.details.account);
+                                      toast("Copied to clipboard: " + adminTx.details.account);
                                   }
                                 }}
                                 className="text-sm font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 cursor-pointer hover:bg-gray-200 transition"
@@ -3706,7 +4299,7 @@ export default function App() {
                               onClick={() => {
                                 if (adminTx.id) {
                                   navigator.clipboard.writeText(adminTx.id);
-                                  alert("Transaction ID copied: " + adminTx.id);
+                                  toast("Transaction ID copied: " + adminTx.id);
                                 }
                               }}
                             >
@@ -3778,10 +4371,10 @@ export default function App() {
                                   doc(db, "transactions", adminTx.id),
                                   { status: "paid" },
                                 );
-                                alert("Marked as paid");
+                                toast("Marked as paid");
                               } catch(err) {
                                 console.error(err);
-                                alert("Error marking as paid");
+                                toast("Error marking as paid");
                               }
                             }}
                             className="bg-green-500 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-600 transition shadow-sm"
@@ -3845,7 +4438,7 @@ export default function App() {
                                 onClick={() => {
                                   if(adminTx.details?.account) {
                                       navigator.clipboard.writeText(adminTx.details.account);
-                                      alert("Copied to clipboard: " + adminTx.details.account);
+                                      toast("Copied to clipboard: " + adminTx.details.account);
                                   }
                                 }}
                                 className="text-sm font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 cursor-pointer hover:bg-gray-200 transition"
@@ -3862,7 +4455,7 @@ export default function App() {
                               onClick={() => {
                                 if (adminTx.id) {
                                   navigator.clipboard.writeText(adminTx.id);
-                                  alert("Transaction ID copied: " + adminTx.id);
+                                  toast("Transaction ID copied: " + adminTx.id);
                                 }
                               }}
                             >
@@ -3954,7 +4547,7 @@ export default function App() {
                                 onClick={() => {
                                   if(adminTx.details?.account) {
                                       navigator.clipboard.writeText(adminTx.details.account);
-                                      alert("Copied to clipboard: " + adminTx.details.account);
+                                      toast("Copied to clipboard: " + adminTx.details.account);
                                   }
                                 }}
                                 className="text-sm font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 cursor-pointer hover:bg-gray-200 transition"
@@ -3971,7 +4564,7 @@ export default function App() {
                               onClick={() => {
                                 if (adminTx.id) {
                                   navigator.clipboard.writeText(adminTx.id);
-                                  alert("Transaction ID copied: " + adminTx.id);
+                                  toast("Transaction ID copied: " + adminTx.id);
                                 }
                               }}
                             >
@@ -4003,25 +4596,48 @@ export default function App() {
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
               <h3 className="text-lg font-bold text-gray-800 mb-4">
-                {i18n.markupTitle}
+                Markup Settings
               </h3>
-              <div className="flex items-end gap-4 max-w-sm">
-                <div className="flex-1">
+              <div className="flex flex-col gap-4 max-w-sm">
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {i18n.markupLbl}
+                    Telegram Accounts Markup (%)
                   </label>
                   <input
                     type="number"
                     min="0"
-                    max="100"
+                    max="1000"
                     value={markupPercent}
                     onChange={(e) => setMarkupPercent(Number(e.target.value))}
                     className="w-full p-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-red-400"
                   />
                 </div>
-                <button className="bg-red-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-red-700 transition">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Social Services Markup (%)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="1000"
+                    value={socialMarkupPercent}
+                    onChange={(e) => setSocialMarkupPercent(Number(e.target.value))}
+                    className="w-full p-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-red-400"
+                  />
+                </div>
+                <button 
+                  onClick={async () => {
+                     try {
+                        await setDoc(doc(db, "settings", "markup"), { telegram: markupPercent, social: socialMarkupPercent });
+                        toast("Settings saved!");
+                     } catch(err) {
+                        toast("Failed to save.");
+                     }
+                  }}
+                  className="bg-red-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-red-700 transition"
+                >
                   {i18n.saveBtn}
                 </button>
               </div>
@@ -4104,18 +4720,18 @@ export default function App() {
       </main>
 
       {/* Mobile Bottom Navigation Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-[60] flex justify-around items-center px-1 py-1.5 pb-2 shadow-[0_-5px_15px_rgba(0,0,0,0.05)]">
-        <button onClick={() => setCurrentView("dashboard")} className={`flex flex-col items-center flex-1 py-1 transition-colors ${currentView === "dashboard" ? "text-blue-700" : "text-gray-500 hover:text-gray-900"}`}>
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-gray-200 z-[60] flex justify-around items-center px-1 py-1.5 pb-2 shadow-[0_-5px_15px_rgba(0,0,0,0.05)]">
+        <button onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("dashboard"); }} className={`flex flex-col items-center flex-1 py-1 transition-colors ${currentView === "dashboard" ? "text-blue-700" : "text-gray-500 hover:text-gray-900"}`}>
           <Home className={`w-[22px] h-[22px] mb-0.5 ${currentView === "dashboard" ? "stroke-[2.5px]" : "stroke-2"}`} />
           <span className={`text-[10px] ${currentView === "dashboard" ? "font-bold" : "font-medium"}`}>Home</span>
         </button>
-        <button onClick={() => { (window as any).triggerAdClick?.(); requireAuth(() => { setTopupModal(true); setIsMobileMenuOpen(false); }); }} className={`flex flex-col items-center flex-1 py-1 transition-colors text-gray-500 hover:text-gray-900`}>
+        <button onClick={() => { requireAuth(() => { setTopupModal(true); setIsMobileMenuOpen(false); }); }} className={`flex flex-col items-center flex-1 py-1 transition-colors text-gray-500 hover:text-gray-900`}>
           <svg className="w-[22px] h-[22px] mb-0.5 stroke-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
           <span className="text-[10px] font-medium">Add Money</span>
         </button>
-        <button onClick={() => requireAuth(() => setCurrentView("records"))} className={`flex flex-col items-center flex-1 py-1 transition-colors ${currentView === "records" ? "text-blue-700" : "text-gray-500 hover:text-gray-900"}`}>
+        <button onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("records"); })} className={`flex flex-col items-center flex-1 py-1 transition-colors ${currentView === "records" ? "text-blue-700" : "text-gray-500 hover:text-gray-900"}`}>
           <Bookmark className={`w-[22px] h-[22px] mb-0.5 ${currentView === "records" ? "stroke-[2.5px]" : "stroke-2"}`} />
           <span className={`text-[10px] ${currentView === "records" ? "font-bold" : "font-medium"}`}>My Orders</span>
         </button>
@@ -4123,35 +4739,40 @@ export default function App() {
           <LayoutGrid className={`w-[22px] h-[22px] mb-0.5 ${currentView === "buy" ? "stroke-[2.5px]" : "stroke-2"}`} />
           <span className={`text-[10px] ${currentView === "buy" ? "font-bold" : "font-medium"}`}>My Codes</span>
         </button>
-        <button onClick={() => requireAuth(() => setCurrentView("profile"))} className={`flex flex-col items-center flex-1 py-1 transition-colors ${currentView === "profile" ? "text-blue-700" : "text-gray-500 hover:text-gray-900"}`}>
+        <button onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("profile"); })} className={`flex flex-col items-center flex-1 py-1 transition-colors ${currentView === "profile" ? "text-blue-700" : "text-gray-500 hover:text-gray-900"}`}>
           <User className={`w-[22px] h-[22px] mb-0.5 ${currentView === "profile" ? "stroke-[2.5px]" : "stroke-2"}`} />
           <span className={`text-[10px] ${currentView === "profile" ? "font-bold" : "font-medium"}`}>My Account</span>
         </button>
       </div>
 
       {/* Floating Action Buttons */}
-      <div className="fixed bottom-20 right-4 z-[70] flex flex-col items-end gap-3">
-        {/* Chat Bot Button */}
-        {!isChatOpen && (
-           <button onClick={() => setIsChatOpen(true)} className="bg-gradient-to-r from-blue-600 to-[#2AABEE] text-white p-3 rounded-full shadow-2xl flex items-center justify-center transform hover:scale-105 transition">
-             <Bot className="w-6 h-6" />
-           </button>
-        )}
-
-        {/* WhatsApp Button */}
-        <div className="flex items-center shadow-xl rounded-full" style={{ filter: 'drop-shadow(0px 4px 6px rgba(0,0,0,0.1))' }}>
-          <button onClick={() => window.open("https://wa.me/8801644627304", "_blank")} className="flex items-center cursor-pointer">
-              <div className="bg-[#dd3333] text-white px-3 py-1.5 rounded-l-full font-bold text-xs border border-[#dd3333] tracking-wide h-10 flex items-center -mr-3 pr-4">
-                Need Help?
-              </div>
-              <div className="bg-[#c22020] text-white p-2.5 rounded-full z-10 w-11 h-11 flex items-center justify-center transform hover:scale-105 transition shadow-lg">
-                <Phone className="w-5 h-5 fill-current" />
-              </div>
-          </button>
+      {currentView !== "admin" && (
+        <div className="fixed bottom-24 md:bottom-6 right-4 md:right-6 z-[70] flex flex-col items-end gap-3">
+          {/* Tickets Button */}
+          <div className="flex items-center shadow-xl rounded-full" style={{ filter: 'drop-shadow(0px 4px 6px rgba(0,0,0,0.1))' }}>
+            <button onClick={() => setCurrentView("tickets")} className="flex items-center cursor-pointer">
+                <div className="bg-[#2AABEE] text-white px-3 py-1.5 rounded-l-full font-bold text-xs border border-[#2AABEE] tracking-wide h-10 flex items-center -mr-3 pr-4">
+                  Tickets
+                </div>
+                <div className="bg-[#1d82b8] text-white p-2.5 rounded-full z-10 w-11 h-11 flex items-center justify-center transform hover:scale-105 transition shadow-lg">
+                  <MessageSquare className="w-5 h-5 fill-current" />
+                </div>
+            </button>
+          </div>
+          
+          {/* WhatsApp Button */}
+          <div className="flex items-center shadow-xl rounded-full" style={{ filter: 'drop-shadow(0px 4px 6px rgba(0,0,0,0.1))' }}>
+            <button onClick={() => window.open("https://wa.me/8801644627304", "_blank")} className="flex items-center cursor-pointer">
+                <div className="bg-[#25D366] text-white px-3 py-1.5 rounded-l-full font-bold text-xs border border-[#25D366] tracking-wide h-10 flex items-center -mr-3 pr-4">
+                  Need Help?
+                </div>
+                <div className="bg-[#1da851] text-white p-2.5 rounded-full z-10 w-11 h-11 flex items-center justify-center transform hover:scale-105 transition shadow-lg">
+                  <Phone className="w-5 h-5 fill-current" />
+                </div>
+            </button>
+          </div>
         </div>
-      </div>
-
-      {isChatOpen && <ChatBot onClose={() => setIsChatOpen(false)} />}
+      )}
 
       {/* Modals */}
       {p2pModal && renderP2pModal()}

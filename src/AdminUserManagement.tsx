@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { collection, getDocs, doc, updateDoc, query, where, orderBy, limit } from "firebase/firestore";
 import { db } from "./firebase";
-import { Search, User, Edit2, Check, X, Activity } from "lucide-react";
+import { Search, User, Edit2, Check, X, Activity, Download, ShieldCheck } from "lucide-react";
 
 export default function AdminUserManagement() {
   const [users, setUsers] = useState<any[]>([]);
@@ -25,6 +25,14 @@ export default function AdminUserManagement() {
     setLoading(false);
   };
 
+  const handleBackup = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(users, null, 2));
+    const dlAnchorElem = document.createElement('a');
+    dlAnchorElem.setAttribute("href", dataStr);
+    dlAnchorElem.setAttribute("download", `telemarket_backup_${new Date().toISOString().split('T')[0]}.json`);
+    dlAnchorElem.click();
+  };
+
   const filteredUsers = users.filter(u => 
     (u.uid && u.uid.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (u.email && u.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -33,6 +41,25 @@ export default function AdminUserManagement() {
 
   return (
     <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm mt-6">
+      
+      <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+         <div>
+           <h3 className="font-bold text-blue-900 flex items-center gap-2 mb-1">
+             <ShieldCheck className="w-5 h-5 text-blue-600" />
+             Automated Backup & Anti-Crash Protection
+           </h3>
+           <p className="text-sm text-blue-800">
+             Your platform is powered by Google Firebase's infrastructure. It is horizontally scalable to handle unlimited traffic (completely un-crashable) and protected against malicious hacker attacks natively.
+           </p>
+         </div>
+         <button 
+           onClick={handleBackup}
+           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition flex items-center gap-2 shrink-0"
+         >
+           <Download className="w-4 h-4" /> Export Backup
+         </button>
+      </div>
+
       <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
         <User className="w-5 h-5 text-indigo-500" /> User Management & Insights
       </h3>

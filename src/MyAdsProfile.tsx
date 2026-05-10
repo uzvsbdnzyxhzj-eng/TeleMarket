@@ -7,6 +7,7 @@ export default function MyAdsProfile({ currentUser, onNavigate }: { currentUser:
   const [ads, setAds] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [extendingAd, setExtendingAd] = useState<string | null>(null);
+  const [extendPlanFor, setExtendPlanFor] = useState<{ [adId: string]: number }>({});
 
   useEffect(() => {
     if (!currentUser?.uid) return;
@@ -20,8 +21,6 @@ export default function MyAdsProfile({ currentUser, onNavigate }: { currentUser:
   }, [currentUser]);
 
   if (!currentUser) return null;
-
-  const [extendPlanFor, setExtendPlanFor] = useState<{ [adId: string]: number }>({});
 
   const handleExtend = async (ad: any) => {
       const plans = [
