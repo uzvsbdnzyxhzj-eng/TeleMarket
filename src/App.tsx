@@ -51,7 +51,8 @@ import {
   Twitter,
   Copy,
   MessageSquare,
-  Ticket
+  Ticket,
+  Code
 } from "lucide-react";
 import { auth, db } from "./firebase";
 
@@ -95,6 +96,10 @@ import PostAd from "./PostAd";
 import MyAdsProfile from "./MyAdsProfile";
 import AdminUserManagement from "./AdminUserManagement";
 import AdminSMMPricing from "./AdminSMMPricing";
+import AdminDashboardButtons from "./AdminDashboardButtons";
+import ChildPanel from "./ChildPanel";
+import AdminChildPanel from "./AdminChildPanel";
+import ApiView from "./ApiView";
 import SupportTickets from "./SupportTickets";
 import AdminTickets from "./AdminTickets";
 import SocialServices from "./SocialServices";
@@ -109,7 +114,9 @@ export type View =
   | "wallet-history"
   | "smm"
   | "tickets"
-  | "post-ad";
+  | "post-ad"
+  | "child-panel"
+  | "api";
 
 import {
   getFlag,
@@ -193,6 +200,7 @@ export default function App() {
   const [showWelcome, setShowWelcome] = useState(true);
 
   const [currentView, setCurrentView] = useState<View>("dashboard");
+  const [smmCategory, setSmmCategory] = useState("social");
   const [recordsTab, setRecordsTab] = useState<"buy" | "smm">("buy");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -239,7 +247,7 @@ export default function App() {
     
     (window as any).triggerAdClick = () => {
       clickCount++;
-      if (clickCount >= 5) {
+      if (clickCount >= 3) {
         clickCount = 0;
         window.open(monetagLink, "_blank");
       }
@@ -299,6 +307,7 @@ export default function App() {
     number | ""
   >("");
   const [adminBannerSettings, setAdminBannerSettings] = useState<{ banners: { imageUrl: string, linkUrl: string }[], isActive: boolean }>({ banners: [], isActive: false });
+  const [dashboardButtons, setDashboardButtons] = useState<Record<string, any>>({});
   const [isPublishingBanner, setIsPublishingBanner] = useState(false);
   const [activeUsersStats, setActiveUsersStats] = useState({
     live: 0,
@@ -325,6 +334,16 @@ export default function App() {
         const conf = { id: data.id || "1174790336", qrUrl: data.qrUrl || "" };
         setBinanceConfig(conf);
         setAdminBinanceConfig(conf);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // Load dashboard buttons config
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "settings", "dashboard_buttons"), (docSnap) => {
+      if (docSnap.exists()) {
+        setDashboardButtons(docSnap.data());
       }
     });
     return () => unsub();
@@ -1327,7 +1346,7 @@ export default function App() {
         <div className="space-y-3">
           <button
             onClick={() => handleGetCode()}
-            className="w-full bg-[#2AABEE] text-white py-3 rounded-lg font-bold hover:bg-blue-600 transition shadow-sm"
+            className="w-full bg-[#2AABEE] hover:bg-[#2299d6] text-white py-3 rounded-xl font-bold shadow-[0_4px_14px_rgba(42,171,238,0.39)] hover:shadow-[0_6px_20px_rgba(42,171,238,0.23)] active:scale-[0.98] transition-all"
           >
             {i18n.getCodeBtn}
           </button>
@@ -2347,15 +2366,13 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50/80 font-sans text-gray-900 flex flex-col relative overflow-hidden">
-      <Toaster position="top-center" />
-      {/* Animated Background */}
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col relative overflow-hidden">
+      <Toaster position="top-center" toastOptions={{ className: 'rounded-xl shadow-lg border border-slate-100 font-medium' }} />
+      {/* Clean Professional Animated Background */}
       <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none bg-gradient-to-br from-[#f8fafc] to-[#e0f2fe]/50">
         <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] max-w-[600px] max-h-[600px] rounded-full bg-[#38bdf8]/20 blur-[80px] md:blur-[120px] animate-blob mix-blend-multiply"></div>
         <div className="absolute top-[20%] right-[-10%] w-[60vw] h-[60vw] max-w-[700px] max-h-[700px] rounded-full bg-[#818cf8]/20 blur-[90px] md:blur-[130px] animate-blob animation-delay-2000 mix-blend-multiply"></div>
         <div className="absolute bottom-[-20%] left-[20%] w-[55vw] h-[55vw] max-w-[600px] max-h-[600px] rounded-full bg-[#34d399]/20 blur-[80px] md:blur-[120px] animate-blob animation-delay-4000 mix-blend-multiply"></div>
-        {/* Subtle noise texture */}
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIj4KICA8ZmlsdGVyIGlkPSJub2lzZSIgeD0iMCIgeT0iMCIgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSI+CiAgICA8ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iMC44IiBucdW1PY3RhdmVzPSIzIiBzdGl0Y2hUaWxlcz0ic3RpdGNoIi8+CiAgPC9maWx0ZXI+CiAgPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsdGVyPSJ1cmwoI25vaXNlKSIgb3BhY2l0eT0iMC4wNiIvPgo8L3N2Zz4=')] mix-blend-overlay"></div>
       </div>
       <AnimatePresence>
         {showWelcome && (
@@ -2400,7 +2417,7 @@ export default function App() {
                 </div>
                 <button
                   onClick={() => setShowWelcome(false)}
-                  className="w-full bg-[#2AABEE] hover:bg-[#2299d6] text-white font-bold py-3 px-6 rounded-xl transition shadow-lg shadow-blue-500/30 active:scale-[0.98]"
+                  className="w-full bg-[#2AABEE] hover:bg-[#2299d6] text-white font-bold py-3 px-6 rounded-xl shadow-[0_4px_14px_rgba(42,171,238,0.39)] hover:shadow-[0_6px_20px_rgba(42,171,238,0.23)] active:scale-[0.98] transition-all"
                 >
                   Explore Now
                 </button>
@@ -2412,17 +2429,25 @@ export default function App() {
 
       <TopTicker />
       {/* Navbar */}
-      <header className="bg-white/80 backdrop-blur-md text-gray-800 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] sticky top-0 z-50 border-b border-gray-100">
+      <header className="bg-white/90 backdrop-blur-xl text-slate-800 shadow-[0_2px_20px_-3px_rgba(0,0,0,0.05)] sticky top-0 z-50 border-b border-slate-100/80">
         <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex justify-between items-center w-full md:w-auto">
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setIsMobileMenuOpen(true)} 
+                className="p-1.5 md:p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 transition"
+              >
+                 <Menu className="w-5 h-5" />
+              </button>
               <div
                 className="flex items-center space-x-2 cursor-pointer"
-                onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("dashboard"); }}
+                onClick={() => { setCurrentView("dashboard"); }}
               >
                 <TelemarketLogo className="h-10 md:h-12" />
               </div>
+            </div>
 
-              <div className="flex md:hidden items-center gap-2">
+            <div className="flex md:hidden items-center gap-2">
                 <div className="flex items-center gap-1 text-gray-700 bg-gray-100 px-1.5 py-1.5 rounded-lg shrink-0 border border-gray-200">
                   <Globe className="w-4 h-4 opacity-80" />
                   <select value={lang} onChange={(e) => setLang(e.target.value as Language)} className="bg-transparent border-none text-gray-700 outline-none cursor-pointer text-xs font-bold max-w-[50px]">
@@ -2457,7 +2482,7 @@ export default function App() {
                 </div>
                 <div
                   className={`w-9 h-9 bg-[#5b8735] hover:opacity-90 text-white rounded-full flex items-center justify-center font-bold text-base cursor-pointer shadow-sm uppercase tracking-wider relative ${currentUser?.photoURL ? '' : 'overflow-hidden'}`}
-                  onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("profile"); })}
+                  onClick={() => requireAuth(() => { setCurrentView("profile"); })}
                 >
                   {currentUser?.photoURL ? (
                     <img src={currentUser.photoURL} alt="Avatar" className="w-full h-full rounded-full object-cover" />
@@ -2471,23 +2496,26 @@ export default function App() {
             {/* Desktop Navbar right side */}
             <div className="hidden md:flex w-full md:w-auto items-center gap-2 lg:gap-4 overflow-x-auto no-scrollbar">
               <nav className="flex items-center gap-1 lg:gap-2 font-medium min-w-max">
-                <button onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("dashboard"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "dashboard" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
+                <button onClick={() => { setCurrentView("dashboard"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "dashboard" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
                   <LayoutDashboard className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.dashboardNav}</span>
                 </button>
-                <button onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("buy"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "buy" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
+                <button onClick={() => { setCurrentView("buy"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "buy" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
                   <ShoppingCart className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.buyNav}</span>
                 </button>
-                <button onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("sell"); })} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "sell" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
+                <button onClick={() => requireAuth(() => { setCurrentView("sell"); })} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "sell" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
                   <PlusCircle className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.sellNav}</span>
                 </button>
-                <button onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("records"); })} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "records" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
+                <button onClick={() => requireAuth(() => { setCurrentView("records"); })} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "records" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
                   <FileText className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.recordsNav || "My Orders"}</span>
                 </button>
-                <button onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("profile"); })} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "profile" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
+                <button onClick={() => { setCurrentView("api"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "api" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
+                  <Code className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">API</span>
+                </button>
+                <button onClick={() => requireAuth(() => { setCurrentView("profile"); })} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "profile" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
                   <User className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.profileNav || "Profile"}</span>
                 </button>
                 {((currentUser?.email && (currentUser.email === "admin@gmail.com" || currentUser.email === "uzvsbdnzyxhzj@gmail.com")) || currentUser?.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2") && (
-                  <button onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("admin"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm bg-red-100 text-red-600 hover:bg-red-200 font-bold`}>
+                  <button onClick={() => { setCurrentView("admin"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm bg-red-100 text-red-600 hover:bg-red-200 font-bold`}>
                     <Settings className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.adminNav}</span>
                   </button>
                 )}
@@ -2528,7 +2556,7 @@ export default function App() {
               </div>
               <div
                 className={`w-9 h-9 lg:w-10 lg:h-10 bg-[#5b8735] hover:opacity-90 text-white rounded-full flex items-center justify-center font-bold text-lg cursor-pointer shadow-sm uppercase tracking-wider relative shrink-0 ${currentUser?.photoURL ? '' : 'overflow-hidden'}`}
-                onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("profile"); })}
+                onClick={() => requireAuth(() => { setCurrentView("profile"); })}
               >
                 {currentUser?.photoURL ? (
                   <img src={currentUser.photoURL} alt="Avatar" className="w-full h-full rounded-full object-cover" />
@@ -2561,7 +2589,7 @@ export default function App() {
         {currentView === "tickets" && (
           <div className="max-w-4xl mx-auto py-8">
              <button
-              onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("dashboard"); }}
+              onClick={() => { setCurrentView("dashboard"); }}
               className="md:hidden flex items-center text-gray-600 hover:text-gray-900 mb-2 font-medium bg-white px-4 py-2 rounded-full shadow-sm"
              >
                <ArrowLeft className="w-5 h-5 mr-2" /> Back to Dashboard
@@ -2574,14 +2602,20 @@ export default function App() {
         )}
         {currentView === "smm" && (
           <div className="w-full h-[calc(100vh-140px)] md:h-[calc(100vh-80px)] -mt-4 sm:-mt-8 -mx-3 sm:-mx-6 lg:-mx-8 p-0 relative">
-            <SocialServices currentUser={currentUser} onNavigate={setCurrentView} balanceUSD={balanceUSD} socialMarkupPercent={socialMarkupPercent} smmMarkupData={smmMarkupData} />
+            <SocialServices currentUser={currentUser} onNavigate={setCurrentView} balanceUSD={balanceUSD} socialMarkupPercent={socialMarkupPercent} smmMarkupData={smmMarkupData} smmCategoryGroupName={smmCategory} />
           </div>
+        )}
+        {currentView === "child-panel" && (
+          <ChildPanel currentUser={currentUser} onNavigate={(v) => setCurrentView(v as View)} balanceUSD={balanceUSD} />
+        )}
+        {currentView === "api" && (
+          <ApiView onNavigate={(v) => setCurrentView(v as View)} />
         )}
         {/* BUY VIEW */}
         {currentView === "buy" && (
           <div className="space-y-6">
             <button
-              onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("dashboard"); }}
+              onClick={() => { setCurrentView("dashboard"); }}
               className="md:hidden flex items-center text-gray-600 hover:text-gray-900 mb-2 font-medium bg-white px-4 py-2 rounded-full shadow-sm"
             >
               <ArrowLeft className="w-5 h-5 mr-2" /> Back to Dashboard
@@ -2685,7 +2719,7 @@ export default function App() {
         {currentView === "sell" && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center max-w-2xl mx-auto my-8">
             <button
-              onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("dashboard"); }}
+              onClick={() => { setCurrentView("dashboard"); }}
               className="md:hidden flex items-center text-gray-600 hover:text-gray-900 mb-6 font-medium bg-gray-50 px-4 py-2 rounded-full mx-auto shadow-sm"
             >
               <ArrowLeft className="w-5 h-5 mr-2" /> Back
@@ -2711,7 +2745,7 @@ export default function App() {
                 History
               </h2>
               <button
-                onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("profile"); })}
+                onClick={() => requireAuth(() => { setCurrentView("profile"); })}
                 className="text-sm font-medium text-[#2AABEE] hover:underline bg-[#2AABEE]/10 px-3 py-1.5 rounded-lg border border-[#2AABEE]/20"
               >
                 Back to Profile
@@ -2814,7 +2848,7 @@ export default function App() {
         {currentView === "records" && (
           <div className="bg-white min-h-[500px] text-gray-900 rounded-xl overflow-hidden shadow-sm border border-gray-200 relative">
             <button
-              onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("dashboard"); }}
+              onClick={() => { setCurrentView("dashboard"); }}
               className="md:hidden absolute top-4 right-4 flex items-center text-gray-600 hover:text-gray-900 font-medium bg-gray-100 px-3 py-1.5 rounded-full shadow-sm z-10"
             >
               <ArrowLeft className="w-4 h-4 mr-1" /> Back
@@ -3002,7 +3036,7 @@ export default function App() {
         {currentView === "profile" && (
           <div className="space-y-6">
             <button
-              onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("dashboard"); }}
+              onClick={() => { setCurrentView("dashboard"); }}
               className="md:hidden flex items-center text-gray-600 hover:text-gray-900 font-medium bg-white px-4 py-2 rounded-full shadow-sm"
             >
               <ArrowLeft className="w-5 h-5 mr-2" /> Back to Dashboard
@@ -3013,7 +3047,7 @@ export default function App() {
               </h2>
               <div className="flex items-center gap-2">
                 {((currentUser?.email && (currentUser.email === "admin@gmail.com" || currentUser.email === "uzvsbdnzyxhzj@gmail.com")) || currentUser?.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2") && (
-                  <button onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("admin"); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg transition text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 font-bold hidden md:flex">
+                  <button onClick={() => { setCurrentView("admin"); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg transition text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 font-bold hidden md:flex">
                     <Settings className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">Admin Settings</span>
                   </button>
                 )}
@@ -3034,7 +3068,7 @@ export default function App() {
               <div className="space-y-6">
                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden text-center p-6">
                    {((currentUser?.email && (currentUser.email === "admin@gmail.com" || currentUser.email === "uzvsbdnzyxhzj@gmail.com")) || currentUser?.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2") && (
-                     <button onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("admin"); }} className="mb-4 mx-auto md:hidden flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl transition text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 font-bold w-full">
+                     <button onClick={() => { setCurrentView("admin"); }} className="mb-4 mx-auto md:hidden flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl transition text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 font-bold w-full">
                        <Settings className="w-5 h-5 shrink-0" /> <span>Admin Settings Dashboard</span>
                      </button>
                    )}
@@ -3303,7 +3337,7 @@ export default function App() {
               </div>
               <div className="divide-y divide-gray-50">
                 <button
-                  onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("wallet-history"); })}
+                  onClick={() => requireAuth(() => { setCurrentView("wallet-history"); })}
                   className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left"
                 >
                   <div className="flex items-center gap-3">
@@ -3317,7 +3351,7 @@ export default function App() {
                   <ArrowRight className="w-4 h-4 text-gray-400" />
                 </button>
                 <button
-                  onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("records"); })}
+                  onClick={() => requireAuth(() => { setCurrentView("records"); })}
                   className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left"
                 >
                   <div className="flex items-center gap-3">
@@ -3357,7 +3391,7 @@ export default function App() {
                   Recent Wallet History
                 </h3>
                 <button
-                  onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("wallet-history"); })}
+                  onClick={() => requireAuth(() => { setCurrentView("wallet-history"); })}
                   className="text-sm font-medium text-[#2AABEE] hover:underline"
                 >
                   View All
@@ -3500,12 +3534,15 @@ export default function App() {
             </div>
 
             {/* Quick Actions (Buy / Sell / Topup / Withdraw inside dashboard) */}
-            <div className="grid grid-cols-2 gap-4 mb-6 md:grid-cols-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-3 sm:mb-4">
               <div
-                onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("buy"); }}
-                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col"
+                onClick={() => { setCurrentView("buy"); }}
+                className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group"
               >
-                <div className="relative bg-gradient-to-br from-blue-500 to-blue-600 h-28 flex flex-col items-center justify-center px-4 pt-4 pb-2">
+                <div 
+                  className="relative bg-gradient-to-br from-blue-500 to-blue-600 h-28 flex flex-col items-center justify-center px-4 pt-4 pb-2 bg-cover bg-center"
+                  style={dashboardButtons.buy_telegram?.imageUrl ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url(${dashboardButtons.buy_telegram.imageUrl})` } : {}}
+                >
                   <div className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                     Hot
                   </div>
@@ -3540,9 +3577,12 @@ export default function App() {
 
               <div
                 onClick={() => requireAuth(() => { setCurrentView("sell"); })}
-                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col"
+                className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group"
               >
-                <div className="relative bg-gradient-to-br from-purple-500 to-purple-600 h-28 flex flex-col items-center justify-center px-4 pt-4 pb-2">
+                <div 
+                  className="relative bg-gradient-to-br from-purple-500 to-purple-600 h-28 flex flex-col items-center justify-center px-4 pt-4 pb-2 bg-cover bg-center"
+                  style={dashboardButtons.sell_telegram?.imageUrl ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url(${dashboardButtons.sell_telegram.imageUrl})` } : {}}
+                >
                   <div className="absolute top-2 left-2 bg-yellow-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                     Maintenance
                   </div>
@@ -3572,22 +3612,80 @@ export default function App() {
               </div>
 
               <div
-                onClick={() => { requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("smm"); }) }}
-                className="col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col"
+                onClick={() => { requireAuth(() => { setSmmCategory("games"); setCurrentView("smm"); }) }}
+                className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group h-full"
               >
-                <div className="relative bg-gradient-to-br from-violet-600 to-fuchsia-600 h-28 flex flex-col items-center justify-center px-4 pt-4 pb-2 overflow-hidden">
-                  <div className="absolute top-2 left-2 flex gap-1.5 flex-wrap z-10">
-                    <span className="bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">Fast</span>
-                    <span className="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">Cheap Price</span>
-                    <span className="bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">High Quality</span>
+                <div 
+                  className="relative bg-gradient-to-br from-orange-500 to-red-600 h-28 flex flex-col items-center justify-center px-4 overflow-hidden bg-cover bg-center"
+                  style={dashboardButtons.games?.imageUrl ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url(${dashboardButtons.games.imageUrl})` } : {}}
+                >
+                  <div className="text-white font-bold text-sm sm:text-lg leading-tight tracking-tight mt-1 z-10 uppercase text-center">
+                    Games
                   </div>
-                  <div className="flex gap-4 text-white mb-1 items-center z-10">
-                    <Facebook className="w-8 h-8 opacity-95 drop-shadow-md" />
-                    <Youtube className="w-9 h-9 opacity-95 drop-shadow-md" />
-                    <Instagram className="w-8 h-8 opacity-95 drop-shadow-md" />
+                </div>
+                <div className="p-3 flex-1 flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-1 text-sm sm:text-base leading-tight">Games Service</h3>
+                    <div className="flex items-center gap-0.5 mb-2">
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                    </div>
                   </div>
-                  <div className="text-white font-bold text-lg leading-tight tracking-tight mt-1 z-10 uppercase">
-                    All Social Media
+                  <p className="text-xs text-gray-500 truncate mt-auto">Free Fire, PUBG Mobile, Mobile Legends</p>
+                </div>
+              </div>
+
+              <div
+                onClick={() => { requireAuth(() => { setSmmCategory("streaming"); setCurrentView("smm"); }) }}
+                className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group h-full"
+              >
+                <div 
+                  className="relative bg-gradient-to-br from-indigo-500 to-purple-600 h-28 flex flex-col items-center justify-center px-4 overflow-hidden bg-cover bg-center"
+                  style={dashboardButtons.streaming?.imageUrl ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url(${dashboardButtons.streaming.imageUrl})` } : {}}
+                >
+                  <div className="text-white font-bold text-sm sm:text-lg leading-tight tracking-tight mt-1 z-10 uppercase text-center">
+                    Streaming
+                  </div>
+                </div>
+                <div className="p-3 flex-1 flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-1 text-sm sm:text-base leading-tight">Audio & Video</h3>
+                    <div className="flex items-center gap-0.5 mb-2">
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 truncate mt-auto">Twitch, Kick, Spotify, SoundCloud, Audiomack, Deezer, Tidal, Vimeo</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+              <div
+                onClick={() => { requireAuth(() => { setSmmCategory("social"); setCurrentView("smm"); }) }}
+                className="col-span-2 bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group"
+              >
+                <div 
+                  className="relative bg-gradient-to-br from-violet-600 to-fuchsia-600 h-28 flex flex-col items-center justify-center px-4 overflow-hidden bg-cover bg-center"
+                  style={dashboardButtons.social?.imageUrl ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url(${dashboardButtons.social.imageUrl})` } : {}}
+                >
+                  <div className="absolute top-2 left-2 flex gap-1 z-10">
+                    <span className="bg-green-500 text-white text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">Fast</span>
+                    <span className="bg-amber-500 text-white text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">Cheap</span>
+                  </div>
+                  <div className="flex gap-3 text-white mb-1 items-center z-10 mt-2">
+                    <Facebook className="w-6 h-6 sm:w-8 sm:h-8 opacity-95 drop-shadow-md" />
+                    <Youtube className="w-7 h-7 sm:w-9 sm:h-9 opacity-95 drop-shadow-md" />
+                    <Instagram className="w-6 h-6 sm:w-8 sm:h-8 opacity-95 drop-shadow-md" />
+                  </div>
+                  <div className="text-white font-bold text-sm sm:text-lg leading-tight tracking-tight mt-1 z-10 uppercase text-center">
+                    Social Media & Messaging Service
                   </div>
                   {/* Decorative background icons */}
                   <Twitter className="absolute -right-4 -top-4 w-20 h-20 text-white opacity-10 pointer-events-none" />
@@ -3596,7 +3694,7 @@ export default function App() {
                 <div className="p-3 sm:p-4 flex-1 flex flex-col justify-between">
                   <div>
                     <h3 className="font-bold text-gray-900 mb-1 text-sm sm:text-base leading-tight">
-                      All Social Services
+                      Social Media & Messaging Service
                     </h3>
                     <div className="flex items-center gap-0.5 mb-2">
                       <span className="text-amber-400 text-xs sm:text-sm">★</span>
@@ -3608,16 +3706,75 @@ export default function App() {
                   </div>
                   <div className="flex items-center text-xs text-gray-500 gap-1.5 mt-auto">
                     <Heart className="w-3.5 h-3.5 shrink-0 text-violet-500" />
-                    <span className="truncate">FB, YT, IG, Web Traffic & more available</span>
+                    <span className="truncate">FB, IG, TikTok, YT, X, Telegram, WhatsApp...</span>
                   </div>
                 </div>
               </div>
 
               <div
-                onClick={() => { requireAuth(() => setTopupModal(true)); }}
-                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col"
+                onClick={() => { requireAuth(() => { setSmmCategory("regional"); setCurrentView("smm"); }) }}
+                className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group h-full"
               >
-                <div className="relative bg-gradient-to-br from-indigo-600 to-indigo-700 h-28 flex flex-col items-center justify-center p-4">
+                <div 
+                  className="relative bg-gradient-to-br from-pink-500 to-rose-600 h-28 flex flex-col items-center justify-center px-4 overflow-hidden bg-cover bg-center"
+                  style={dashboardButtons.regional?.imageUrl ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url(${dashboardButtons.regional.imageUrl})` } : {}}
+                >
+                  <div className="text-white font-bold text-sm sm:text-lg leading-tight tracking-tight mt-1 z-10 uppercase text-center">
+                    Regional
+                  </div>
+                </div>
+                <div className="p-3 flex-1 flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-1 text-sm sm:text-base leading-tight">Regional & Short Video</h3>
+                    <div className="flex items-center gap-0.5 mb-2">
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 truncate mt-auto">Kwai, Likee, VK, OK.ru, Lemon 8, Coub</p>
+                </div>
+              </div>
+
+              <div
+                onClick={() => { requireAuth(() => { setSmmCategory("ecommerce"); setCurrentView("smm"); }) }}
+                className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group h-full"
+              >
+                <div 
+                  className="relative bg-gradient-to-br from-emerald-500 to-teal-600 h-28 flex flex-col items-center justify-center px-4 overflow-hidden bg-cover bg-center"
+                  style={dashboardButtons.ecommerce?.imageUrl ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url(${dashboardButtons.ecommerce.imageUrl})` } : {}}
+                >
+                  <div className="text-white font-bold text-sm sm:text-lg leading-tight tracking-tight mt-1 z-10 uppercase text-center">
+                    Web Traffic & E-commerce
+                  </div>
+                </div>
+                <div className="p-3 flex-1 flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-1 text-sm sm:text-base leading-tight">Web Traffic & E-commerce</h3>
+                    <div className="flex items-center gap-0.5 mb-2">
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 truncate mt-auto">Shopee, Lazada, Google Reviews, Website Traffic, Yandex, Reverbnation</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+              <div
+                onClick={() => { requireAuth(() => setTopupModal(true)); }}
+                className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group"
+              >
+                <div 
+                  className="relative bg-gradient-to-br from-indigo-600 to-indigo-700 h-28 flex flex-col items-center justify-center p-4 bg-cover bg-center"
+                  style={dashboardButtons.topup?.imageUrl ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url(${dashboardButtons.topup.imageUrl})` } : {}}
+                >
                   <div className="relative mb-1 text-white">
                     <Wallet className="w-12 h-12 text-white/90" />
                     <div className="absolute -bottom-1 -left-1 bg-white rounded-full text-indigo-700 p-0.5">
@@ -3638,9 +3795,12 @@ export default function App() {
 
               <div
                 onClick={() => { requireAuth(() => setWithdrawModal(true)); }}
-                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col"
+                className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group"
               >
-                <div className="relative bg-gradient-to-br from-teal-500 to-emerald-600 h-28 flex flex-col items-center justify-center p-4">
+                <div 
+                  className="relative bg-gradient-to-br from-teal-500 to-emerald-600 h-28 flex flex-col items-center justify-center p-4 bg-cover bg-center"
+                  style={dashboardButtons.withdraw?.imageUrl ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url(${dashboardButtons.withdraw.imageUrl})` } : {}}
+                >
                   <div className="relative mb-1 text-white">
                     <CircleDollarSign className="w-12 h-12 text-white/90" />
                   </div>
@@ -3661,7 +3821,7 @@ export default function App() {
 
             {/* Invite & Earn Banner */}
             <div
-              onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("profile"); })}
+              onClick={() => requireAuth(() => { setCurrentView("profile"); })}
               className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl p-6 text-white cursor-pointer hover:shadow-xl transition transform hover:-translate-y-1 relative overflow-hidden group mb-6 mt-4 md:mt-0"
             >
               <div className="relative z-10 flex items-center justify-between">
@@ -3715,7 +3875,7 @@ export default function App() {
                 </div>
                 <button
                   onClick={() => { requireAuth(() => setTopupModal(true)); }}
-                  className="w-full bg-[#2AABEE] text-white py-2.5 rounded-lg font-medium hover:bg-blue-500 transition shadow-sm"
+                  className="w-full bg-[#2AABEE] hover:bg-[#2299d6] text-white py-2.5 rounded-xl font-bold shadow-[0_4px_14px_rgba(42,171,238,0.39)] hover:shadow-[0_6px_20px_rgba(42,171,238,0.23)] active:scale-[0.98] transition-all"
                 >
                   {i18n.topupBtn}
                 </button>
@@ -4105,9 +4265,13 @@ export default function App() {
               </div>
             </div>
 
+            <AdminDashboardButtons />
+
             <AdminUserManagement />
 
             <AdminTickets />
+
+            <AdminChildPanel />
 
             <AdminSMMPricing socialMarkupPercent={socialMarkupPercent} />
 
@@ -4720,28 +4884,28 @@ export default function App() {
       </main>
 
       {/* Mobile Bottom Navigation Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-gray-200 z-[60] flex justify-around items-center px-1 py-1.5 pb-2 shadow-[0_-5px_15px_rgba(0,0,0,0.05)]">
-        <button onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("dashboard"); }} className={`flex flex-col items-center flex-1 py-1 transition-colors ${currentView === "dashboard" ? "text-blue-700" : "text-gray-500 hover:text-gray-900"}`}>
+      <div className="md:hidden fixed bottom-4 left-4 right-4 bg-white/90 backdrop-blur-xl border border-slate-200/60 z-[60] flex justify-around items-center px-2 py-2 shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-2xl">
+        <button onClick={() => { setCurrentView("dashboard"); }} className={`flex flex-col items-center flex-1 py-1 transition-all duration-300 ${currentView === "dashboard" ? "text-blue-600 scale-110" : "text-slate-400 hover:text-slate-600"}`}>
           <Home className={`w-[22px] h-[22px] mb-0.5 ${currentView === "dashboard" ? "stroke-[2.5px]" : "stroke-2"}`} />
           <span className={`text-[10px] ${currentView === "dashboard" ? "font-bold" : "font-medium"}`}>Home</span>
         </button>
-        <button onClick={() => { requireAuth(() => { setTopupModal(true); setIsMobileMenuOpen(false); }); }} className={`flex flex-col items-center flex-1 py-1 transition-colors text-gray-500 hover:text-gray-900`}>
-          <svg className="w-[22px] h-[22px] mb-0.5 stroke-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
+        <button onClick={() => { requireAuth(() => { setTopupModal(true); setIsMobileMenuOpen(false); }); }} className={`flex flex-col items-center flex-1 py-1 transition-all duration-300 text-slate-400 hover:text-slate-600`}>
+          <div className="w-[22px] h-[22px] mb-0.5 rounded-full border-2 border-current flex items-center justify-center">
+            <Plus className="w-3.5 h-3.5" strokeWidth={3} />
+          </div>
           <span className="text-[10px] font-medium">Add Money</span>
         </button>
-        <button onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("records"); })} className={`flex flex-col items-center flex-1 py-1 transition-colors ${currentView === "records" ? "text-blue-700" : "text-gray-500 hover:text-gray-900"}`}>
+        <button onClick={() => requireAuth(() => { setCurrentView("records"); })} className={`flex flex-col items-center flex-1 py-1 transition-all duration-300 ${currentView === "records" ? "text-blue-600 scale-110" : "text-slate-400 hover:text-slate-600"}`}>
           <Bookmark className={`w-[22px] h-[22px] mb-0.5 ${currentView === "records" ? "stroke-[2.5px]" : "stroke-2"}`} />
           <span className={`text-[10px] ${currentView === "records" ? "font-bold" : "font-medium"}`}>My Orders</span>
         </button>
-        <button onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("buy"); }} className={`flex flex-col items-center flex-1 py-1 transition-colors ${currentView === "buy" ? "text-blue-700" : "text-gray-500 hover:text-gray-900"}`}>
+        <button onClick={() => { setCurrentView("buy"); }} className={`flex flex-col items-center flex-1 py-1 transition-all duration-300 ${currentView === "buy" ? "text-blue-600 scale-110" : "text-slate-400 hover:text-slate-600"}`}>
           <LayoutGrid className={`w-[22px] h-[22px] mb-0.5 ${currentView === "buy" ? "stroke-[2.5px]" : "stroke-2"}`} />
           <span className={`text-[10px] ${currentView === "buy" ? "font-bold" : "font-medium"}`}>My Codes</span>
         </button>
-        <button onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("profile"); })} className={`flex flex-col items-center flex-1 py-1 transition-colors ${currentView === "profile" ? "text-blue-700" : "text-gray-500 hover:text-gray-900"}`}>
+        <button onClick={() => requireAuth(() => { setCurrentView("profile"); })} className={`flex flex-col items-center flex-1 py-1 transition-all duration-300 ${currentView === "profile" ? "text-blue-600 scale-110" : "text-slate-400 hover:text-slate-600"}`}>
           <User className={`w-[22px] h-[22px] mb-0.5 ${currentView === "profile" ? "stroke-[2.5px]" : "stroke-2"}`} />
-          <span className={`text-[10px] ${currentView === "profile" ? "font-bold" : "font-medium"}`}>My Account</span>
+          <span className={`text-[10px] ${currentView === "profile" ? "font-bold" : "font-medium"}`}>Account</span>
         </button>
       </div>
 
@@ -4749,24 +4913,24 @@ export default function App() {
       {currentView !== "admin" && (
         <div className="fixed bottom-24 md:bottom-6 right-4 md:right-6 z-[70] flex flex-col items-end gap-3">
           {/* Tickets Button */}
-          <div className="flex items-center shadow-xl rounded-full" style={{ filter: 'drop-shadow(0px 4px 6px rgba(0,0,0,0.1))' }}>
-            <button onClick={() => setCurrentView("tickets")} className="flex items-center cursor-pointer">
-                <div className="bg-[#2AABEE] text-white px-3 py-1.5 rounded-l-full font-bold text-xs border border-[#2AABEE] tracking-wide h-10 flex items-center -mr-3 pr-4">
+          <div className="flex items-center shadow-xl rounded-full" style={{ filter: 'drop-shadow(0px 8px 16px rgba(42,171,238,0.25))' }}>
+            <button onClick={() => setCurrentView("tickets")} className="flex items-center cursor-pointer group">
+                <div className="bg-gradient-to-r from-blue-600 to-[#2AABEE] text-white px-3 py-1.5 rounded-l-full font-bold text-xs border border-blue-500/30 tracking-wide h-10 flex items-center -mr-3 pr-4 group-hover:-translate-x-1 transition-transform">
                   Tickets
                 </div>
-                <div className="bg-[#1d82b8] text-white p-2.5 rounded-full z-10 w-11 h-11 flex items-center justify-center transform hover:scale-105 transition shadow-lg">
+                <div className="bg-gradient-to-br from-blue-500 to-[#1d82b8] text-white p-2.5 rounded-full z-10 w-11 h-11 flex items-center justify-center transform group-hover:scale-110 transition-all shadow-[0_0_15px_rgba(42,171,238,0.5)]">
                   <MessageSquare className="w-5 h-5 fill-current" />
                 </div>
             </button>
           </div>
           
           {/* WhatsApp Button */}
-          <div className="flex items-center shadow-xl rounded-full" style={{ filter: 'drop-shadow(0px 4px 6px rgba(0,0,0,0.1))' }}>
-            <button onClick={() => window.open("https://wa.me/8801644627304", "_blank")} className="flex items-center cursor-pointer">
-                <div className="bg-[#25D366] text-white px-3 py-1.5 rounded-l-full font-bold text-xs border border-[#25D366] tracking-wide h-10 flex items-center -mr-3 pr-4">
+          <div className="flex items-center shadow-xl rounded-full" style={{ filter: 'drop-shadow(0px 8px 16px rgba(37,211,102,0.25))' }}>
+            <button onClick={() => window.open("https://wa.me/8801644627304", "_blank")} className="flex items-center cursor-pointer group">
+                <div className="bg-gradient-to-r from-green-600 to-[#25D366] text-white px-3 py-1.5 rounded-l-full font-bold text-xs border border-green-500/30 tracking-wide h-10 flex items-center -mr-3 pr-4 group-hover:-translate-x-1 transition-transform">
                   Need Help?
                 </div>
-                <div className="bg-[#1da851] text-white p-2.5 rounded-full z-10 w-11 h-11 flex items-center justify-center transform hover:scale-105 transition shadow-lg">
+                <div className="bg-gradient-to-br from-green-500 to-[#1da851] text-white p-2.5 rounded-full z-10 w-11 h-11 flex items-center justify-center transform group-hover:scale-110 transition-all shadow-[0_0_15px_rgba(37,211,102,0.5)]">
                   <Phone className="w-5 h-5 fill-current" />
                 </div>
             </button>
@@ -4779,6 +4943,106 @@ export default function App() {
       {topupModal && renderTopupModal()}
       {withdrawModal && renderWithdrawModal()}
       {purchasedNumber && renderPurchasedModal()}
+
+      {/* Hamburger / Side Menu */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-black/60 z-[100] backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed top-0 left-0 bottom-0 w-72 bg-white z-[101] shadow-2xl overflow-y-auto flex flex-col"
+            >
+              <div className="p-4 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white">
+                <TelemarketLogo className="h-8" />
+                <button
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-2 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-500 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-4 flex-1 flex flex-col gap-2">
+                <button
+                  onClick={() => { setIsMobileMenuOpen(false); setCurrentView("dashboard"); }}
+                  className={`flex items-center gap-3 p-3 rounded-xl transition font-medium w-full text-left ${currentView === "dashboard" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
+                >
+                  <Home className={`w-5 h-5 ${currentView === "dashboard" ? "text-blue-600" : "text-gray-400"}`} /> Home
+                </button>
+                <button
+                  onClick={() => { requireAuth(() => { setTopupModal(true); setIsMobileMenuOpen(false); }); }}
+                  className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 text-gray-700 transition font-medium w-full text-left"
+                >
+                  <Plus className="w-5 h-5 text-gray-400" /> Add Money
+                </button>
+                <button
+                  onClick={() => requireAuth(() => { setIsMobileMenuOpen(false); setCurrentView("records"); })}
+                  className={`flex items-center gap-3 p-3 rounded-xl transition font-medium w-full text-left ${currentView === "records" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
+                >
+                  <Bookmark className={`w-5 h-5 ${currentView === "records" ? "text-blue-600" : "text-gray-400"}`} /> My Orders
+                </button>
+                <button
+                  onClick={() => { setIsMobileMenuOpen(false); setCurrentView("buy"); }}
+                  className={`flex items-center gap-3 p-3 rounded-xl transition font-medium w-full text-left ${currentView === "buy" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
+                >
+                  <LayoutGrid className={`w-5 h-5 ${currentView === "buy" ? "text-blue-600" : "text-gray-400"}`} /> My Codes
+                </button>
+                <button
+                  onClick={() => requireAuth(() => { setIsMobileMenuOpen(false); setCurrentView("profile"); })}
+                  className={`flex items-center gap-3 p-3 rounded-xl transition font-medium w-full text-left ${currentView === "profile" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
+                >
+                  <User className={`w-5 h-5 ${currentView === "profile" ? "text-blue-600" : "text-gray-400"}`} /> My Account
+                </button>
+                
+                <div className="my-2 border-t border-gray-100"></div>
+                
+                <button
+                  onClick={() => requireAuth(() => { setIsMobileMenuOpen(false); setCurrentView("child-panel"); })}
+                  className={`flex items-center gap-3 p-3 rounded-xl transition font-medium w-full text-left ${currentView === "child-panel" ? "bg-rose-50 text-rose-700" : "hover:bg-rose-50 text-gray-700"}`}
+                >
+                  <Globe className={`w-5 h-5 ${currentView === "child-panel" ? "text-rose-500" : "text-rose-400"}`} /> Child Panel
+                </button>
+                <button
+                  onClick={() => { setIsMobileMenuOpen(false); setCurrentView("api"); }}
+                  className={`flex items-center gap-3 p-3 rounded-xl transition font-medium w-full text-left ${currentView === "api" ? "bg-orange-50 text-orange-700" : "hover:bg-orange-50 text-gray-700"}`}
+                >
+                  <FileText className={`w-5 h-5 ${currentView === "api" ? "text-orange-500" : "text-orange-400"}`} /> API Documentation
+                </button>
+              </div>
+
+              {currentUser && (
+                <div className="p-4 border-t border-gray-100 bg-gray-50">
+                  <div className="flex items-center gap-3 mb-4">
+                     <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
+                        {currentUser.email?.[0]?.toUpperCase()}
+                     </div>
+                     <div className="overflow-hidden">
+                       <p className="font-bold text-gray-800 truncate">{currentUser.email}</p>
+                       <p className="text-xs text-gray-500">Balance: ${balanceUSD.toFixed(2)}</p>
+                     </div>
+                  </div>
+                  <button
+                    onClick={() => { localStorage.setItem("skip_auto_login", "true"); signOut(auth); setShowAuth(true); setIsMobileMenuOpen(false); }}
+                    className="w-full flex items-center justify-center gap-2 p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition font-bold text-sm"
+                  >
+                    <LogOut className="w-4 h-4" /> Sign Out
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

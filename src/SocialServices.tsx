@@ -10,9 +10,10 @@ interface SocialServicesProps {
   balanceUSD: number;
   socialMarkupPercent: number;
   smmMarkupData?: Record<string, any>;
+  smmCategoryGroupName?: string;
 }
 
-export default function SocialServices({ currentUser, onNavigate, balanceUSD, socialMarkupPercent = 25, smmMarkupData = {} }: SocialServicesProps) {
+export default function SocialServices({ currentUser, onNavigate, balanceUSD, socialMarkupPercent = 25, smmMarkupData = {}, smmCategoryGroupName = "social" }: SocialServicesProps) {
   const [activeTab, setActiveTab] = useState("new-order");
   const [menuOpen, setMenuOpen] = useState(false);
   const [services, setServices] = useState<any[]>([]);
@@ -42,6 +43,18 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
      if (lower.includes("soundcloud")) return <Cloud className="text-[#FF5500] w-5 h-5 shrink-0" />;
      if (lower.includes("twitch")) return <Twitch className="text-[#9146FF] w-5 h-5 shrink-0" />;
      if (lower.includes("website")) return <Globe className="text-[#00B4B6] w-5 h-5 shrink-0" />;
+     
+     if (lower.includes("mobile")) return <PlaySquare className="text-blue-500 w-5 h-5 shrink-0" />;
+     if (lower.includes("freefire")) return <PlaySquare className="text-orange-500 w-5 h-5 shrink-0" />;
+     if (lower.includes("pubg")) return <PlaySquare className="text-yellow-500 w-5 h-5 shrink-0" />;
+     if (lower.includes("kick")) return <PlaySquare className="text-green-500 w-5 h-5 shrink-0" />;
+     if (lower.includes("whatsapp")) return <MessageCircle className="text-green-500 w-5 h-5 shrink-0" />;
+     if (lower.includes("threads")) return <MessageCircle className="text-gray-800 w-5 h-5 shrink-0" />;
+     if (lower.includes("snapchat")) return <PlaySquare className="text-yellow-400 w-5 h-5 shrink-0" />;
+     if (lower.includes("pinterest")) return <LayoutDashboard className="text-red-600 w-5 h-5 shrink-0" />;
+     if (lower.includes("reddit")) return <MessageCircle className="text-orange-500 w-5 h-5 shrink-0" />;
+     if (lower.includes("vk")) return <Globe className="text-blue-500 w-5 h-5 shrink-0" />;
+     if (lower.includes("tumblr")) return <LayoutDashboard className="text-indigo-800 w-5 h-5 shrink-0" />;
      
      if (lower.includes("indian")) return <span className="text-xl leading-none">🇮🇳</span>;
      if (lower.includes("bangladesh") || lower.includes("bd")) return <span className="text-xl leading-none">🇧🇩</span>;
@@ -103,15 +116,39 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
   const handleSocialFilter = (platform: string) => {
     setSearchCategory(platform);
     const lowercasePlatform = platform.toLowerCase();
-    const firstMatch = categories.find(c => c.toLowerCase().includes(lowercasePlatform));
+    const firstMatch = categories.find(c => {
+       const lowerC = c.toLowerCase();
+       if (lowercasePlatform === "twitter" && lowerC.includes("x (")) return true;
+       if (lowercasePlatform === "mobile" && lowerC.includes("mobile legends")) return true;
+       return lowerC.includes(lowercasePlatform);
+    });
     if (firstMatch) {
       setSelectedCategory(firstMatch);
       setShowCategoryDropdown(false);
     }
   };
 
+  useEffect(() => {
+    let newCategory = "Youtube";
+    if (smmCategoryGroupName === "games") newCategory = "Freefire";
+    else if (smmCategoryGroupName === "streaming") newCategory = "Spotify";
+    else if (smmCategoryGroupName === "regional") newCategory = "Kwai";
+    else if (smmCategoryGroupName === "ecommerce") newCategory = "Website";
+    
+    setSearchCategory(newCategory);
+    if (categories.length > 0) {
+       handleSocialFilter(newCategory);
+    }
+  }, [smmCategoryGroupName, categories.length]);
+
   const currentServices = services.filter(s => s.category === selectedCategory);
-  const filteredCategories = categories.filter(c => c.toLowerCase().includes(searchCategory.toLowerCase()));
+  const filteredCategories = categories.filter(c => {
+    const lowerC = c.toLowerCase();
+    const search = searchCategory.toLowerCase();
+    if (search === 'twitter' && lowerC.includes('x (')) return true;
+    if (search === 'mobile' && lowerC.includes('mobile legends')) return true;
+    return lowerC.includes(search);
+  });
   
   useEffect(() => {
      if (currentServices.length > 0 && (!selectedService || selectedService.category !== selectedCategory)) {
@@ -299,18 +336,73 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
                <div className="bg-white rounded-[20px] shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] mb-6 overflow-hidden">
                   <div className="p-4 sm:p-6">
                       <div className="grid grid-cols-2 gap-3 pb-2">
-                        <SocialBtn icon={<Youtube className="text-red-500 w-5 h-5" />} label="Youtube" onClick={() => handleSocialFilter("Youtube")} active={searchCategory.toLowerCase() === "youtube"} />
-                        <SocialBtn icon={<Facebook className="text-[#1877F2] w-5 h-5" />} label="Facebook" onClick={() => handleSocialFilter("Facebook")} active={searchCategory.toLowerCase() === "facebook"} />
-                        <SocialBtn icon={<Instagram className="text-pink-500 w-5 h-5" />} label="Instagram" onClick={() => handleSocialFilter("Instagram")} active={searchCategory.toLowerCase() === "instagram"} />
-                        <SocialBtn icon={<Twitter className="text-gray-800 w-5 h-5" />} label="Twitter" onClick={() => handleSocialFilter("Twitter")} active={searchCategory.toLowerCase() === "twitter"} />
-                        <SocialBtn icon={<Headphones className="text-[#1DB954] w-5 h-5" />} label="Spotify" onClick={() => handleSocialFilter("Spotify")} active={searchCategory.toLowerCase() === "spotify"} />
-                        <SocialBtn icon={<PlaySquare className="text-gray-800 w-5 h-5" />} label="Tiktok" onClick={() => handleSocialFilter("Tiktok")} active={searchCategory.toLowerCase() === "tiktok"} />
-                        <SocialBtn icon={<Linkedin className="text-[#0A66C2] w-5 h-5" />} label="Linkedin" onClick={() => handleSocialFilter("Linkedin")} active={searchCategory.toLowerCase() === "linkedin"} />
-                        <SocialBtn icon={<Send className="text-[#2AABEE] w-5 h-5" />} label="Telegram" onClick={() => handleSocialFilter("Telegram")} active={searchCategory.toLowerCase() === "telegram"} />
-                        <SocialBtn icon={<MessageCircle className="text-[#5865F2] w-5 h-5" />} label="Discord" onClick={() => handleSocialFilter("Discord")} active={searchCategory.toLowerCase() === "discord"} />
-                        <SocialBtn icon={<Cloud className="text-[#FF5500] w-5 h-5" />} label="SoundCloud" onClick={() => handleSocialFilter("SoundCloud")} active={searchCategory.toLowerCase() === "soundcloud"} />
-                        <SocialBtn icon={<Twitch className="text-[#9146FF] w-5 h-5" />} label="Twitch" onClick={() => handleSocialFilter("Twitch")} active={searchCategory.toLowerCase() === "twitch"} />
-                        <SocialBtn icon={<Globe className="text-[#00B4B6] w-5 h-5" />} label="Website Traffic" onClick={() => handleSocialFilter("Website")} active={searchCategory.toLowerCase() === "website"} />
+                        {(() => {
+                           let buttonsToRender: any[] = [];
+                           if (smmCategoryGroupName === "games") {
+                               buttonsToRender = [
+                                  { label: "Free Fire", key: "Freefire", icon: <span className="text-xl leading-none">🔥</span> },
+                                  { label: "PUBG Mobile", key: "PUBG", icon: <span className="text-xl leading-none">🪖</span> },
+                                  { label: "Mobile Legends", key: "Mobile", icon: <span className="text-xl leading-none">⚔️</span> },
+                               ];
+                           } else if (smmCategoryGroupName === "streaming") {
+                               buttonsToRender = [
+                                  { label: "Twitch", key: "Twitch", icon: <Twitch className="text-[#9146FF] w-5 h-5" /> },
+                                  { label: "Kick", key: "Kick", icon: <span className="text-green-500 font-black italic text-lg leading-none">K</span> },
+                                  { label: "Spotify", key: "Spotify", icon: <span className="text-[#1DB954] text-xl leading-none">🎧</span> },
+                                  { label: "SoundCloud", key: "SoundCloud", icon: <Cloud className="text-[#FF5500] w-5 h-5" /> },
+                                  { label: "Audiomack", key: "Audiomack", icon: <span className="text-yellow-500 text-xl leading-none">🎶</span> },
+                                  { label: "Deezer", key: "Deezer", icon: <span className="text-purple-500 text-xl leading-none">🎵</span> },
+                                  { label: "Tidal", key: "Tidal", icon: <span className="text-black text-xl leading-none">🌊</span> },
+                                  { label: "Vimeo", key: "Vimeo", icon: <span className="text-[#1AB7EA] font-bold text-xl leading-none">v</span> },
+                               ];
+                           } else if (smmCategoryGroupName === "regional") {
+                               buttonsToRender = [
+                                  { label: "Kwai", key: "Kwai", icon: <span className="text-xl leading-none">🎬</span> },
+                                  { label: "Likee", key: "Likee", icon: <span className="text-xl leading-none">❤️</span> },
+                                  { label: "VK", key: "VK", icon: <span className="text-blue-600 font-bold text-lg leading-none">VK</span> },
+                                  { label: "OK.ru", key: "OK.ru", icon: <span className="text-orange-500 font-bold text-lg leading-none">OK</span> },
+                                  { label: "Lemon 8", key: "Lemon", icon: <span className="text-xl leading-none">🍋</span> },
+                                  { label: "Coub", key: "Coub", icon: <span className="text-xl leading-none">♾️</span> },
+                               ];
+                           } else if (smmCategoryGroupName === "ecommerce") {
+                               buttonsToRender = [
+                                  { label: "Shopee", key: "Shopee", icon: <span className="text-xl leading-none">🛍️</span> },
+                                  { label: "Lazada", key: "Lazada", icon: <span className="text-xl leading-none">🛒</span> },
+                                  { label: "Google", key: "Google", icon: <Search className="text-blue-500 w-5 h-5" /> },
+                                  { label: "Website Traffic", key: "Website", icon: <span className="text-xl leading-none">🌍</span> },
+                                  { label: "Yandex", key: "Yandex", icon: <span className="text-red-500 font-bold text-lg leading-none">Y</span> },
+                                  { label: "Reverbnation", key: "Reverbnation", icon: <span className="text-xl leading-none">🎸</span> },
+                               ];
+                           } else {
+                               buttonsToRender = [
+                                  { label: "Facebook", key: "Facebook", icon: <Facebook className="text-[#1877F2] w-5 h-5" /> },
+                                  { label: "Instagram", key: "Instagram", icon: <Instagram className="text-pink-500 w-5 h-5" /> },
+                                  { label: "TikTok", key: "Tiktok", icon: <span className="text-xl leading-none">🎵</span> },
+                                  { label: "YouTube", key: "Youtube", icon: <Youtube className="text-red-500 w-5 h-5" /> },
+                                  { label: "X (Twitter)", key: "Twitter", icon: <span className="text-gray-900 font-bold text-lg leading-none">X</span> },
+                                  { label: "Telegram", key: "Telegram", icon: <Send className="text-[#2AABEE] w-5 h-5" /> },
+                                  { label: "WhatsApp", key: "Whatsapp", icon: <MessageCircle className="text-green-500 w-5 h-5" /> },
+                                  { label: "Threads", key: "Threads", icon: <span className="text-gray-900 font-bold text-lg leading-none">@</span> },
+                                  { label: "Snapchat", key: "Snapchat", icon: <span className="text-xl leading-none">👻</span> },
+                                  { label: "Pinterest", key: "Pinterest", icon: <span className="text-xl leading-none">📌</span> },
+                                  { label: "LinkedIn", key: "Linkedin", icon: <Linkedin className="text-[#0A66C2] w-5 h-5" /> },
+                                  { label: "Discord", key: "Discord", icon: <span className="text-[#5865F2] font-bold text-xl leading-none">👾</span> },
+                                  { label: "Reddit", key: "Reddit", icon: <span className="text-orange-500 font-bold text-xl leading-none">🤖</span> },
+                                  { label: "Tumblr", key: "Tumblr", icon: <span className="text-indigo-800 font-bold text-xl leading-none">t</span> },
+                                  { label: "Quora", key: "Quora", icon: <span className="text-red-700 font-bold text-lg leading-none">Q</span> },
+                               ];
+                           }
+                           
+                           return buttonsToRender.map(btn => (
+                               <SocialBtn 
+                                  key={btn.key} 
+                                  icon={btn.icon} 
+                                  label={btn.label} 
+                                  onClick={() => handleSocialFilter(btn.key)} 
+                                  active={searchCategory.toLowerCase() === btn.key.toLowerCase()} 
+                               />
+                           ));
+                        })()}
                       </div>
                   </div>
                </div>

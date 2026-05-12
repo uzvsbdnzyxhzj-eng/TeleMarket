@@ -3,7 +3,7 @@ import { Smartphone, Send, Bitcoin, Youtube, Facebook, Instagram, Zap } from 'lu
 
 export default function TopTicker() {
   return (
-    <div className="bg-[#111827] text-gray-300 py-2.5 overflow-hidden border-b border-gray-800">
+    <div className="bg-slate-900 text-slate-300 py-2.5 overflow-hidden border-b border-slate-800 shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)]">
       <div className="relative flex w-full">
         <div className="animate-marquee flex gap-16 md:gap-32 px-4 w-max">
           {[...Array(8)].map((_, i) => (

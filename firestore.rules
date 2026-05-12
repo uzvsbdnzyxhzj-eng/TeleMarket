@@ -69,9 +69,11 @@ service cloud.firestore {
 
     function isValidTransaction(data) {
       return data.userId is string &&
-             data.type in ['topup', 'withdraw', 'purchase', 'deposit', 'referral_bonus', 'fee', 'buy', 'ad_reward', 'smm_order', 'p2p_buy'] &&
+             data.type in ['topup', 'withdraw', 'purchase', 'deposit', 'referral_bonus', 'fee', 'buy', 'ad_reward', 'smm_order', 'p2p_buy', 'child_panel_order'] &&
              data.amountUSD is number &&
-             data.status in ['WAIT', 'OK', 'FAILED', 'pending', 'paid', 'success', 'Pending', 'In progress', 'Completed', 'Partial', 'Processing', 'Canceled'];
+             data.status in ['WAIT', 'OK', 'FAILED', 'pending', 'paid', 'success', 'Pending', 'In progress', 'Completed', 'Partial', 'Processing', 'Canceled', 'completed'] &&
+             (data.keys().hasAll(['userEmail']) == false || data.userEmail is string) &&
+             (data.keys().hasAll(['domain']) == false || data.domain is string);
     }
 
     match /transactions/{transactionId} {
@@ -149,6 +151,33 @@ service cloud.firestore {
                     incoming().userId == request.auth.uid;
 
       allow update: if isSignedIn() && (isAdmin() || (existing().userId == request.auth.uid && isValidTicket(incoming()))); 
+      allow delete: if isAdmin();
+    }
+
+    function isValidChildPanel(data) {
+      return data.userId is string &&
+             data.userEmail is string &&
+             data.domain is string &&
+             data.currency is string &&
+             data.adminUser is string &&
+             data.adminPass is string &&
+             data.price is number &&
+             data.billingCycle is string &&
+             data.status is string &&
+             data.createdAt is number &&
+             (data.keys().hasAll(['nameservers']) == false || data.nameservers is string);
+    }
+
+    match /child_panels/{panelId} {
+      allow get: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      allow create: if isSignedIn() && 
+                    isValidId(panelId) && 
+                    isValidChildPanel(incoming()) && 
+                    incoming().userId == request.auth.uid;
+
+      allow update: if isSignedIn() && (isAdmin() || (existing().userId == request.auth.uid && isValidChildPanel(incoming()))); 
       allow delete: if isAdmin();
     }
   }

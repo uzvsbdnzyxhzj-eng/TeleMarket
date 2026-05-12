@@ -209,11 +209,23 @@ async function startServer() {
   });
 
   // --- SMM Sun Proxy Routes ---
-  const SMM_API_URL = "https://smmsun.com/api/v2";
-  const SMM_API_KEY = "b433c05786f9f38669acba5c17b802ec";
+  const SMM_API_URL = "https://smmgen.com/api/v2";
+  const SMM_API_KEY = "076622ae1547776678e14a4c4e6586cc";
 
   let smmServicesCache: any = null;
   let smmServicesCacheTime: number = 0;
+
+// Dummy fallback data if SMM API is down
+const FALLBACK_SMM_SERVICES = [
+  { service: "1", name: "Instagram Followers [High Quality]", type: "Default", category: "Instagram Followers", rate: "0.50", min: "100", max: "10000" },
+  { service: "2", name: "Instagram Likes [Real]", type: "Default", category: "Instagram Likes", rate: "0.10", min: "50", max: "5000" },
+  { service: "3", name: "YouTube Views [Non-Drop]", type: "Default", category: "YouTube Views", rate: "1.20", min: "1000", max: "100000" },
+  { service: "4", name: "YouTube Subscribers [Speed: 50/Day]", type: "Default", category: "YouTube Subscribers", rate: "5.00", min: "100", max: "2000" },
+  { service: "5", name: "TikTok Followers", type: "Default", category: "TikTok", rate: "0.80", min: "100", max: "50000" },
+  { service: "6", name: "Facebook Page Likes", type: "Default", category: "Facebook", rate: "1.50", min: "100", max: "10000" },
+  { service: "7", name: "Telegram Members", type: "Default", category: "Telegram", rate: "0.30", min: "100", max: "20000" },
+  { service: "8", name: "Twitter/X Followers", type: "Default", category: "Twitter", rate: "2.00", min: "100", max: "5000" },
+];
 
   app.post("/api/proxy/smm/services", async (req, res) => {
     try {
@@ -227,24 +239,32 @@ async function startServer() {
       p.append("key", SMM_API_KEY);
       p.append("action", "services");
 
-      const response = await fetch(SMM_API_URL, {
-        method: "POST",
-        body: p,
-      });
-      const data = await response.json();
+      let data;
+      try {
+        const response = await fetch(SMM_API_URL, {
+          method: "POST",
+          body: p,
+          signal: AbortSignal.timeout(5000)
+        });
+        const text = await response.text();
+        data = JSON.parse(text);
+      } catch (err) {
+        console.error("SMM API request failed or returned invalid JSON. Using fallback.");
+        data = FALLBACK_SMM_SERVICES;
+      }
       
-      // Update cache
-      smmServicesCache = data;
-      smmServicesCacheTime = now;
+      if (Array.isArray(data) && data.length > 0) {
+        // Update cache
+        smmServicesCache = data;
+        smmServicesCacheTime = now;
+      } else {
+        data = smmServicesCache || FALLBACK_SMM_SERVICES;
+      }
       
       res.json(data);
     } catch (error) {
       console.error("SMM Services Error:", error);
-      // Fallback to cache if available
-      if (smmServicesCache) {
-         return res.json(smmServicesCache);
-      }
-      res.status(500).json({ error: "Failed to fetch social services." });
+      res.json(smmServicesCache || FALLBACK_SMM_SERVICES);
     }
   });
 
@@ -263,7 +283,14 @@ async function startServer() {
         method: "POST",
         body: p,
       });
-      const data = await response.json();
+      const text = await response.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (err) {
+        console.error("SMM Add Error: API returned invalid JSON:", text.substring(0, 150));
+        return res.status(500).json({ error: "Failed to place order. API issue." });
+      }
       res.json(data);
     } catch (error) {
       console.error("SMM Add Error:", error);
@@ -283,7 +310,14 @@ async function startServer() {
         method: "POST",
         body: p,
       });
-      const data = await response.json();
+      const text = await response.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (err) {
+        console.error("SMM Status Error: API returned invalid JSON:", text.substring(0, 150));
+        return res.status(500).json({ error: "Failed to fetch order status. API issue." });
+      }
       res.json(data);
     } catch (error) {
       console.error("SMM Status Error:", error);
