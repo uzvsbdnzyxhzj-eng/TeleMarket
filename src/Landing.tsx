@@ -3,7 +3,7 @@ import { Bot, ArrowRight, CheckCircle, Globe, Shield, Zap } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Language, t } from './i18n';
 import TopTicker from './TopTicker';
-import { Youtube, Facebook, Instagram, Twitter } from 'lucide-react';
+import { Youtube, Facebook, Instagram, Twitter, Linkedin, Send } from 'lucide-react';
 import { getFlag } from './utils';
 import { TelemarketLogo } from './App';
 
@@ -270,8 +270,76 @@ export default function Landing({ onGetStarted, lang, setLang, countries = [], m
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t py-12 text-center text-gray-500 text-sm">
-         <p>{i18n.landingFooter || `© ${new Date().getFullYear()} TeleBot Shop. All rights reserved.`}</p>
+      <footer className="bg-[#0B101E] text-white pt-16 pb-8 border-t border-gray-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
+            {/* Brand Column */}
+            <div className="lg:col-span-1 flex flex-col items-center md:items-start text-center md:text-left">
+              <div className="bg-white/10 p-2 rounded-lg inline-block mb-4">
+                <TelemarketLogo className="h-8 text-white" />
+              </div>
+              <p className="text-gray-400 text-sm leading-relaxed mb-6 font-medium">
+                Founded in 2018, {i18n.appName || 'TeleMarket'} is a leading provider of affordable and effective automated accounts services and neighboring regions. We offer diverse digital solutions across platforms like Telegram, Discord, Facebook, and more.
+              </p>
+              <div className="flex items-center gap-3">
+                <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-blue-600 hover:scale-110 transition-transform">
+                  <Facebook className="w-5 h-5 fill-current" />
+                </a>
+                <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-black hover:scale-110 transition-transform">
+                  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/></svg>
+                </a>
+                <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-red-600 hover:scale-110 transition-transform">
+                  <Youtube className="w-5 h-5 fill-current" />
+                </a>
+                <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-blue-500 hover:scale-110 transition-transform">
+                  <Linkedin className="w-5 h-5 fill-current" />
+                </a>
+                <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-[#2AABEE] hover:scale-110 transition-transform">
+                  <Send className="w-5 h-5 fill-current ml-[-2px] mt-[1px]" />
+                </a>
+              </div>
+            </div>
+
+            {/* Links Columns */}
+            <div className="flex flex-col items-center md:items-start">
+              <h3 className="text-xl font-bold mb-6 text-white tracking-wide">Company</h3>
+              <ul className="space-y-4 text-gray-400 font-medium">
+                <li><a href="#" className="hover:text-white transition-colors">Home</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Blog</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Services</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">About Us</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Contact Us</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">FAQ's</a></li>
+              </ul>
+            </div>
+
+            <div className="flex flex-col items-center md:items-start">
+              <h3 className="text-xl font-bold mb-6 text-white tracking-wide">Support</h3>
+              <ul className="space-y-4 text-gray-400 font-medium">
+                <li><a href="#" className="text-orange-500 hover:text-orange-400 transition-colors">Tickets Support</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Contact Us</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">WhatsApp Community</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Telegram Channel</a></li>
+              </ul>
+            </div>
+
+            <div className="flex flex-col items-center md:items-start">
+              <h3 className="text-xl font-bold mb-6 text-white tracking-wide">Our Services</h3>
+              <ul className="space-y-4 text-gray-400 font-medium">
+                <li><a href="#" className="hover:text-white transition-colors">Facebook Services</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Instagram Services</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Twitter Services</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Telegram Services</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">YouTube Services</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">TikTok Services</a></li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="text-center text-gray-500 text-sm mt-12 mb-4">
+             <p>{i18n.landingFooter || `© ${new Date().getFullYear()} TeleMarket. All rights reserved.`}</p>
+          </div>
+        </div>
       </footer>
     </div>
   );
