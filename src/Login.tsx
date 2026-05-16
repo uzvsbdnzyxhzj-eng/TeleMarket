@@ -227,6 +227,7 @@ function TestimonialSlider() {
 export default function Login({ lang, setLang, onBack, initialMode = 'login' }: { lang: Language, setLang: (l: Language) => void, onBack: () => void, initialMode?: 'login' | 'signup' | 'reset' }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [mode, setMode] = useState<'login' | 'signup' | 'reset'>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -237,12 +238,15 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
     try {
       setLoading(true);
       setError(null);
+      setSuccess(null);
       await signInWithGoogle();
       localStorage.removeItem("skip_auto_login");
     } catch (err: any) {
       console.error(err);
       if (err.code === 'auth/operation-not-allowed') {
         setError('Sign-in method is disabled. Please enable Google Sign-In or Email/Password in your Firebase Console.');
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setError("Firebase Error: This domain hasn't been authorized yet. Please add this preview URL to Firebase Console > Authentication > Settings > Authorized Domains.");
       } else {
         setError(err.message || 'Login failed');
       }
@@ -271,13 +275,14 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
     try {
       setLoading(true);
       setError(null);
+      setSuccess(null);
       if (mode === 'signup') {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(userCredential.user, {
           displayName: fullName
         });
         setMode('login');
-        setError('Account created securely! You are now signed in.');
+        setSuccess('Account created securely! You are now signed in.');
         localStorage.removeItem("skip_auto_login");
       } else {
         await signInWithEmailAndPassword(auth, email, password);
@@ -289,8 +294,13 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
         setError('This email is already registered. Please log in instead.');
       } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
         setError('Incorrect email or password. Please check your credentials and try again.');
+      } else if (err.code === 'auth/operation-not-allowed') {
+        setError('Email/Password sign-in is disabled. Please enable it in the Firebase Console under Authentication > Sign-in method.');
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setError(`This domain is not authorized for OAuth operations. Please add this app's URL to the 'Authorized domains' list in your Firebase Console under Authentication > Settings > Authorized domains.`);
       } else {
-        setError(err.message || 'Authentication failed. Please try again.');
+        // Show detailed error for debugging
+        setError(`Error (${err.code || 'unknown'}): ${err.message || 'Authentication failed. Please try again.'}`);
       }
     } finally {
       setLoading(false);
@@ -306,8 +316,9 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
     try {
       setLoading(true);
       setError(null);
+      setSuccess(null);
       await sendPasswordResetEmail(auth, email);
-      setError('Password reset email sent! Check your inbox.');
+      setSuccess('Password reset email sent! Check your inbox.');
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Failed to send reset email');
@@ -359,6 +370,12 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
             {error && (
               <div className="bg-white/90 text-red-600 p-4 rounded-xl text-sm mb-6 border border-red-200 shadow-sm backdrop-blur-sm text-center font-medium">
                 {error}
+              </div>
+            )}
+            {success && (
+              <div className="bg-white/90 text-green-600 p-4 rounded-xl text-sm mb-6 border border-green-200 shadow-sm backdrop-blur-sm text-center font-medium flex items-center justify-center gap-2">
+                <CheckSquare className="w-5 h-5 flex-shrink-0" />
+                <span>{success}</span>
               </div>
             )}
             

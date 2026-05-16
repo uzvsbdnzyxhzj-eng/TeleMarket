@@ -37,24 +37,36 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
      if (lower.includes("twitter") || lower.includes(" x ")) return <Twitter className="text-gray-800 w-5 h-5 shrink-0" />;
      if (lower.includes("spotify")) return <Headphones className="text-[#1DB954] w-5 h-5 shrink-0" />;
      if (lower.includes("tiktok")) return <PlaySquare className="text-gray-800 w-5 h-5 shrink-0" />;
-     if (lower.includes("linkedin")) return <Linkedin className="text-[#0A66C2] w-5 h-5 shrink-0" />;
+     if (lower.includes("linkedin")) return <img src="https://www.google.com/s2/favicons?domain=linkedin.com&sz=128" className="w-5 h-5 rounded-md shrink-0" alt="LinkedIn" />;
      if (lower.includes("telegram")) return <Send className="text-[#2AABEE] w-5 h-5 shrink-0" />;
      if (lower.includes("discord")) return <MessageCircle className="text-[#5865F2] w-5 h-5 shrink-0" />;
      if (lower.includes("soundcloud")) return <Cloud className="text-[#FF5500] w-5 h-5 shrink-0" />;
      if (lower.includes("twitch")) return <Twitch className="text-[#9146FF] w-5 h-5 shrink-0" />;
-     if (lower.includes("website")) return <Globe className="text-[#00B4B6] w-5 h-5 shrink-0" />;
+     if (lower.includes("website")) return <span className="text-xl leading-none">🌍</span>;
+     if (lower.includes("shopee")) return <img src="https://www.google.com/s2/favicons?domain=shopee.com&sz=128" className="w-5 h-5 rounded-md shrink-0" alt="Shopee" />;
+     if (lower.includes("lazada")) return <img src="https://www.google.com/s2/favicons?domain=lazada.com&sz=128" className="w-5 h-5 rounded-md shrink-0" alt="Lazada" />;
+     if (lower.includes("yandex")) return <img src="https://www.google.com/s2/favicons?domain=yandex.com&sz=128" className="w-5 h-5 rounded-md shrink-0" alt="Yandex" />;
+     if (lower.includes("reverbnation")) return <img src="https://www.google.com/s2/favicons?domain=reverbnation.com&sz=128" className="w-5 h-5 rounded-md shrink-0" alt="Reverbnation" />;
+     
+     if (lower.includes("mobile legend")) return <img src="https://www.google.com/s2/favicons?domain=mobilelegends.com&sz=128" className="w-5 h-5 rounded-md shrink-0" alt="Mobile Legends" />;
+     if (lower.includes("freefire")) return <img src="https://www.google.com/s2/favicons?domain=ff.garena.com&sz=128" className="w-5 h-5 rounded-md shrink-0" alt="Free Fire" />;
+     
+     if (lower.includes("kwai")) return <img src="https://www.google.com/s2/favicons?domain=kwai.com&sz=128" className="w-5 h-5 rounded-md shrink-0" alt="Kwai" />;
+     if (lower.includes("likee")) return <img src="https://www.google.com/s2/favicons?domain=likee.video&sz=128" className="w-5 h-5 rounded-md shrink-0" alt="Likee" />;
+     if (lower.includes("lemon 8") || lower.includes("lemon8")) return <img src="https://www.google.com/s2/favicons?domain=lemon8-app.com&sz=128" className="w-5 h-5 rounded-md shrink-0" alt="Lemon 8" />;
+     if (lower.includes("coub")) return <img src="https://www.google.com/s2/favicons?domain=coub.com&sz=128" className="w-5 h-5 rounded-md shrink-0" alt="Coub" />;
      
      if (lower.includes("mobile")) return <PlaySquare className="text-blue-500 w-5 h-5 shrink-0" />;
-     if (lower.includes("freefire")) return <PlaySquare className="text-orange-500 w-5 h-5 shrink-0" />;
-     if (lower.includes("pubg")) return <PlaySquare className="text-yellow-500 w-5 h-5 shrink-0" />;
-     if (lower.includes("kick")) return <PlaySquare className="text-green-500 w-5 h-5 shrink-0" />;
+     if (lower.includes("pubg")) return <span className="text-xl leading-none">🪖</span>;
+     if (lower.includes("kick")) return <span className="text-green-500 font-black italic text-lg leading-none shrink-0">K</span>;
      if (lower.includes("whatsapp")) return <MessageCircle className="text-green-500 w-5 h-5 shrink-0" />;
-     if (lower.includes("threads")) return <MessageCircle className="text-gray-800 w-5 h-5 shrink-0" />;
-     if (lower.includes("snapchat")) return <PlaySquare className="text-yellow-400 w-5 h-5 shrink-0" />;
-     if (lower.includes("pinterest")) return <LayoutDashboard className="text-red-600 w-5 h-5 shrink-0" />;
-     if (lower.includes("reddit")) return <MessageCircle className="text-orange-500 w-5 h-5 shrink-0" />;
-     if (lower.includes("vk")) return <Globe className="text-blue-500 w-5 h-5 shrink-0" />;
-     if (lower.includes("tumblr")) return <LayoutDashboard className="text-indigo-800 w-5 h-5 shrink-0" />;
+     if (lower.includes("threads")) return <span className="text-gray-900 font-bold text-base leading-none shrink-0">@</span>;
+     if (lower.includes("snapchat")) return <span className="text-xl leading-none shrink-0">👻</span>;
+     if (lower.includes("pinterest")) return <span className="text-xl leading-none shrink-0">📌</span>;
+     if (lower.includes("reddit")) return <span className="text-orange-500 font-bold text-xl leading-none shrink-0">🤖</span>;
+     if (lower.includes("vk")) return <img src="https://www.google.com/s2/favicons?domain=vk.com&sz=128" className="w-5 h-5 rounded-md shrink-0" alt="VK" />;
+     if (lower.includes("ok.ru") || lower.includes("ok ")) return <img src="https://www.google.com/s2/favicons?domain=ok.ru&sz=128" className="w-5 h-5 rounded-md shrink-0" alt="OK.ru" />;
+     if (lower.includes("tumblr")) return <span className="text-indigo-800 font-bold text-xl leading-none shrink-0">t</span>;
      
      if (lower.includes("indian")) return <span className="text-xl leading-none">🇮🇳</span>;
      if (lower.includes("bangladesh") || lower.includes("bd")) return <span className="text-xl leading-none">🇧🇩</span>;
@@ -340,9 +352,9 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
                            let buttonsToRender: any[] = [];
                            if (smmCategoryGroupName === "games") {
                                buttonsToRender = [
-                                  { label: "Free Fire", key: "Freefire", icon: <span className="text-xl leading-none">🔥</span> },
+                                  { label: "Free Fire", key: "Freefire", icon: <img src="https://www.google.com/s2/favicons?domain=ff.garena.com&sz=128" className="w-5 h-5 rounded-md" alt="Free Fire" /> },
                                   { label: "PUBG Mobile", key: "PUBG", icon: <span className="text-xl leading-none">🪖</span> },
-                                  { label: "Mobile Legends", key: "Mobile", icon: <span className="text-xl leading-none">⚔️</span> },
+                                  { label: "Mobile Legends", key: "Mobile", icon: <img src="https://www.google.com/s2/favicons?domain=mobilelegends.com&sz=128" className="w-5 h-5 rounded-md" alt="Mobile Legends" /> },
                                ];
                            } else if (smmCategoryGroupName === "streaming") {
                                buttonsToRender = [
@@ -357,21 +369,21 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
                                ];
                            } else if (smmCategoryGroupName === "regional") {
                                buttonsToRender = [
-                                  { label: "Kwai", key: "Kwai", icon: <span className="text-xl leading-none">🎬</span> },
-                                  { label: "Likee", key: "Likee", icon: <span className="text-xl leading-none">❤️</span> },
-                                  { label: "VK", key: "VK", icon: <span className="text-blue-600 font-bold text-lg leading-none">VK</span> },
-                                  { label: "OK.ru", key: "OK.ru", icon: <span className="text-orange-500 font-bold text-lg leading-none">OK</span> },
-                                  { label: "Lemon 8", key: "Lemon", icon: <span className="text-xl leading-none">🍋</span> },
-                                  { label: "Coub", key: "Coub", icon: <span className="text-xl leading-none">♾️</span> },
+                                  { label: "Kwai", key: "Kwai", icon: <img src="https://www.google.com/s2/favicons?domain=kwai.com&sz=128" className="w-5 h-5 rounded-md" alt="Kwai" /> },
+                                  { label: "Likee", key: "Likee", icon: <img src="https://www.google.com/s2/favicons?domain=likee.video&sz=128" className="w-5 h-5 rounded-md" alt="Likee" /> },
+                                  { label: "VK", key: "VK", icon: <img src="https://www.google.com/s2/favicons?domain=vk.com&sz=128" className="w-5 h-5 rounded-md" alt="VK" /> },
+                                  { label: "OK.ru", key: "OK.ru", icon: <img src="https://www.google.com/s2/favicons?domain=ok.ru&sz=128" className="w-5 h-5 rounded-md" alt="OK.ru" /> },
+                                  { label: "Lemon 8", key: "Lemon", icon: <img src="https://www.google.com/s2/favicons?domain=lemon8-app.com&sz=128" className="w-5 h-5 rounded-md" alt="Lemon 8" /> },
+                                  { label: "Coub", key: "Coub", icon: <img src="https://www.google.com/s2/favicons?domain=coub.com&sz=128" className="w-5 h-5 rounded-md" alt="Coub" /> },
                                ];
                            } else if (smmCategoryGroupName === "ecommerce") {
                                buttonsToRender = [
-                                  { label: "Shopee", key: "Shopee", icon: <span className="text-xl leading-none">🛍️</span> },
-                                  { label: "Lazada", key: "Lazada", icon: <span className="text-xl leading-none">🛒</span> },
+                                  { label: "Shopee", key: "Shopee", icon: <img src="https://www.google.com/s2/favicons?domain=shopee.com&sz=128" className="w-5 h-5 rounded-md" alt="Shopee" /> },
+                                  { label: "Lazada", key: "Lazada", icon: <img src="https://www.google.com/s2/favicons?domain=lazada.com&sz=128" className="w-5 h-5 rounded-md" alt="Lazada" /> },
                                   { label: "Google", key: "Google", icon: <Search className="text-blue-500 w-5 h-5" /> },
                                   { label: "Website Traffic", key: "Website", icon: <span className="text-xl leading-none">🌍</span> },
-                                  { label: "Yandex", key: "Yandex", icon: <span className="text-red-500 font-bold text-lg leading-none">Y</span> },
-                                  { label: "Reverbnation", key: "Reverbnation", icon: <span className="text-xl leading-none">🎸</span> },
+                                  { label: "Yandex", key: "Yandex", icon: <img src="https://www.google.com/s2/favicons?domain=yandex.com&sz=128" className="w-5 h-5 rounded-md" alt="Yandex" /> },
+                                  { label: "Reverbnation", key: "Reverbnation", icon: <img src="https://www.google.com/s2/favicons?domain=reverbnation.com&sz=128" className="w-5 h-5 rounded-md" alt="Reverbnation" /> },
                                ];
                            } else {
                                buttonsToRender = [
@@ -385,7 +397,7 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
                                   { label: "Threads", key: "Threads", icon: <span className="text-gray-900 font-bold text-lg leading-none">@</span> },
                                   { label: "Snapchat", key: "Snapchat", icon: <span className="text-xl leading-none">👻</span> },
                                   { label: "Pinterest", key: "Pinterest", icon: <span className="text-xl leading-none">📌</span> },
-                                  { label: "LinkedIn", key: "Linkedin", icon: <Linkedin className="text-[#0A66C2] w-5 h-5" /> },
+                                  { label: "LinkedIn", key: "Linkedin", icon: <img src="https://www.google.com/s2/favicons?domain=linkedin.com&sz=128" className="w-5 h-5 rounded-md" alt="LinkedIn" /> },
                                   { label: "Discord", key: "Discord", icon: <span className="text-[#5865F2] font-bold text-xl leading-none">👾</span> },
                                   { label: "Reddit", key: "Reddit", icon: <span className="text-orange-500 font-bold text-xl leading-none">🤖</span> },
                                   { label: "Tumblr", key: "Tumblr", icon: <span className="text-indigo-800 font-bold text-xl leading-none">t</span> },

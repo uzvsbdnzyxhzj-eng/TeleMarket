@@ -1,14 +1,50 @@
-<svg viewBox="0 0 200 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <g transform="translate(100, 30)">
+<svg
+  viewBox="0 0 260 60"
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <g transform="translate(30, 30)">
+    <!-- Darker green shadow overlay for T -->
     <path d="M-15 -15 H15 V-5 H5 V15 H-5 V-5 H-15 Z" fill="#84D12F" />
     <path d="M-5 -5 H5 V15 H-5 Z" fill="#75bb29" />
-    <path d="M-15 -13 C-35 -15 -45 5 -20 18 C-35 8 -30 -10 -20 -13 Z" fill="#84D12F" />
-    <path d="M-20 18 C10 32 40 18 30 -5 C35 15 20 28 -20 18 Z" fill="#4B9A50" />
+
+    <!-- Left Top Arc -->
+    <path
+      d="M-15 -13 C-35 -15 -45 5 -20 18 C-35 8 -30 -10 -20 -13 Z"
+      fill="#84D12F"
+    />
+
+    <!-- Right Bottom Arc -->
+    <path
+      d="M-20 18 C10 32 40 18 30 -5 C35 15 20 28 -20 18 Z"
+      fill="#4B9A50"
+    />
   </g>
-  <text x="100" y="65" text-anchor="middle" fill="#2AABEE" font-size="18" font-weight="900" font-family="sans-serif" letter-spacing="1">
+
+  <!-- Text -->
+  <text
+    x="70"
+    y="35"
+    textAnchor="start"
+    fill="#84D12F"
+    fontSize="22"
+    fontWeight="900"
+    fontFamily="sans-serif"
+    letterSpacing="1"
+  >
     TELEMARKET
   </text>
-  <text x="100" y="78" text-anchor="middle" fill="#2AABEE" opacity="0.8" font-size="8" font-weight="700" font-family="sans-serif" letter-spacing="4">
+  <text
+    x="72"
+    y="48"
+    textAnchor="start"
+    fill="#4B9A50"
+    opacity="0.8"
+    fontSize="10"
+    fontWeight="700"
+    fontFamily="sans-serif"
+    letterSpacing="4"
+  >
     SHOP SMART
   </text>
 </svg>

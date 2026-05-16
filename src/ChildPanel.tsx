@@ -28,15 +28,20 @@ export default function ChildPanel({ currentUser, onNavigate, balanceUSD }: Chil
     if (!currentUser) return;
     const q = query(
       collection(db, "child_panels"),
-      where("userId", "==", currentUser.uid),
-      orderBy("createdAt", "desc")
+      where("userId", "==", currentUser.uid)
     );
     const unsub = onSnapshot(q, (snapshot) => {
       let result: any[] = [];
       snapshot.forEach((doc) => {
         result.push({ id: doc.id, ...doc.data() });
       });
+      // Sort client-side to avoid composite index requirements
+      result.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       setPanels(result);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching child panels:", error);
+      toast.error("Failed to load child panels.");
       setLoading(false);
     });
     return () => unsub();

@@ -189,49 +189,42 @@ export default function Landing({ onGetStarted, lang, setLang, countries = [], m
               {/* Duplicate the items for seamless scrolling */}
               {[...Array(4)].map((_, i) => (
                 <React.Fragment key={i}>
-                  <div className="flex items-center gap-3">
-                     <div className="bg-[#E2136E] text-white font-bold px-2 py-1 rounded shadow-sm text-sm tracking-widest flex items-center gap-1">
-                        <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-6h2v6zm0-8h-2V7h2v2zm4 8h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                  <div className="flex items-center gap-3 opacity-80 hover:opacity-100 transition-opacity">
+                     <div className="bg-[#E2136E] text-white font-bold px-3 py-1.5 rounded-full shadow-sm text-sm tracking-widest flex items-center gap-1">
+                        <svg className="w-4 h-4 fill-current" viewBox="-18.0015 -28.3525 156.013 170.115"><g fill="none"><path fill="#D12053" d="M96.58 62.45l-53.03-8.31 7.03 31.6z"/><path fill="#E2136E" d="M96.58 62.45L56.62 6.93 43.56 54.15z"/><path fill="#D12053" d="M42.32 53.51L.45 0l54.83 6.55z"/><path fill="#9E1638" d="M23.25 31.15L0 9.24h6.12z"/><path fill="#D12053" d="M107.89 35.46l-9.84 26.69L82.1 40.09z"/><path fill="#E2136E" d="M56.77 84.14l38.61-15.51L97 63.7z"/><path fill="#9E1638" d="M25.89 113.41l16.54-58.02 8.39 37.75z"/><path fill="#E2136E" d="M109.43 35.67l-4.06 11.02 14.64-.24z"/></g></svg>
                         bKash
                      </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                     <div className="bg-[#ED1C24] text-white font-bold px-2 py-1 rounded shadow-sm text-sm tracking-widest flex items-center gap-1">
+                  <div className="flex items-center gap-3 opacity-80 hover:opacity-100 transition-opacity">
+                     <div className="bg-[#ED1C24] text-white font-bold px-3 py-1.5 rounded-full shadow-sm text-sm tracking-widest flex items-center gap-1">
                         Nagad
                      </div>
                   </div>
-                  <div className="flex items-center gap-2 font-bold text-gray-400 text-2xl">
-                     <svg className="w-8 h-8 text-[#F7931A] fill-current" viewBox="0 0 24 24"><path d="M14.4 12c1.32-.48 2.28-1.56 2.28-3.12 0-2.4-1.92-3.72-4.92-3.72H6.6v15.6h3.48v-2.16h1.8c3.24 0 5.4-1.56 5.4-4.2 0-1.8-1.2-3.12-2.88-3.6V12zm-3.84-4.32h1.56c1.2 0 1.92.6 1.92 1.56s-.72 1.56-1.92 1.56h-1.56V7.68zm1.92 8.16h-1.92v-3.36h1.92c1.32 0 2.28.6 2.28 1.68s-.96 1.68-2.28 1.68z"/></svg>
+                  <div className="flex items-center gap-3 opacity-80 hover:opacity-100 transition-opacity">
+                     <div className="bg-[#8C3494] text-white font-bold px-3 py-1.5 rounded-full shadow-sm text-sm tracking-widest flex items-center gap-1">
+                        Rocket
+                     </div>
+                  </div>
+                  <div className="flex items-center gap-3 opacity-80 hover:opacity-100 transition-opacity">
+                     <div className="bg-[#0071BC] text-white font-bold px-3 py-1.5 rounded-full shadow-sm text-sm tracking-widest flex items-center gap-1">
+                        Upay
+                     </div>
+                  </div>
+                  <div className="flex items-center gap-2 font-bold text-gray-500 text-xl opacity-80 hover:opacity-100 transition-opacity">
+                     <svg className="w-7 h-7 text-[#F7931A] fill-current" viewBox="0 0 24 24"><path d="M14.4 12c1.32-.48 2.28-1.56 2.28-3.12 0-2.4-1.92-3.72-4.92-3.72H6.6v15.6h3.48v-2.16h1.8c3.24 0 5.4-1.56 5.4-4.2 0-1.8-1.2-3.12-2.88-3.6V12zm-3.84-4.32h1.56c1.2 0 1.92.6 1.92 1.56s-.72 1.56-1.92 1.56h-1.56V7.68zm1.92 8.16h-1.92v-3.36h1.92c1.32 0 2.28.6 2.28 1.68s-.96 1.68-2.28 1.68z"/></svg>
                      Bitcoin
                   </div>
-                  <div className="flex items-center gap-2 font-bold text-gray-400 text-2xl">
-                     <svg className="w-8 h-8 text-[#627EEA] fill-current" viewBox="0 0 24 24"><path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.22l7.365 4.339 7.365-4.34L12.056 0z"/></svg>
+                  <div className="flex items-center gap-2 font-bold text-gray-500 text-xl opacity-80 hover:opacity-100 transition-opacity">
+                     <svg className="w-7 h-7 text-[#627EEA] fill-current" viewBox="0 0 24 24"><path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.22l7.365 4.339 7.365-4.34L12.056 0z"/></svg>
                      Ethereum
                   </div>
-                  <div className="flex items-center gap-2 font-bold text-gray-400 text-2xl">
-                     <svg className="w-8 h-8 text-[#26A17B] fill-current" viewBox="0 0 24 24"><path d="M12 24c6.627 0 12-5.373 12-12S18.627 0 12 0 0 5.373 0 12s5.373 12 12 12zM9.467 9.467H6v-3.2h12v3.2h-3.467v8.533H9.467V9.467z"/></svg>
+                  <div className="flex items-center gap-2 font-bold text-gray-500 text-xl opacity-80 hover:opacity-100 transition-opacity">
+                     <svg className="w-7 h-7 text-[#26A17B] fill-current" viewBox="0 0 24 24"><path d="M12 24c6.627 0 12-5.373 12-12S18.627 0 12 0 0 5.373 0 12s5.373 12 12 12zM9.467 9.467H6v-3.2h12v3.2h-3.467v8.533H9.467V9.467z"/></svg>
                      USDT
                   </div>
-                  <div className="flex items-center gap-2 font-bold text-gray-400 text-2xl">
-                     <svg className="w-8 h-8 text-[#F3BA2F] fill-current" viewBox="0 0 24 24"><path d="M12 2L6 8l1.5 1.5L12 5l4.5 4.5L18 8l-6-6zm0 20l-6-6 1.5-1.5L12 19l4.5-4.5L18 16l-6 6zM6 16H3v-2h3v2zm12 0h3v-2h-3v2zm-6-2l-4.5-4.5L12 5l4.5 4.5L12 14z"/></svg>
+                  <div className="flex items-center gap-2 font-bold text-gray-500 text-xl opacity-80 hover:opacity-100 transition-opacity">
+                     <svg className="w-7 h-7 text-[#F3BA2F] fill-current" viewBox="0 0 24 24"><path d="M12 2L6 8l1.5 1.5L12 5l4.5 4.5L18 8l-6-6zm0 20l-6-6 1.5-1.5L12 19l4.5-4.5L18 16l-6 6zM6 16H3v-2h3v2zm12 0h3v-2h-3v2zm-6-2l-4.5-4.5L12 5l4.5 4.5L12 14z"/></svg>
                      Binance
-                  </div>
-                
-                  <div className="flex items-center gap-2 font-bold text-gray-400 text-xl md:text-2xl ml-4">
-                     <Youtube className="w-8 h-8 text-red-500 fill-red-500" />
-                     YouTube
-                  </div>
-                  <div className="flex items-center gap-2 font-bold text-gray-400 text-xl md:text-2xl ml-4">
-                     <Facebook className="w-8 h-8 text-blue-500 fill-blue-500" />
-                     Facebook
-                  </div>
-                  <div className="flex items-center gap-2 font-bold text-gray-400 text-xl md:text-2xl ml-4">
-                     <Instagram className="w-8 h-8 text-pink-500" />
-                     Instagram
-                  </div>
-                  <div className="flex items-center gap-2 font-bold text-gray-400 text-xl md:text-2xl ml-4">
-                     <svg className="w-8 h-8 text-blue-400 fill-blue-400" viewBox="0 0 24 24"><path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/></svg>
-                     Twitter
                   </div>
                 </React.Fragment>
 
@@ -336,8 +329,38 @@ export default function Landing({ onGetStarted, lang, setLang, countries = [], m
             </div>
           </div>
 
-          <div className="text-center text-gray-500 text-sm mt-12 mb-4">
-             <p>{i18n.landingFooter || `© ${new Date().getFullYear()} TeleMarket. All rights reserved.`}</p>
+          <div className="border-t border-gray-800 pt-8 mt-12 flex flex-col md:flex-row items-center justify-between">
+            <div className="flex flex-wrap items-center justify-center gap-4 mb-6 md:mb-0">
+               <div className="bg-[#E2136E] text-white font-bold px-2 py-1 rounded-full shadow-sm text-xs tracking-widest flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity">
+                  <svg className="w-3 h-3 fill-current" viewBox="-18.0015 -28.3525 156.013 170.115"><g fill="none"><path fill="#D12053" d="M96.58 62.45l-53.03-8.31 7.03 31.6z"/><path fill="#E2136E" d="M96.58 62.45L56.62 6.93 43.56 54.15z"/><path fill="#D12053" d="M42.32 53.51L.45 0l54.83 6.55z"/><path fill="#9E1638" d="M23.25 31.15L0 9.24h6.12z"/><path fill="#D12053" d="M107.89 35.46l-9.84 26.69L82.1 40.09z"/><path fill="#E2136E" d="M56.77 84.14l38.61-15.51L97 63.7z"/><path fill="#9E1638" d="M25.89 113.41l16.54-58.02 8.39 37.75z"/><path fill="#E2136E" d="M109.43 35.67l-4.06 11.02 14.64-.24z"/></g></svg>
+                  bKash
+               </div>
+               <div className="bg-[#ED1C24] text-white font-bold px-2 py-1 rounded-full shadow-sm text-xs tracking-widest flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity">
+                  Nagad
+               </div>
+               <div className="bg-[#8C3494] text-white font-bold px-2 py-1 rounded-full shadow-sm text-xs tracking-widest flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity">
+                  Rocket
+               </div>
+               <div className="bg-[#0071BC] text-white font-bold px-2 py-1 rounded-full shadow-sm text-xs tracking-widest flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity">
+                  Upay
+               </div>
+               <div className="flex items-center justify-center opacity-70 hover:opacity-100 transition-opacity">
+                  <svg className="w-5 h-5 text-[#F7931A] fill-current" viewBox="0 0 24 24"><path d="M14.4 12c1.32-.48 2.28-1.56 2.28-3.12 0-2.4-1.92-3.72-4.92-3.72H6.6v15.6h3.48v-2.16h1.8c3.24 0 5.4-1.56 5.4-4.2 0-1.8-1.2-3.12-2.88-3.6V12zm-3.84-4.32h1.56c1.2 0 1.92.6 1.92 1.56s-.72 1.56-1.92 1.56h-1.56V7.68zm1.92 8.16h-1.92v-3.36h1.92c1.32 0 2.28.6 2.28 1.68s-.96 1.68-2.28 1.68z"/></svg>
+               </div>
+               <div className="flex items-center justify-center opacity-70 hover:opacity-100 transition-opacity">
+                  <svg className="w-5 h-5 text-[#627EEA] fill-current" viewBox="0 0 24 24"><path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.22l7.365 4.339 7.365-4.34L12.056 0z"/></svg>
+               </div>
+               <div className="flex items-center justify-center opacity-70 hover:opacity-100 transition-opacity">
+                  <svg className="w-5 h-5 text-[#26A17B] fill-current" viewBox="0 0 24 24"><path d="M12 24c6.627 0 12-5.373 12-12S18.627 0 12 0 0 5.373 0 12s5.373 12 12 12zM9.467 9.467H6v-3.2h12v3.2h-3.467v8.533H9.467V9.467z"/></svg>
+               </div>
+               <div className="flex items-center justify-center opacity-70 hover:opacity-100 transition-opacity">
+                  <svg className="w-5 h-5 text-[#F3BA2F] fill-current" viewBox="0 0 24 24"><path d="M12 2L6 8l1.5 1.5L12 5l4.5 4.5L18 8l-6-6zm0 20l-6-6 1.5-1.5L12 19l4.5-4.5L18 16l-6 6zM6 16H3v-2h3v2zm12 0h3v-2h-3v2zm-6-2l-4.5-4.5L12 5l4.5 4.5L12 14z"/></svg>
+               </div>
+            </div>
+            
+            <div className="text-center md:text-right text-gray-500 text-sm">
+               <p>{i18n.landingFooter || `© ${new Date().getFullYear()} TeleMarket. All rights reserved.`}</p>
+            </div>
           </div>
         </div>
       </footer>

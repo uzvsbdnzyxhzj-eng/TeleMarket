@@ -16,15 +16,20 @@ export default function AdminChildPanel() {
 
   useEffect(() => {
     const q = query(
-      collection(db, "child_panels"),
-      orderBy("createdAt", "desc")
+      collection(db, "child_panels")
     );
     const unsub = onSnapshot(q, (snapshot) => {
       let result: any[] = [];
       snapshot.forEach((doc) => {
         result.push({ id: doc.id, ...doc.data() });
       });
+      // Sort client-side
+      result.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       setPanels(result);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching admin child panels:", error);
+      toast.error("Failed to load admin child panels.");
       setLoading(false);
     });
     return () => unsub();
