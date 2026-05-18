@@ -810,64 +810,16 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const checkPaymentSuccess = async () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get("payment") === "success" && currentUser) {
-        const q = query(
-          collection(db, "transactions"),
-          where("userId", "==", currentUser.uid),
-          where("type", "==", "topup"),
-          where("status", "==", "pending")
-        );
-        try {
-          const snapshot = await getDocs(q);
-          if (!snapshot.empty) {
-             for (const docSnap of snapshot.docs) {
-                const txData = docSnap.data();
-                const amt = txData.amountUSD;
-                await updateDoc(doc(db, "transactions", docSnap.id), { status: "paid" });
-                await updateDoc(doc(db, "users", currentUser.uid), {
-                   balanceUSD: increment(amt),
-                   total_deposited: increment(amt),
-                   last_update: Date.now()
-                });
-                
-                const userDoc = await getDoc(doc(db, "users", currentUser.uid));
-                if (userDoc.exists() && userDoc.data().referredBy) {
-                    const referrerId = userDoc.data().referredBy;
-                    const referrerRef = doc(db, "users", referrerId);
-                    const referrerDoc = await getDoc(referrerRef);
-                    if (referrerDoc.exists()) {
-                        const bonusAmount = amt * 0.01;
-                        await updateDoc(referrerRef, {
-                            balanceUSD: increment(bonusAmount),
-                            total_deposited: increment(bonusAmount),
-                            referralEarnings: increment(bonusAmount),
-                            last_update: Date.now()
-                        });
-                        const refTxRef = doc(collection(db, "transactions"));
-                        await setDoc(refTxRef, {
-                            userId: referrerId,
-                            type: "referral_bonus",
-                            txType: "Credit",
-                            amountUSD: bonusAmount,
-                            status: "paid",
-                            details: { fromUserId: currentUser.uid },
-                            createdAt: Date.now(),
-                        });
-                    }
-                }
-             }
-             toast("Topup Successful and Credited to your account!");
-             window.history.replaceState({}, document.title, window.location.pathname);
-          }
-        } catch (e) {
-          console.error("Auto topup error", e);
-        }
-      }
-    };
-    checkPaymentSuccess();
-  }, [currentUser]);
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentStatus = urlParams.get("payment");
+    if (paymentStatus === "success") {
+      toast("Payment was successful! Your balance will be updated once verified.", { type: "success" });
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (paymentStatus === "cancel") {
+      toast("Payment was cancelled or failed.", { type: "error" });
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   // Conversion Rates
   const TOPUP_RATE = 129;
@@ -1063,7 +1015,12 @@ export default function App() {
         }
 
         // Redirect to payment URL
-        window.open(data.payment_url, "_blank");
+        if (window !== window.parent) {
+          toast("Please check the new tab to complete payment (check popup blocker if it didn't open).");
+          window.open(data.payment_url, "_blank");
+        } else {
+          window.location.href = data.payment_url;
+        }
       } else if (data.success && currentUser) {
         toast(`Top-up request for $${finalAmount} submitted! Please wait for Admin approval. (Secure Mode)`);
 
@@ -1413,7 +1370,7 @@ export default function App() {
                   }}
                   className="w-full bg-white border border-gray-200 text-gray-800 py-4 rounded-lg font-bold hover:bg-gray-50 transition shadow-sm flex items-center justify-between px-4"
                 >
-                  <span>USDC, BTC, ETH & others</span>
+                  <span>Cryptomus (USDC, BTC, ETH & others)</span>
                   <div className="flex -space-x-1">
                     <div className="w-6 h-6 rounded-full bg-[#F7931A] flex items-center justify-center p-1 border-2 border-white relative z-10">
                       <svg className="w-full h-full text-white fill-current" viewBox="0 0 24 24"><path d="M14.4 12c1.32-.48 2.28-1.56 2.28-3.12 0-2.4-1.92-3.72-4.92-3.72H6.6v15.6h3.48v-2.16h1.8c3.24 0 5.4-1.56 5.4-4.2 0-1.8-1.2-3.12-2.88-3.6V12zm-3.84-4.32h1.56c1.2 0 1.92.6 1.92 1.56s-.72 1.56-1.92 1.56h-1.56V7.68zm1.92 8.16h-1.92v-3.36h1.92c1.32 0 2.28.6 2.28 1.68s-.96 1.68-2.28 1.68z"/></svg>
@@ -1577,7 +1534,7 @@ export default function App() {
                     </div>
                     <div className="flex justify-between border-t border-gray-200 pt-2 font-bold text-lg">
                       <span>
-                        Total Pay ({topupMethod === "binance" ? "Binance Pay" : "Crypto"}):
+                        Total Pay ({topupMethod === "binance" ? "Binance Pay" : "Cryptomus"}):
                       </span>{" "}
                       <span>
                         $
@@ -1591,7 +1548,7 @@ export default function App() {
                   <div className="bg-blue-50 border-l-4 border-blue-500 p-3 mb-4 rounded-r-lg">
                     <p className="text-sm text-blue-800 font-medium leading-relaxed">
                       <span className="font-bold">Important Instruction:</span>{" "}
-                      {topupMethod === "binance" ? "You will make an internal transfer to our Binance account and verify with the Order ID." : "You will be redirected directly to the Crypto gateway to complete your transaction securely."}
+                      {topupMethod === "binance" ? "You will make an internal transfer to our Binance account and verify with the Order ID." : "You will be redirected directly to the Cryptomus gateway to complete your transaction securely."}
                     </p>
                   </div>
 
@@ -1630,7 +1587,7 @@ export default function App() {
                         </div>
                       </div>
                     )}
-                    <span>Pay with {topupMethod === "binance" ? "Binance Pay" : "Crypto"}</span>
+                    <span>Pay with {topupMethod === "binance" ? "Binance Pay" : "Cryptomus"}</span>
                   </button>
                 </>
               )}
@@ -2142,6 +2099,17 @@ export default function App() {
                     onClick={async () => {
                       setIsSubmitBinance(true);
                       try {
+                        const prevTxQuery = query(
+                          collection(db, "transactions"),
+                          where("details.orderId", "==", binanceOrderId)
+                        );
+                        const prevTxSnap = await getDocs(prevTxQuery);
+                        if (!prevTxSnap.empty) {
+                           toast.error("This Binance Order ID has already been used by another transaction.");
+                           setIsSubmitBinance(false);
+                           return;
+                        }
+
                         const res = await fetch('/api/payment/binance/check', {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
@@ -2233,99 +2201,27 @@ export default function App() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-sans">
         <div className="bg-white p-8 rounded-xl shadow-xl w-full max-w-md border border-gray-100 flex flex-col items-center">
-          <div
-            className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-md ${mockCheckout.method === "binance" ? "bg-[#f3ba2f] text-[#1e2329]" : mockCheckout.method === "crypto" ? "bg-[#4C51F7] text-white" : mockCheckout.method === "bkash" ? "bg-[#E2136E] text-white" : "bg-[#F04D26] text-white"}`}
-          >
-            {mockCheckout.method === "crypto" || mockCheckout.method === "binance" ? (
-              <Wallet className="w-10 h-10" />
-            ) : (
-              <Smartphone className="w-10 h-10" />
-            )}
+          <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-md bg-blue-500 text-white">
+            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
           </div>
-
           <h2 className="text-2xl font-bold mb-2">Checkout Mockup</h2>
-          <p className="text-gray-500 text-center mb-6">
-            You are simulating a payment using{" "}
-            <span className="font-bold text-gray-800 capitalize">
-              {mockCheckout.method}
-            </span>
-            .
-          </p>
-
+          <p className="text-gray-500 text-center mb-6">You are simulating a payment using <span className="font-bold text-gray-800 capitalize">{mockCheckout.method}</span>.</p>
           <div className="w-full bg-gray-50 rounded-xl p-6 border border-gray-100 mb-8 flex flex-col items-center justify-center gap-2">
-            <span className="text-sm font-medium text-gray-500 uppercase tracking-widest">
-              Amount to Pay
-            </span>
-            <span className="text-4xl font-extrabold text-gray-900">
-              ${mockCheckout.amount}
-            </span>
+            <span className="text-sm font-medium text-gray-500 uppercase tracking-widest">Amount to Pay</span>
+            <span className="text-4xl font-extrabold text-gray-900">${mockCheckout.amount}</span>
           </div>
-
           <div className="w-full flex gap-3">
-            <button
-              onClick={() => {
-                window.location.href = "/?payment=cancel";
-              }}
-              className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 transition"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={async () => {
+            <button onClick={() => window.location.href = "/?payment=cancel"} className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 transition">Cancel</button>
+            <button onClick={async () => {
                 if (!currentUser) return;
                 try {
                   const txRef = doc(collection(db, "transactions"));
                   const topupAmountVal = Number(mockCheckout.amount);
-                  await setDoc(txRef, {
-                    userId: currentUser.uid,
-                    type: "topup",
-                    txType: "Credit",
-                    amountUSD: topupAmountVal,
-                    status: "paid", // Instant success
-                    details: { method: mockCheckout.method },
-                    createdAt: Date.now(),
-                  });
-                  // Update balance
-                  await updateDoc(doc(db, "users", currentUser.uid), {
-                     balanceUSD: increment(topupAmountVal),
-                     total_deposited: increment(topupAmountVal),
-                     last_update: Date.now()
-                  });
-                  // Check referral bonus
-                  const userDoc = await getDoc(doc(db, "users", currentUser.uid));
-                  if (userDoc.exists() && userDoc.data().referredBy) {
-                     const referrerId = userDoc.data().referredBy;
-                     const referrerRef = doc(db, "users", referrerId);
-                     const referrerDoc = await getDoc(referrerRef);
-                     if (referrerDoc.exists()) {
-                         const bonusAmount = topupAmountVal * 0.01;
-                         await updateDoc(referrerRef, {
-                             balanceUSD: increment(bonusAmount),
-                             total_deposited: increment(bonusAmount),
-                             referralEarnings: increment(bonusAmount),
-                             last_update: Date.now()
-                         });
-                         const refTxRef = doc(collection(db, "transactions"));
-                         await setDoc(refTxRef, {
-                             userId: referrerId,
-                             type: "referral_bonus",
-                             txType: "Credit",
-                             amountUSD: bonusAmount,
-                             status: "paid",
-                             details: { fromUserId: currentUser.uid },
-                             createdAt: Date.now(),
-                         });
-                     }
-                  }
-                } catch (e) {
-                  console.error("Mock checkout error", e);
-                }
-                window.location.href = "/?payment=success&msg=Topup Successful";
-              }}
-              className="flex-[2] py-3 bg-[#2AABEE] text-white font-bold rounded-lg shadow-lg hover:bg-blue-500 transition"
-            >
-              Simulate Success
-            </button>
+                  await setDoc(txRef, { userId: currentUser.uid, type: "topup", txType: "Credit", amountUSD: topupAmountVal, status: "paid", details: { method: mockCheckout.method }, createdAt: Date.now() });
+                  await updateDoc(doc(db, "users", currentUser.uid), { balanceUSD: increment(topupAmountVal), total_deposited: increment(topupAmountVal), last_update: Date.now() });
+                } catch (e) { console.error(e); }
+                window.location.href = "/?payment=success";
+              }} className="flex-[2] py-3 bg-[#2AABEE] text-white font-bold rounded-lg shadow-lg hover:bg-blue-500 transition">Simulate</button>
           </div>
         </div>
       </div>
@@ -3512,8 +3408,8 @@ export default function App() {
 
         {/* DASHBOARD VIEW */}
         {currentView === "dashboard" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between border-b pb-4">
+          <div className="space-y-6 bg-gradient-to-br from-sky-100 to-indigo-200 p-4 sm:p-6 rounded-2xl border border-blue-200/50 shadow-md">
+            <div className="flex items-center justify-between border-b border-blue-300/50 pb-4">
               <h2 className="text-2xl font-bold text-gray-800">
                 {i18n.dashboardTitle}
               </h2>
@@ -3542,19 +3438,23 @@ export default function App() {
               >
                 <div 
                   className="relative bg-gradient-to-br from-blue-500 to-blue-600 h-28 flex flex-col items-center justify-center px-4 pt-4 pb-2 bg-cover bg-center"
-                  style={dashboardButtons.buy_telegram?.imageUrl ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url(${dashboardButtons.buy_telegram.imageUrl})` } : {}}
+                  style={dashboardButtons.buy_telegram?.imageUrl ? { backgroundImage: `url(${dashboardButtons.buy_telegram.imageUrl})` } : {}}
                 >
-                  <div className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    Hot
-                  </div>
-                  <svg
-                    className="w-12 h-12 text-white"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                  >
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.19-.08-.05-.19-.02-.27 0-.11.03-1.93 1.23-5.45 3.61-.51.35-.98.53-1.4.52-.46-.01-1.34-.26-1.99-.48-.8-.27-1.42-.42-1.37-.89.03-.25.38-.51 1.04-.78 4.08-1.78 6.79-2.95 8.12-3.5 3.86-1.6 4.66-1.88 5.18-1.89.11 0 .36.03.49.14.11.09.15.22.16.34-.01.07.01.21-.01.4z" />
-                  </svg>
-                  <div className="text-white font-bold text-lg leading-tight tracking-tight mt-1">TELEGRAM</div>
+                  {!dashboardButtons.buy_telegram?.imageUrl && (
+                    <>
+                      <div className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                        Hot
+                      </div>
+                      <svg
+                        className="w-12 h-12 text-white"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.19-.08-.05-.19-.02-.27 0-.11.03-1.93 1.23-5.45 3.61-.51.35-.98.53-1.4.52-.46-.01-1.34-.26-1.99-.48-.8-.27-1.42-.42-1.37-.89.03-.25.38-.51 1.04-.78 4.08-1.78 6.79-2.95 8.12-3.5 3.86-1.6 4.66-1.88 5.18-1.89.11 0 .36.03.49.14.11.09.15.22.16.34-.01.07.01.21-.01.4z" />
+                      </svg>
+                      <div className="text-white font-bold text-lg leading-tight tracking-tight mt-1">TELEGRAM</div>
+                    </>
+                  )}
                 </div>
                 <div className="p-3 flex-1 flex flex-col justify-between">
                   <div>
@@ -3582,19 +3482,23 @@ export default function App() {
               >
                 <div 
                   className="relative bg-gradient-to-br from-purple-500 to-purple-600 h-28 flex flex-col items-center justify-center px-4 pt-4 pb-2 bg-cover bg-center"
-                  style={dashboardButtons.sell_telegram?.imageUrl ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url(${dashboardButtons.sell_telegram.imageUrl})` } : {}}
+                  style={dashboardButtons.sell_telegram?.imageUrl ? { backgroundImage: `url(${dashboardButtons.sell_telegram.imageUrl})` } : {}}
                 >
-                  <div className="absolute top-2 left-2 bg-yellow-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    Maintenance
-                  </div>
-                  <svg
-                    className="w-12 h-12 text-white"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                  >
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.19-.08-.05-.19-.02-.27 0-.11.03-1.93 1.23-5.45 3.61-.51.35-.98.53-1.4.52-.46-.01-1.34-.26-1.99-.48-.8-.27-1.42-.42-1.37-.89.03-.25.38-.51 1.04-.78 4.08-1.78 6.79-2.95 8.12-3.5 3.86-1.6 4.66-1.88 5.18-1.89.11 0 .36.03.49.14.11.09.15.22.16.34-.01.07.01.21-.01.4z" />
-                  </svg>
-                  <div className="text-white font-bold text-lg leading-tight tracking-tight mt-1">TELEGRAM</div>
+                  {!dashboardButtons.sell_telegram?.imageUrl && (
+                    <>
+                      <div className="absolute top-2 left-2 bg-yellow-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                        Maintenance
+                      </div>
+                      <svg
+                        className="w-12 h-12 text-white"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.19-.08-.05-.19-.02-.27 0-.11.03-1.93 1.23-5.45 3.61-.51.35-.98.53-1.4.52-.46-.01-1.34-.26-1.99-.48-.8-.27-1.42-.42-1.37-.89.03-.25.38-.51 1.04-.78 4.08-1.78 6.79-2.95 8.12-3.5 3.86-1.6 4.66-1.88 5.18-1.89.11 0 .36.03.49.14.11.09.15.22.16.34-.01.07.01.21-.01.4z" />
+                      </svg>
+                      <div className="text-white font-bold text-lg leading-tight tracking-tight mt-1">TELEGRAM</div>
+                    </>
+                  )}
                 </div>
                 <div className="p-3 flex-1 flex flex-col justify-between">
                   <div>
@@ -3618,11 +3522,13 @@ export default function App() {
               >
                 <div 
                   className="relative bg-gradient-to-br from-orange-500 to-red-600 h-28 flex flex-col items-center justify-center px-4 overflow-hidden bg-cover bg-center"
-                  style={dashboardButtons.games?.imageUrl ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url(${dashboardButtons.games.imageUrl})` } : {}}
+                  style={dashboardButtons.games?.imageUrl ? { backgroundImage: `url(${dashboardButtons.games.imageUrl})` } : {}}
                 >
-                  <div className="text-white font-bold text-sm sm:text-lg leading-tight tracking-tight mt-1 z-10 uppercase text-center">
-                    Games
-                  </div>
+                  {!dashboardButtons.games?.imageUrl && (
+                    <div className="text-white font-bold text-sm sm:text-lg leading-tight tracking-tight mt-1 z-10 uppercase text-center">
+                      Games
+                    </div>
+                  )}
                 </div>
                 <div className="p-3 flex-1 flex flex-col justify-between">
                   <div>
@@ -3645,11 +3551,13 @@ export default function App() {
               >
                 <div 
                   className="relative bg-gradient-to-br from-indigo-500 to-purple-600 h-28 flex flex-col items-center justify-center px-4 overflow-hidden bg-cover bg-center"
-                  style={dashboardButtons.streaming?.imageUrl ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url(${dashboardButtons.streaming.imageUrl})` } : {}}
+                  style={dashboardButtons.streaming?.imageUrl ? { backgroundImage: `url(${dashboardButtons.streaming.imageUrl})` } : {}}
                 >
-                  <div className="text-white font-bold text-sm sm:text-lg leading-tight tracking-tight mt-1 z-10 uppercase text-center">
-                    Streaming
-                  </div>
+                  {!dashboardButtons.streaming?.imageUrl && (
+                    <div className="text-white font-bold text-sm sm:text-lg leading-tight tracking-tight mt-1 z-10 uppercase text-center">
+                      Streaming
+                    </div>
+                  )}
                 </div>
                 <div className="p-3 flex-1 flex flex-col justify-between">
                   <div>
@@ -3674,23 +3582,27 @@ export default function App() {
               >
                 <div 
                   className="relative bg-gradient-to-br from-violet-600 to-fuchsia-600 h-28 flex flex-col items-center justify-center px-4 overflow-hidden bg-cover bg-center"
-                  style={dashboardButtons.social?.imageUrl ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url(${dashboardButtons.social.imageUrl})` } : {}}
+                  style={dashboardButtons.social?.imageUrl ? { backgroundImage: `url(${dashboardButtons.social.imageUrl})` } : {}}
                 >
                   <div className="absolute top-2 left-2 flex gap-1 z-10">
                     <span className="bg-green-500 text-white text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">Fast</span>
                     <span className="bg-amber-500 text-white text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">Cheap</span>
                   </div>
-                  <div className="flex gap-3 text-white mb-1 items-center z-10 mt-2">
-                    <Facebook className="w-6 h-6 sm:w-8 sm:h-8 opacity-95 drop-shadow-md" />
-                    <Youtube className="w-7 h-7 sm:w-9 sm:h-9 opacity-95 drop-shadow-md" />
-                    <Instagram className="w-6 h-6 sm:w-8 sm:h-8 opacity-95 drop-shadow-md" />
-                  </div>
-                  <div className="text-white font-bold text-sm sm:text-lg leading-tight tracking-tight mt-1 z-10 uppercase text-center">
-                    Social Media & Messaging Service
-                  </div>
-                  {/* Decorative background icons */}
-                  <Twitter className="absolute -right-4 -top-4 w-20 h-20 text-white opacity-10 pointer-events-none" />
-                  <Globe className="absolute -left-4 -bottom-4 w-20 h-20 text-white opacity-10 pointer-events-none" />
+                  {!dashboardButtons.social?.imageUrl && (
+                    <>
+                      <div className="flex gap-3 text-white mb-1 items-center z-10 mt-2">
+                        <Facebook className="w-6 h-6 sm:w-8 sm:h-8 opacity-95 drop-shadow-md" />
+                        <Youtube className="w-7 h-7 sm:w-9 sm:h-9 opacity-95 drop-shadow-md" />
+                        <Instagram className="w-6 h-6 sm:w-8 sm:h-8 opacity-95 drop-shadow-md" />
+                      </div>
+                      <div className="text-white font-bold text-sm sm:text-lg leading-tight tracking-tight mt-1 z-10 uppercase text-center">
+                        Social Media & Messaging Service
+                      </div>
+                      {/* Decorative background icons */}
+                      <Twitter className="absolute -right-4 -top-4 w-20 h-20 text-white opacity-10 pointer-events-none" />
+                      <Globe className="absolute -left-4 -bottom-4 w-20 h-20 text-white opacity-10 pointer-events-none" />
+                    </>
+                  )}
                 </div>
                 <div className="p-3 sm:p-4 flex-1 flex flex-col justify-between">
                   <div>
@@ -3718,11 +3630,13 @@ export default function App() {
               >
                 <div 
                   className="relative bg-gradient-to-br from-pink-500 to-rose-600 h-28 flex flex-col items-center justify-center px-4 overflow-hidden bg-cover bg-center"
-                  style={dashboardButtons.regional?.imageUrl ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url(${dashboardButtons.regional.imageUrl})` } : {}}
+                  style={dashboardButtons.regional?.imageUrl ? { backgroundImage: `url(${dashboardButtons.regional.imageUrl})` } : {}}
                 >
-                  <div className="text-white font-bold text-sm sm:text-lg leading-tight tracking-tight mt-1 z-10 uppercase text-center">
-                    Regional
-                  </div>
+                  {!dashboardButtons.regional?.imageUrl && (
+                    <div className="text-white font-bold text-sm sm:text-lg leading-tight tracking-tight mt-1 z-10 uppercase text-center">
+                      Regional
+                    </div>
+                  )}
                 </div>
                 <div className="p-3 flex-1 flex flex-col justify-between">
                   <div>
@@ -3745,11 +3659,13 @@ export default function App() {
               >
                 <div 
                   className="relative bg-gradient-to-br from-emerald-500 to-teal-600 h-28 flex flex-col items-center justify-center px-4 overflow-hidden bg-cover bg-center"
-                  style={dashboardButtons.ecommerce?.imageUrl ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url(${dashboardButtons.ecommerce.imageUrl})` } : {}}
+                  style={dashboardButtons.ecommerce?.imageUrl ? { backgroundImage: `url(${dashboardButtons.ecommerce.imageUrl})` } : {}}
                 >
-                  <div className="text-white font-bold text-sm sm:text-lg leading-tight tracking-tight mt-1 z-10 uppercase text-center">
-                    Web Traffic & E-commerce
-                  </div>
+                  {!dashboardButtons.ecommerce?.imageUrl && (
+                    <div className="text-white font-bold text-sm sm:text-lg leading-tight tracking-tight mt-1 z-10 uppercase text-center">
+                      Web Traffic & E-commerce
+                    </div>
+                  )}
                 </div>
                 <div className="p-3 flex-1 flex flex-col justify-between">
                   <div>
@@ -3774,15 +3690,19 @@ export default function App() {
               >
                 <div 
                   className="relative bg-gradient-to-br from-indigo-600 to-indigo-700 h-28 flex flex-col items-center justify-center p-4 bg-cover bg-center"
-                  style={dashboardButtons.topup?.imageUrl ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url(${dashboardButtons.topup.imageUrl})` } : {}}
+                  style={dashboardButtons.topup?.imageUrl ? { backgroundImage: `url(${dashboardButtons.topup.imageUrl})` } : {}}
                 >
-                  <div className="relative mb-1 text-white">
-                    <Wallet className="w-12 h-12 text-white/90" />
-                    <div className="absolute -bottom-1 -left-1 bg-white rounded-full text-indigo-700 p-0.5">
-                      <Plus className="w-5 h-5 flex-shrink-0 stroke-[4]" />
-                    </div>
-                  </div>
-                  <div className="text-white font-bold text-lg leading-tight tracking-tight mt-1">FUNDS</div>
+                  {!dashboardButtons.topup?.imageUrl && (
+                    <>
+                      <div className="relative mb-1 text-white">
+                        <Wallet className="w-12 h-12 text-white/90" />
+                        <div className="absolute -bottom-1 -left-1 bg-white rounded-full text-indigo-700 p-0.5">
+                          <Plus className="w-5 h-5 flex-shrink-0 stroke-[4]" />
+                        </div>
+                      </div>
+                      <div className="text-white font-bold text-lg leading-tight tracking-tight mt-1">FUNDS</div>
+                    </>
+                  )}
                 </div>
                 <div className="p-3 flex-1 flex flex-col justify-center text-center">
                   <h3 className="font-bold text-gray-900 mb-0.5 text-sm sm:text-base leading-tight">
@@ -3800,12 +3720,16 @@ export default function App() {
               >
                 <div 
                   className="relative bg-gradient-to-br from-teal-500 to-emerald-600 h-28 flex flex-col items-center justify-center p-4 bg-cover bg-center"
-                  style={dashboardButtons.withdraw?.imageUrl ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url(${dashboardButtons.withdraw.imageUrl})` } : {}}
+                  style={dashboardButtons.withdraw?.imageUrl ? { backgroundImage: `url(${dashboardButtons.withdraw.imageUrl})` } : {}}
                 >
-                  <div className="relative mb-1 text-white">
-                    <CircleDollarSign className="w-12 h-12 text-white/90" />
-                  </div>
-                  <div className="text-white font-bold text-lg leading-tight tracking-tight mt-1">CASH OUT</div>
+                  {!dashboardButtons.withdraw?.imageUrl && (
+                    <>
+                      <div className="relative mb-1 text-white">
+                        <CircleDollarSign className="w-12 h-12 text-white/90" />
+                      </div>
+                      <div className="text-white font-bold text-lg leading-tight tracking-tight mt-1">CASH OUT</div>
+                    </>
+                  )}
                 </div>
                 <div className="p-3 flex-1 flex flex-col justify-center text-center">
                   <h3 className="font-bold text-gray-900 mb-0.5 text-sm sm:text-base leading-tight">
@@ -4489,7 +4413,7 @@ export default function App() {
                           <button
                             onClick={async () => {
                               try {
-                                if (adminTx.type === "topup") {
+                                if (adminTx.type === "topup" && adminTx.status !== "paid") {
                                   // Credit balance to user
                                   const targetUserRef = doc(db, "users", adminTx.userId);
                                   const targetUserDoc = await getDoc(targetUserRef);
@@ -4532,11 +4456,15 @@ export default function App() {
                                   }
                                 }
                                 
-                                await updateDoc(
-                                  doc(db, "transactions", adminTx.id),
-                                  { status: "paid" },
-                                );
-                                toast("Marked as paid");
+                                if (adminTx.status !== "paid") {
+                                    await updateDoc(
+                                        doc(db, "transactions", adminTx.id),
+                                        { status: "paid" },
+                                    );
+                                    toast("Marked as paid");
+                                } else {
+                                    toast("Already paid");
+                                }
                               } catch(err) {
                                 console.error(err);
                                 toast("Error marking as paid");
@@ -5044,7 +4972,6 @@ export default function App() {
           </>
         )}
       </AnimatePresence>
-      <ChatBot />
     </div>
   );
 }

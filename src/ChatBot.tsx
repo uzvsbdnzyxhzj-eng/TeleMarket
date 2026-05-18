@@ -68,7 +68,7 @@ export default function ChatBot() {
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'bot',
-        text: "Sorry, I'm having trouble connecting to my brain right now. Please try again later or contact us on WhatsApp.",
+        text: "Sorry, I'm having trouble connecting to my brain right now. Please try again later.",
         timestamp: new Date()
       }]);
     } finally {
@@ -172,11 +172,10 @@ export default function ChatBot() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Quick Actions (WhatsApp & Tickets) */}
+            {/* Quick Actions */}
             <div className="px-4 py-2 bg-white border-t border-gray-100 flex items-center justify-between gap-2 overflow-x-auto invisible-scrollbar">
-               <a href="https://wa.me/8801644627304" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 text-xs font-bold rounded-full border border-green-100 hover:bg-green-100 transition whitespace-nowrap">
-                 <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/WhatsApp.svg/512px-WhatsApp.svg.png" alt="WA" className="w-4 h-4" />
-                 WhatsApp Us
+               <a href="https://t.me/telemarketchannel" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-full border border-blue-100 hover:bg-blue-100 transition whitespace-nowrap">
+                 <span>📱</span> Join Our Telegram
                </a>
                <a href="https://t.me/telemarketchannel" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-full border border-blue-100 hover:bg-blue-100 transition whitespace-nowrap">
                  <span>🎫</span> Buy SMM
