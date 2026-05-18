@@ -524,15 +524,12 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
         if (data.status && data.payment_url) {
           res.json({ success: true, payment_url: data.payment_url });
         } else {
-          // Fallback to mock checkout for demonstration if API fails
-          console.warn("Paymently API failed or expired, falling back to mock checkout.", data.message);
-          const fallbackUrl = `${baseUrl}/?mock_checkout=true&amount=${amountUSD}&method=${method}`;
-          res.json({ success: true, payment_url: fallbackUrl });
+          console.error("Paymently API failed or expired.", data.message || "");
+          res.status(500).json({ success: false, message: "Payment Gateway Error: " + (data.message || "Unable to process payment at this time.") });
         }
       } catch (error: any) {
-        console.error("Paymently System error, falling back to mock checkout:", error.message);
-        const fallbackUrl = `${baseUrl}/?mock_checkout=true&amount=${amountUSD}&method=${method}`;
-        res.json({ success: true, payment_url: fallbackUrl });
+        console.error("Paymently System error:", error.message);
+        res.status(500).json({ success: false, message: "Payment System Error: " + error.message });
       }
     } else if (method === "crypto") {
       // Direct Cryptomus Logic
@@ -549,9 +546,8 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
           !CRYPTOMUS_MERCHANT_ID ||
           CRYPTOMUS_MERCHANT_ID === "YOUR_MERCHANT_ID"
         ) {
-          console.warn("Cryptomus keys are not configured. Falling back to mock checkout.");
-          const fallbackUrl = `${baseUrl}/?mock_checkout=true&amount=${amountUSD}&method=${method}`;
-          res.json({ success: true, payment_url: fallbackUrl });
+          console.warn("Cryptomus keys are not configured.");
+          res.status(500).json({ success: false, message: "Crypto Payment is not configured yet." });
           return;
         }
 
@@ -585,14 +581,12 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
         if (data.state === 0 && data.result?.url) {
           res.json({ success: true, payment_url: data.result.url });
         } else {
-          console.warn("Failed to initiate Cryptomus payment. Falling back to mock checkout.", data.message || "");
-          const fallbackUrl = `${baseUrl}/?mock_checkout=true&amount=${amountUSD}&method=${method}`;
-          res.json({ success: true, payment_url: fallbackUrl });
+          console.warn("Failed to initiate Cryptomus payment.", data.message || "");
+          res.status(500).json({ success: false, message: "Crypto Gateway Error: " + (data.message || "Failed to create payment link") });
         }
       } catch (error: any) {
-        console.error("Cryptomus System error, falling back to mock checkout:", error.message);
-        const fallbackUrl = `${baseUrl}/?mock_checkout=true&amount=${amountUSD}&method=${method}`;
-        res.json({ success: true, payment_url: fallbackUrl });
+        console.error("Cryptomus System error:", error.message);
+        res.status(500).json({ success: false, message: "Crypto System Error: " + error.message });
       }
     } else {
       res
