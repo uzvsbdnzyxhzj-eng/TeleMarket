@@ -4,6 +4,14 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { countries as countryList } from "countries-list";
 import crypto from "crypto";
+import admin from "firebase-admin";
+
+if (!admin.apps.length) {
+  admin.initializeApp({
+    projectId: "gen-lang-client-0153398594",
+  });
+}
+const db = admin.firestore();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -657,18 +665,51 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
 
   app.post("/api/payment/webhook", async (req, res) => {
     // Webhook is received from Paymently when payment is successful
-    // You'd typically verify the signature using API KEY, but here we process the standard payload
-    const { status, metadata } = req.body;
+    const { status, metadata, transaction_id } = req.body;
 
     if (status === "COMPLETED" && metadata && metadata.user_id) {
       try {
-        // To securely process this, you might import `firebase-admin` and update Firestore directly.
-        // But for this environment constraint, if we don't have Admin SDK, we might just log it
-        // and need to handle it properly.
-        // Since we're in AI studio without firebase-admin by default, we'll log it.
         console.log(
-          `Webhook received: Topup successful for user ${metadata.user_id}, amount $${metadata.amount_usd}`,
+          `Webhook received: Topup successful for user ${metadata.user_id}, amount $${metadata.amount_usd}, webhook tx_id: ${transaction_id}`
         );
+
+        const uid = metadata.user_id;
+        const amountUSD = Number(metadata.amount_usd);
+
+        // Find a pending transaction for this user
+        const txSnap = await db.collection("transactions")
+          .where("userId", "==", uid)
+          .where("status", "==", "pending")
+          .where("type", "==", "topup")
+          .get();
+
+        if (!txSnap.empty) {
+            // Find the closest matching transaction in amount (or just use the first pending one, but better to match amount roughly)
+            let matchingTx = txSnap.docs.find(d => Math.abs(d.data().amountUSD - amountUSD) < 0.02);
+            if (!matchingTx) matchingTx = txSnap.docs[0];
+
+            await db.runTransaction(async (transaction) => {
+              const txRef = matchingTx.ref;
+              const userRef = db.collection("users").doc(uid);
+              const txDoc = await transaction.get(txRef);
+
+              if (txDoc.exists && txDoc.data().status === "pending") {
+                transaction.update(txRef, {
+                  status: "paid",
+                  paymently_tx_id: transaction_id || "unknown",
+                  paidAt: Date.now()
+                });
+                transaction.update(userRef, {
+                  balanceUSD: admin.firestore.FieldValue.increment(amountUSD),
+                  total_deposited: admin.firestore.FieldValue.increment(amountUSD),
+                  last_update: Date.now()
+                });
+                console.log(`Successfully credited user ${uid} ${amountUSD} USD from webhook.`);
+              }
+            });
+        } else {
+            console.warn(`No pending tx found for webhook user ${uid} amount ${amountUSD}. Skipping.`);
+        }
       } catch (e) {
         console.error("Webhook processing error:", e);
       }

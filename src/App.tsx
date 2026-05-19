@@ -321,6 +321,7 @@ export default function App() {
   // local error states
   const [buyErrorId, setBuyErrorId] = useState<string | null>(null);
   const [topupError, setTopupError] = useState("");
+  const [generatedPaymentUrl, setGeneratedPaymentUrl] = useState<string | null>(null);
   const [withdrawError, setWithdrawError] = useState("");
 
   const [binanceConfig, setBinanceConfig] = useState({ id: "1174790336", qrUrl: "" });
@@ -775,39 +776,12 @@ export default function App() {
         setAuthLoading(false);
       } else {
         setCurrentUser(null);
-        if (localStorage.getItem("skip_auto_login") === "true") { setShowAuth(true); setAuthLoading(false); return; }
-        // Automatic Guest / Telegram Login
-        let deviceId = localStorage.getItem("device_id");
-        if (!deviceId) {
-            deviceId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-            localStorage.setItem("device_id", deviceId);
-        }
-        
-        const tgData = (window as any).Telegram?.WebApp?.initDataUnsafe;
-        const autoId = tgData?.user?.id || deviceId;
-        const guestEmail = `guest_${autoId}@telemarket.app`;
-        const guestPass = `telemarket_guest_auto_${autoId}`;
-        
-        try {
-          await signInWithEmailAndPassword(auth, guestEmail, guestPass);
-        } catch(err: any) {
-          if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-             try {
-                const cred = await createUserWithEmailAndPassword(auth, guestEmail, guestPass);
-                await updateProfile(cred.user, { displayName: tgData?.user?.first_name || (tgData?.user?.id ? 'Telegram User' : 'Guest User'), photoURL: (tgData?.user?.photo_url || null) });
-             } catch(createErr) {
-                console.error("Failed to create guest user:", createErr);
-                setAuthLoading(false);
-             }
-          } else {
-             setAuthLoading(false);
-          }
-        }
+        setAuthLoading(false);
       }
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [auth]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -1014,12 +988,21 @@ export default function App() {
           console.error("Error creating pending topup", e);
         }
 
-        // Redirect to payment URL
-        if (window !== window.parent) {
-          toast("Please check the new tab to complete payment (check popup blocker if it didn't open).");
-          window.open(data.payment_url, "_blank");
-        } else {
-          window.location.href = data.payment_url;
+        setTopupMethod(null);
+        setTopupStep(1);
+        setTopupInputBdt("");
+        setTopupInputUsd("");
+        setTopupAmount("");
+        
+        try {
+          const popup = window.open(data.payment_url, "_blank");
+          if (!popup) {
+            toast(`Popup blocked! Please click "Pay Now" in Pending area.`);
+          } else {
+            toast(`Payment page opened in a new tab. Complete it there.`);
+          }
+        } catch(e) {
+          toast(`Cannot open new tab. Please click "Pay Now" below.`);
         }
       } else if (data.success && currentUser) {
         toast(`Top-up request for $${finalAmount} submitted! Please wait for Admin approval. (Secure Mode)`);
@@ -2462,7 +2445,7 @@ export default function App() {
                 )}
               </div>
               <button
-                onClick={() => { localStorage.setItem("skip_auto_login", "true"); signOut(auth); setShowAuth(true); setAuthMode('login'); }}
+                onClick={() => { signOut(auth); setShowAuth(true); setAuthMode('login'); }}
                 className="flex items-center justify-center w-9 h-9 lg:w-10 lg:h-10 bg-gray-100 hover:bg-red-100 hover:text-red-600 text-gray-500 rounded-full transition shrink-0"
                 title="Sign Out"
               >
@@ -2950,7 +2933,6 @@ export default function App() {
                 )}
                 <button
                   onClick={() => {
-                    localStorage.setItem("skip_auto_login", "true");
                     signOut(auth); setShowAuth(true); setAuthMode('login'); }}
                   className="flex items-center gap-2 bg-red-100 text-red-600 hover:bg-red-200 px-4 py-2 rounded-lg text-sm font-bold transition"
                   title="Sign Out"
@@ -4961,7 +4943,7 @@ export default function App() {
                      </div>
                   </div>
                   <button
-                    onClick={() => { localStorage.setItem("skip_auto_login", "true"); signOut(auth); setShowAuth(true); setIsMobileMenuOpen(false); }}
+                    onClick={() => { signOut(auth); setShowAuth(true); setIsMobileMenuOpen(false); }}
                     className="w-full flex items-center justify-center gap-2 p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition font-bold text-sm"
                   >
                     <LogOut className="w-4 h-4" /> Sign Out
