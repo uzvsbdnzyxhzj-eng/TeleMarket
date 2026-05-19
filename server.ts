@@ -453,9 +453,9 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
 
   // System webhooks and APIs
   app.post("/api/payment/topup", async (req, res) => {
-    const { amountUSD, method, uid } = req.body;
+    const { amountUSD, method, uid, pendingTxId } = req.body;
     console.log(
-      `Processing topup of $${amountUSD} via ${method} for uid ${uid}`,
+      `Processing topup of $${amountUSD} via ${method} for uid ${uid} (pendingTxId: ${pendingTxId})`,
     );
 
     const TOPUP_RATE = 129;
@@ -525,6 +525,7 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
                 user_id: uid,
                 amount_usd: amountUSD,
                 type: "topup",
+                pendingTxId: pendingTxId || "",
               },
               redirect_url: returnUrl,
               cancel_url: cancelUrl,
@@ -568,7 +569,7 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
         const payload = {
           amount: finalPayAmount,
           currency: "USD",
-          order_id: `topup_${Date.now()}_${uid}`,
+          order_id: pendingTxId || `topup_${Date.now()}_${uid}`,
           url_return: returnUrl,
           url_callback: webhookUrl,
           is_payment_multiple: false,
@@ -675,55 +676,123 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
   });
 
   app.post("/api/payment/webhook", async (req, res) => {
-    // Webhook is received from Paymently when payment is successful
-    const { status, metadata, transaction_id } = req.body;
+    // Webhook from Paymently or Cryptomus
+    const { status, metadata, transaction_id, order_id, merchant, uuid } = req.body;
+
+    let uid, amountUSD, paymentId, gateway, pendingTxId;
 
     if (status === "COMPLETED" && metadata && metadata.user_id) {
-      try {
-        console.log(
-          `Webhook received: Topup successful for user ${metadata.user_id}, amount $${metadata.amount_usd}, webhook tx_id: ${transaction_id}`
-        );
-
-        const uid = metadata.user_id;
-        const amountUSD = Number(metadata.amount_usd);
-
-        // Check if this transaction was already processed
-        const existingTx = await db.collection("transactions")
-          .where("paymently_tx_id", "==", transaction_id)
-          .limit(1)
-          .get();
-
-        if (existingTx.empty) {
-            await db.runTransaction(async (transaction) => {
-              const txRef = db.collection("transactions").doc();
-              const userRef = db.collection("users").doc(uid);
-
-              transaction.set(txRef, {
-                userId: uid,
-                type: "topup",
-                txType: "Credit",
-                amountUSD: amountUSD,
-                status: "paid",
-                details: { method: "payment_gateway" },
-                paymently_tx_id: transaction_id || "unknown",
-                createdAt: Date.now(),
-                paidAt: Date.now()
-              });
-
-              transaction.update(userRef, {
-                balanceUSD: admin.firestore.FieldValue.increment(amountUSD),
-                total_deposited: admin.firestore.FieldValue.increment(amountUSD),
-                last_update: Date.now()
-              });
-            });
-            console.log(`Successfully credited user ${uid} ${amountUSD} USD from webhook.`);
-        } else {
-            console.warn(`Transaction ${transaction_id} already processed. Skipping.`);
-        }
-      } catch (e) {
-        console.error("Webhook processing error:", e);
-      }
+       uid = metadata.user_id;
+       amountUSD = Number(metadata.amount_usd);
+       paymentId = transaction_id || "unknown";
+       gateway = "paymently";
+       pendingTxId = metadata.pendingTxId;
+    } else if (order_id && req.body.status && merchant) {
+       // Cryptomus
+       if (req.body.status !== "paid" && req.body.status !== "paid_over") {
+          return res.status(200).send("Ignored");
+       }
+       pendingTxId = order_id;
+       paymentId = uuid || "unknown";
+       gateway = "cryptomus";
+    } else {
+       return res.status(200).send("OK"); // Ignored
     }
+
+    try {
+      console.log(`Webhook received: paymentId: ${paymentId}, pendingTxId: ${pendingTxId}`);
+
+      // Check if already processed
+      const existingTx = await db.collection("transactions")
+        .where("paymently_tx_id", "==", paymentId)
+        .limit(1)
+        .get();
+
+      if (!existingTx.empty) {
+          console.warn(`Transaction ${paymentId} already processed. Skipping.`);
+          return res.status(200).send("OK");
+      }
+
+      let txRefToUpdate;
+
+      if (pendingTxId) {
+         const pendingDoc = await db.collection("transactions").doc(pendingTxId).get();
+         if (pendingDoc.exists && pendingDoc.data()?.status === "pending") {
+            txRefToUpdate = db.collection("transactions").doc(pendingTxId);
+            uid = pendingDoc.data()?.userId;
+            amountUSD = pendingDoc.data()?.amountUSD;
+         }
+      }
+
+      if (!uid || !amountUSD) {
+         console.error("Missing uid or amount in webhook and no valid pending tx found.");
+         return res.status(400).send("Bad request");
+      }
+
+      let referralDoc = null;
+      let referrerRef = null;
+      const userRef = db.collection("users").doc(uid);
+
+      await db.runTransaction(async (transaction) => {
+        const userDoc = await transaction.get(userRef);
+        
+        if (txRefToUpdate) {
+           transaction.update(txRefToUpdate, {
+             status: "paid",
+             paymently_tx_id: paymentId,
+             paidAt: Date.now()
+           });
+        } else {
+           const txRef = db.collection("transactions").doc();
+           transaction.set(txRef, {
+             userId: uid,
+             type: "topup",
+             txType: "Credit",
+             amountUSD: amountUSD,
+             status: "paid",
+             details: { method: gateway },
+             paymently_tx_id: paymentId,
+             createdAt: Date.now(),
+             paidAt: Date.now()
+           });
+        }
+
+        transaction.update(userRef, {
+          balanceUSD: admin.firestore.FieldValue.increment(amountUSD),
+          total_deposited: admin.firestore.FieldValue.increment(amountUSD),
+          last_update: Date.now()
+        });
+
+        // Referral logic inline
+        if (userDoc.exists && userDoc.data()?.referredBy) {
+           referrerRef = db.collection("users").doc(userDoc.data().referredBy);
+           referralDoc = await transaction.get(referrerRef);
+           if (referralDoc.exists) {
+              const bonusAmount = amountUSD * 0.01;
+              transaction.update(referrerRef, {
+                  balanceUSD: admin.firestore.FieldValue.increment(bonusAmount),
+                  total_deposited: admin.firestore.FieldValue.increment(bonusAmount),
+                  referralEarnings: admin.firestore.FieldValue.increment(bonusAmount),
+                  last_update: Date.now()
+              });
+              const refTxRef = db.collection("transactions").doc();
+              transaction.set(refTxRef, {
+                  userId: userDoc.data().referredBy,
+                  type: "referral_bonus",
+                  txType: "Credit",
+                  amountUSD: bonusAmount,
+                  status: "paid",
+                  details: { fromUserId: uid },
+                  createdAt: Date.now(),
+              });
+           }
+        }
+      });
+      console.log(`Successfully credited user ${uid} ${amountUSD} USD from webhook.`);
+    } catch (e) {
+      console.error("Webhook processing error:", e);
+    }
+
     res.status(200).send("OK");
   });
 

@@ -269,6 +269,7 @@ export default function App() {
   const [topupModal, setTopupModal] = useState(false);
   const [binanceTransferAmount, setBinanceTransferAmount] = useState<number | null>(null);
   const [binanceOrderId, setBinanceOrderId] = useState("");
+  const [binanceOrderIdError, setBinanceOrderIdError] = useState("");
   const [binanceStep, setBinanceStep] = useState<1 | 2>(1);
   const [isSubmitBinance, setIsSubmitBinance] = useState(false);
   const [p2pModal, setP2pModal] = useState<any>(null);
@@ -300,6 +301,7 @@ export default function App() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [adminTxs, setAdminTxs] = useState<any[]>([]);
   const [adminSearchTxId, setAdminSearchTxId] = useState("");
+  const [adminTab, setAdminTab] = useState<"overview" | "topups" | "withdrawals" | "users" | "services" | "settings">("overview");
 
   const [adminAddBalanceUid, setAdminAddBalanceUid] = useState("");
   const [adminAddBalanceAmount, setAdminAddBalanceAmount] = useState<
@@ -778,10 +780,10 @@ export default function App() {
     const urlParams = new URLSearchParams(window.location.search);
     const paymentStatus = urlParams.get("payment");
     if (paymentStatus === "success") {
-      toast("Payment was successful! Your balance will be updated once verified.", { type: "success" });
+      toast.success("Payment was successful! Your balance will be updated once verified.");
       window.history.replaceState({}, document.title, window.location.pathname);
     } else if (paymentStatus === "cancel") {
-      toast("Payment was cancelled or failed.", { type: "error" });
+      toast.error("Payment was cancelled or failed.");
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
@@ -953,23 +955,25 @@ export default function App() {
       overrideAmount !== undefined ? overrideAmount : Number(topupAmount);
 
     try {
+      if (!currentUser) throw new Error("Not authenticated");
+      const txRef = doc(collection(db, "transactions"));
+      const pendingTxId = txRef.id;
+
       const res = await fetch("/api/payment/topup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amountUSD: finalAmount,
           method,
-          uid: currentUser?.uid,
+          uid: currentUser.uid,
+          pendingTxId, 
         }),
       });
       const data = await res.json();
 
-      if (data.payment_url && currentUser) {
+      if (data.payment_url) {
         
-        let txIdForResume = "";
         try {
-          const txRef = doc(collection(db, "transactions"));
-          txIdForResume = txRef.id;
           await setDoc(txRef, {
             userId: currentUser.uid,
             type: "topup",
@@ -990,11 +994,10 @@ export default function App() {
         setTopupAmount("");
         
         window.location.href = data.payment_url;
-      } else if (data.success && currentUser) {
+      } else if (data.success) {
         toast(`Top-up request for $${finalAmount} submitted! Please wait for Admin approval. (Secure Mode)`);
 
         try {
-          const txRef = doc(collection(db, "transactions"));
           await setDoc(txRef, {
             userId: currentUser.uid,
             type: "topup",
@@ -1550,6 +1553,40 @@ export default function App() {
               </button>
             </div>
           )}
+
+          {/* Pending Topups Section */}
+          {transactions.filter(t => t.type === "topup" && t.status === "pending").length > 0 && (
+            <div className="mt-6 border-t border-gray-200 pt-5">
+              <h4 className="font-bold text-gray-800 mb-3 flex items-center justify-between">
+                Pending Top Ups
+                <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full font-bold">
+                  {transactions.filter(t => t.type === "topup" && t.status === "pending").length}
+                </span>
+              </h4>
+              <div className="space-y-3 max-h-48 overflow-y-auto pr-1 flex flex-col">
+                {transactions.filter(t => t.type === "topup" && t.status === "pending").map(tx => (
+                  <div key={tx.id} className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm flex justify-between items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-gray-700">${tx.amountUSD?.toFixed(2)} USD</div>
+                      <div className="text-xs text-gray-500 font-medium mt-1 truncate">
+                        {tx.details?.method === "binance_manual" ? "Binance: " + tx.details?.orderId : tx.details?.method === "crypto" ? "Cryptomus" : tx.details?.method === "bkash" ? "bKash" : tx.details?.method === "nagad" ? "Nagad" : "Local Gateway"}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <div className="text-[10px] uppercase font-bold text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded border border-yellow-200">
+                        Pending
+                      </div>
+                      {tx.details?.payment_url && (
+                        <a href={tx.details.payment_url} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-[#2AABEE] hover:bg-blue-600 text-white px-2.5 py-1 rounded font-bold transition whitespace-nowrap">
+                          Pay Now
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -2004,10 +2041,18 @@ export default function App() {
                   <label className="block text-[15px] font-bold text-gray-800">Enter you Binance Order ID</label>
                   <input
                     type="text"
-                    onChange={e => setBinanceOrderId(e.target.value)}
+                    onChange={e => {
+                      setBinanceOrderId(e.target.value);
+                      if (binanceOrderIdError) setBinanceOrderIdError("");
+                    }}
                     value={binanceOrderId}
-                    className="w-full px-3 py-2.5 bg-white border border-[#3b71ca] rounded outline-none shadow-[0_0_0_1px_rgba(59,113,202,0.3)] focus:shadow-[0_0_0_2px_rgba(59,113,202,0.8)] transition font-sans"
+                    className={`w-full px-3 py-2.5 bg-white border ${binanceOrderIdError ? 'border-red-500' : 'border-[#3b71ca]'} rounded outline-none shadow-[0_0_0_1px_rgba(59,113,202,0.3)] focus:shadow-[0_0_0_2px_rgba(59,113,202,0.8)] transition font-sans`}
                   />
+                  {binanceOrderIdError && (
+                    <p className="text-red-500 text-sm font-bold mt-1">
+                      {binanceOrderIdError}
+                    </p>
+                  )}
                 </div>
 
                 <div className="bg-[#f6f6f6] rounded-xl p-5 mb-6 shadow-sm border border-gray-100 text-[14.5px] text-gray-700">
@@ -2046,6 +2091,7 @@ export default function App() {
                     disabled={!binanceOrderId || isSubmitBinance}
                     onClick={async () => {
                       setIsSubmitBinance(true);
+                      setBinanceOrderIdError("");
                       try {
                         const prevTxQuery = query(
                           collection(db, "transactions"),
@@ -2053,7 +2099,8 @@ export default function App() {
                         );
                         const prevTxSnap = await getDocs(prevTxQuery);
                         if (!prevTxSnap.empty) {
-                           toast.error("This Binance Order ID has already been used by another transaction.");
+                           setBinanceOrderIdError("This Binance Order ID has already been used by another transaction.");
+                           toast.error("This Binance Order ID has already been used.");
                            setIsSubmitBinance(false);
                            return;
                         }
@@ -2139,6 +2186,7 @@ export default function App() {
                 </div>
               </div>
             )}
+            
           </div>
         </div>
       </div>
@@ -3913,10 +3961,36 @@ export default function App() {
               </button>
             </div>
 
-            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <Globe className="w-5 h-5 text-indigo-500" /> Advertisement Banners
-              </h3>
+            {/* Admin Navigation Tabs */}
+            <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-none border-b border-gray-200">
+              {[
+                { id: "overview", label: "Overview" },
+                { id: "topups", label: "Top Ups" },
+                { id: "withdrawals", label: "Withdrawals" },
+                { id: "users", label: "Users" },
+                { id: "services", label: "Services" },
+                { id: "settings", label: "Settings" },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setAdminTab(tab.id as any)}
+                  className={`px-4 py-2 font-bold text-sm whitespace-nowrap rounded-t-lg transition border-b-2 ${
+                    adminTab === tab.id
+                      ? "bg-blue-50 text-blue-600 border-blue-600"
+                      : "text-gray-500 border-transparent hover:text-gray-800 hover:bg-gray-50 hover:border-gray-300"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {adminTab === "settings" && (
+              <>
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                  <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                    <Globe className="w-5 h-5 text-indigo-500" /> Advertisement Banners
+                  </h3>
               <div className="flex flex-col gap-6">
                 {/* Banner List */}
                 <div className="space-y-4">
@@ -4117,20 +4191,16 @@ export default function App() {
             <AdminDashboardButtons />
 
             <AdminApiKeys />
+            </>
+            )}
 
+            {adminTab === "users" && (
+            <>
             <AdminUserManagement />
 
-            <AdminTickets />
-
-            <AdminChildPanel />
-
-            <AdminSMMPricing socialMarkupPercent={socialMarkupPercent} />
-
-
-            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm mt-6">
               <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <Wallet className="w-5 h-5 text-[#2AABEE]" /> Add Balance to
-                User
+                <Wallet className="w-5 h-5 text-[#2AABEE]" /> Add Balance to User
               </h3>
               <div className="flex flex-col md:flex-row gap-4">
                 <input
@@ -4160,108 +4230,127 @@ export default function App() {
               </div>
             </div>
 
-            {/* Active Users Analytics */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
-                <div className="text-sm text-gray-500 font-medium mb-1">
-                  Live Users
-                </div>
-                <div className="text-3xl font-bold text-green-600 flex items-center justify-center gap-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                  {activeUsersStats.live}
-                </div>
-              </div>
-              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
-                <div className="text-sm text-gray-500 font-medium mb-1">
-                  Daily Active
-                </div>
-                <div className="text-2xl font-bold text-gray-800">
-                  {activeUsersStats.daily}
-                </div>
-              </div>
-              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
-                <div className="text-sm text-gray-500 font-medium mb-1">
-                  Weekly Active
-                </div>
-                <div className="text-2xl font-bold text-gray-800">
-                  {activeUsersStats.weekly}
-                </div>
-              </div>
-              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
-                <div className="text-sm text-gray-500 font-medium mb-1">
-                  Monthly Active
-                </div>
-                <div className="text-2xl font-bold text-gray-800">
-                  {activeUsersStats.monthly}
-                </div>
-              </div>
-            </div>
+            <AdminTickets />
+            </>
+            )}
 
-            {/* Financial Stats Analytics */}
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-               <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
-                <div className="text-sm text-gray-500 font-medium mb-1">
-                  Daily Top Up / Withdraw
-                </div>
-                <div className="flex flex-col items-center justify-center">
-                  <span className="text-lg font-bold text-blue-600">+${adminTxStats.topupDaily.toFixed(2)}</span>
-                  <span className="text-sm font-bold text-orange-500">-${adminTxStats.withdrawDaily.toFixed(2)}</span>
-                </div>
-              </div>
-              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
-                <div className="text-sm text-gray-500 font-medium mb-1">
-                  Weekly Top Up / Withdraw
-                </div>
-                 <div className="flex flex-col items-center justify-center">
-                  <span className="text-lg font-bold text-blue-600">+${adminTxStats.topupWeekly.toFixed(2)}</span>
-                  <span className="text-sm font-bold text-orange-500">-${adminTxStats.withdrawWeekly.toFixed(2)}</span>
-                </div>
-              </div>
-              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
-                <div className="text-sm text-gray-500 font-medium mb-1">
-                  Monthly Top Up / Withdraw
-                </div>
-                 <div className="flex flex-col items-center justify-center">
-                  <span className="text-lg font-bold text-blue-600">+${adminTxStats.topupMonthly.toFixed(2)}</span>
-                  <span className="text-sm font-bold text-orange-500">-${adminTxStats.withdrawMonthly.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
+            {adminTab === "services" && (
+            <>
+            <AdminChildPanel />
 
-            {/* Transactions Search & Management */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden p-4 mb-6">
-              <input 
-                type="text" 
-                placeholder="Search transactions by ID, UID, or Email..." 
-                value={adminSearchTxId}
-                onChange={(e) => setAdminSearchTxId(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#2AABEE]"
-              />
-            </div>
+            <AdminSMMPricing socialMarkupPercent={socialMarkupPercent} />
+            </>
+            )}
 
-            {/* Pending Transactions Management */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
-              <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-                <h3 className="font-bold text-gray-800">Pending Transactions</h3>
-              </div>
-              <div className="divide-y divide-gray-100">
-                {adminTxs
-                  .filter((tx) => tx.status === "pending" && tx.type === "withdraw")
-                  .filter((tx) => 
-                     !adminSearchTxId || 
-                     tx.id?.toLowerCase().includes(adminSearchTxId.toLowerCase()) ||
-                     tx.userNumericId?.toString().includes(adminSearchTxId) ||
-                     tx.userId?.toLowerCase().includes(adminSearchTxId.toLowerCase()) ||
-                     tx.userEmail?.toLowerCase().includes(adminSearchTxId.toLowerCase())
-                  )
-                  .length === 0 ? (
-                  <div className="p-4 text-center text-gray-500 italic">
-                    No pending transactions found
+            {adminTab === "overview" && (
+              <>
+                {/* Active Users Analytics */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
+                    <div className="text-sm text-gray-500 font-medium mb-1">
+                      Live Users
+                    </div>
+                    <div className="text-3xl font-bold text-green-600 flex items-center justify-center gap-2">
+                      <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                      {activeUsersStats.live}
+                    </div>
                   </div>
-                ) : (
-                  adminTxs
-                    .filter((tx) => tx.status === "pending" && tx.type === "withdraw")
+                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
+                    <div className="text-sm text-gray-500 font-medium mb-1">
+                      Daily Active
+                    </div>
+                    <div className="text-2xl font-bold text-gray-800">
+                      {activeUsersStats.daily}
+                    </div>
+                  </div>
+                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
+                    <div className="text-sm text-gray-500 font-medium mb-1">
+                      Weekly Active
+                    </div>
+                    <div className="text-2xl font-bold text-gray-800">
+                      {activeUsersStats.weekly}
+                    </div>
+                  </div>
+                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
+                    <div className="text-sm text-gray-500 font-medium mb-1">
+                      Monthly Active
+                    </div>
+                    <div className="text-2xl font-bold text-gray-800">
+                      {activeUsersStats.monthly}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Financial Stats Analytics */}
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                   <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
+                    <div className="text-sm text-gray-500 font-medium mb-1">
+                      Daily Top Up / Withdraw
+                    </div>
+                    <div className="flex flex-col items-center justify-center">
+                      <span className="text-lg font-bold text-blue-600">+${adminTxStats.topupDaily.toFixed(2)}</span>
+                      <span className="text-sm font-bold text-orange-500">-${adminTxStats.withdrawDaily.toFixed(2)}</span>
+                    </div>
+                  </div>
+                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
+                    <div className="text-sm text-gray-500 font-medium mb-1">
+                      Weekly Top Up / Withdraw
+                    </div>
+                     <div className="flex flex-col items-center justify-center">
+                      <span className="text-lg font-bold text-blue-600">+${adminTxStats.topupWeekly.toFixed(2)}</span>
+                      <span className="text-sm font-bold text-orange-500">-${adminTxStats.withdrawWeekly.toFixed(2)}</span>
+                    </div>
+                  </div>
+                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
+                    <div className="text-sm text-gray-500 font-medium mb-1">
+                      Monthly Top Up / Withdraw
+                    </div>
+                     <div className="flex flex-col items-center justify-center">
+                      <span className="text-lg font-bold text-blue-600">+${adminTxStats.topupMonthly.toFixed(2)}</span>
+                      <span className="text-sm font-bold text-orange-500">-${adminTxStats.withdrawMonthly.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {(adminTab === "topups" || adminTab === "withdrawals") && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden p-4 mb-6">
+                <input 
+                  type="text" 
+                  placeholder="Search transactions by ID, UID, or Email..." 
+                  value={adminSearchTxId}
+                  onChange={(e) => setAdminSearchTxId(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#2AABEE]"
+                />
+              </div>
+            )}
+
+            {(adminTab === "topups" || adminTab === "withdrawals") && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                {/* Pending Transactions Management */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full h-[600px]">
+                  <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
+                    <h3 className="font-bold text-gray-800">Pending {adminTab === "topups" ? "Top Ups" : "Withdrawals"}</h3>
+                  </div>
+                  <div className="divide-y divide-gray-100 overflow-y-auto flex-1 h-full min-h-0">
+                  {adminTxs
+                    .filter((tx) => tx.status === "pending" && (adminTab === "topups" ? (tx.type === "topup" && tx.details?.method === "binance_manual") : tx.type === "withdraw"))
                     .filter((tx) => 
+                       !adminSearchTxId || 
+                       tx.id?.toLowerCase().includes(adminSearchTxId.toLowerCase()) ||
+                       tx.userNumericId?.toString().includes(adminSearchTxId) ||
+                       tx.userId?.toLowerCase().includes(adminSearchTxId.toLowerCase()) ||
+                       tx.userEmail?.toLowerCase().includes(adminSearchTxId.toLowerCase())
+                    )
+                    .length === 0 ? (
+                    <div className="p-4 text-center text-gray-500 italic">
+                      No pending {adminTab === "topups" ? "top ups" : "withdrawals"} found
+                    </div>
+                  ) : (
+                    adminTxs
+                      .filter((tx) => tx.status === "pending" && (adminTab === "topups" ? (tx.type === "topup" && tx.details?.method === "binance_manual") : tx.type === "withdraw"))
+                      .filter((tx) => 
                        !adminSearchTxId || 
                        tx.id?.toLowerCase().includes(adminSearchTxId.toLowerCase()) ||
                        tx.userNumericId?.toString().includes(adminSearchTxId) ||
@@ -4295,15 +4384,16 @@ export default function App() {
                               </span>
                               <span 
                                 onClick={() => {
-                                  if(adminTx.details?.account) {
-                                      navigator.clipboard.writeText(adminTx.details.account);
-                                      toast("Copied to clipboard: " + adminTx.details.account);
+                                  const textToCopy = adminTx.details?.account || adminTx.details?.orderId;
+                                  if(textToCopy) {
+                                      navigator.clipboard.writeText(textToCopy);
+                                      toast("Copied to clipboard: " + textToCopy);
                                   }
                                 }}
                                 className="text-sm font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 cursor-pointer hover:bg-gray-200 transition"
                                 title="Click to copy account details"
                               >
-                                {adminTx.details.account}
+                                {adminTx.details.account || adminTx.details.orderId}
                               </span>
                             </div>
                           )}
@@ -4396,25 +4486,50 @@ export default function App() {
                                 toast("Error marking as paid");
                               }
                             }}
-                            className="bg-green-500 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-600 transition shadow-sm"
+                            className="bg-green-500 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-600 transition shadow-sm w-full sm:w-auto"
                           >
                             Mark as Paid
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (window.confirm("Are you sure you want to reject this request?")) {
+                                try {
+                                  if (adminTx.type === "withdraw") {
+                                    // refund balance
+                                    await updateDoc(doc(db, "users", adminTx.userId), {
+                                      balanceUSD: increment(adminTx.amountUSD),
+                                      total_spent: increment(-adminTx.amountUSD)
+                                    });
+                                  }
+                                  await updateDoc(doc(db, "transactions", adminTx.id), {
+                                    status: "rejected"
+                                  });
+                                  toast("Transaction rejected successfully");
+                                } catch (e) {
+                                  console.error(e);
+                                  toast("Error rejecting transaction");
+                                }
+                              }
+                            }}
+                            className="bg-red-500 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-red-600 transition shadow-sm w-full sm:w-auto mt-2 sm:mt-0 sm:ml-2"
+                          >
+                            Reject
                           </button>
                         </div>
                       </div>
                     ))
                 )}
               </div>
-            </div>
-
-            {/* Paid Topups History */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
-              <div className="p-4 border-b border-gray-200 bg-gray-50">
-                <h3 className="font-bold text-gray-800">
-                  Paid Topups History
-                </h3>
               </div>
-              <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
+              
+              {adminTab === "topups" && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[600px]">
+                  <div className="p-4 border-b border-gray-200 bg-gray-50 shrink-0">
+                    <h3 className="font-bold text-gray-800">
+                      Paid Topups History
+                    </h3>
+                  </div>
+                <div className="divide-y divide-gray-100 overflow-y-auto flex-1 h-full min-h-0">
                 {adminTxs
                   .filter((tx) => (tx.status === "paid" || tx.status === "completed" || tx.status === "success") && tx.type === "topup")
                   .filter((tx) => 
@@ -4455,15 +4570,16 @@ export default function App() {
                               </span>
                               <span 
                                 onClick={() => {
-                                  if(adminTx.details?.account) {
-                                      navigator.clipboard.writeText(adminTx.details.account);
-                                      toast("Copied to clipboard: " + adminTx.details.account);
+                                  const textToCopy = adminTx.details?.account || adminTx.details?.orderId;
+                                  if(textToCopy) {
+                                      navigator.clipboard.writeText(textToCopy);
+                                      toast("Copied to clipboard: " + textToCopy);
                                   }
                                 }}
                                 className="text-sm font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 cursor-pointer hover:bg-gray-200 transition"
                                 title="Click to copy account details"
                               >
-                                {adminTx.details.account}
+                                {adminTx.details.account || adminTx.details.orderId}
                               </span>
                             </div>
                           )}
@@ -4504,16 +4620,17 @@ export default function App() {
                     ))
                 )}
               </div>
-            </div>
-
-            {/* Paid Withdrawals History */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
-              <div className="p-4 border-b border-gray-200 bg-gray-50">
-                <h3 className="font-bold text-gray-800">
-                  Paid Withdrawals History
-                </h3>
               </div>
-              <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
+              )}
+
+              {adminTab === "withdrawals" && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[600px]">
+                  <div className="p-4 border-b border-gray-200 bg-gray-50 shrink-0">
+                    <h3 className="font-bold text-gray-800">
+                      Paid Withdrawals History
+                    </h3>
+                  </div>
+                <div className="divide-y divide-gray-100 overflow-y-auto flex-1 h-full min-h-0">
                 {adminTxs
                   .filter((tx) => (tx.status === "paid" || tx.status === "success" || tx.status === "completed") && tx.type === "withdraw")
                   .filter((tx) => 
@@ -4564,15 +4681,16 @@ export default function App() {
                               </span>
                               <span 
                                 onClick={() => {
-                                  if(adminTx.details?.account) {
-                                      navigator.clipboard.writeText(adminTx.details.account);
-                                      toast("Copied to clipboard: " + adminTx.details.account);
+                                  const textToCopy = adminTx.details?.account || adminTx.details?.orderId;
+                                  if(textToCopy) {
+                                      navigator.clipboard.writeText(textToCopy);
+                                      toast("Copied to clipboard: " + textToCopy);
                                   }
                                 }}
                                 className="text-sm font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 cursor-pointer hover:bg-gray-200 transition"
                                 title="Click to copy account details"
                               >
-                                {adminTx.details.account}
+                                {adminTx.details.account || adminTx.details.orderId}
                               </span>
                             </div>
                           )}
@@ -4614,8 +4732,15 @@ export default function App() {
                 )}
               </div>
             </div>
+            )}
+            
+            {/* End of Transactions 3-Column Grid */}
+            </div>
+            )}
 
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            {adminTab === "settings" && (
+              <>
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
               <h3 className="text-lg font-bold text-gray-800 mb-4">
                 Markup Settings
               </h3>
@@ -4662,8 +4787,12 @@ export default function App() {
               </div>
               <p className="text-sm text-gray-500 mt-2">{i18n.markupHelp}</p>
             </div>
+            </>
+            )}
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            {adminTab === "services" && (
+            <>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
               <div className="p-4 border-b border-gray-200 bg-gray-50">
                 <h3 className="font-bold text-gray-800">
                   {i18n.botStatusTitle}
@@ -4734,6 +4863,8 @@ export default function App() {
                 connected_nodes: 0
               </div>
             </div>
+            </>
+            )}
           </div>
         )}
       </main>
