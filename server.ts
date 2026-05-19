@@ -24,7 +24,6 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
   const APP_URL = process.env.APP_URL || `http://localhost:${PORT}`;
-  const PAYMENTLY_API_KEY = process.env.PAYMENTLY_API_KEY || "tmK3Qhnqo38AvMetmNAXv3cVvQR2P0weO9OqJqDg";
 
 
   app.use(express.json());
@@ -452,17 +451,7 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
     }
   });
 
-  // Direct Cryptomus & Binance Pay API Keys (User should provide these)
-  const CRYPTOMUS_MERCHANT_ID =
-    process.env.CRYPTOMUS_MERCHANT_ID || "YOUR_MERCHANT_ID";
-  const CRYPTOMUS_PAYMENT_KEY =
-    process.env.CRYPTOMUS_PAYMENT_KEY || "YOUR_PAYMENT_KEY";
-
-  const BINANCE_API_KEY = process.env.BINANCE_API_KEY || "YOUR_BINANCE_API_KEY";
-  const BINANCE_SECRET_KEY =
-    process.env.BINANCE_SECRET_KEY || "YOUR_BINANCE_SECRET_KEY";
-
-  // UddoktaPay & Direct integrations
+  // System webhooks and APIs
   app.post("/api/payment/topup", async (req, res) => {
     const { amountUSD, method, uid } = req.body;
     console.log(
@@ -478,6 +467,22 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
     const returnUrl = `${baseUrl}/?payment=success`;
     const cancelUrl = `${baseUrl}/?payment=cancel`;
     const webhookUrl = `${baseUrl}/api/payment/webhook`;
+
+    let PAYMENTLY_API_KEY = process.env.PAYMENTLY_API_KEY || "5wXlbXNzfcw8arZYxb8HVMcnVAvIhXQAgvHeQHtm";
+    let CRYPTOMUS_MERCHANT_ID = process.env.CRYPTOMUS_MERCHANT_ID || "75246d3d-3d5f-4385-810c-b1eb90ed88e4";
+    let CRYPTOMUS_PAYMENT_KEY = process.env.CRYPTOMUS_PAYMENT_KEY || "ZCKZ98YaRN3RzJ6dQDb3R0ctNeGsyQOziO2fhinpL97fHW4Olc8m076pUWMKzz8WdfVJAYJbRzDli7hISJxw5p26hXuycqaVuYLKE7fvXgB1QKZTCntUeT3rACOD0BWI";
+
+    try {
+      const keysSnap = await db.collection("settings").doc("api_keys").get();
+      if (keysSnap.exists) {
+        const d = keysSnap.data() || {};
+        if (d.paymentlyApiKey) PAYMENTLY_API_KEY = d.paymentlyApiKey;
+        if (d.cryptomusMerchantId) CRYPTOMUS_MERCHANT_ID = d.cryptomusMerchantId;
+        if (d.cryptomusPaymentKey) CRYPTOMUS_PAYMENT_KEY = d.cryptomusPaymentKey;
+      }
+    } catch(e) {
+      console.error("Failed to read API keys from DB", e);
+    }
 
     if (method === "bkash" || method === "nagad" || method === "binance") {
       // Paymently logic
@@ -606,8 +611,19 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
   app.post("/api/payment/binance/check", async (req, res) => {
     const { orderId, amount, uid } = req.body;
     try {
-      const apiKey = "ra2ZyraxFzBuQiGfYqs08VSyjbOgVkVbyi3Ll3OrHsakgm4tllv1r27J9p7EYz6T";
-      const apiSecret = "DXwtIzuN4rBI9JkoWFZWSsDU9Woo8lIYEs8SdN6Olf0UVUpmxweUxlVPR0DuQTRw";
+      let apiKey = process.env.BINANCE_API_KEY || "ra2ZyraxFzBuQiGfYqs08VSyjbOgVkVbyi3Ll3OrHsakgm4tllv1r27J9p7EYz6T";
+      let apiSecret = process.env.BINANCE_SECRET_KEY || "DXwtIzuN4rBI9JkoWFZWSsDU9Woo8lIYEs8SdN6Olf0UVUpmxweUxlVPR0DuQTRw";
+
+      try {
+        const keysSnap = await db.collection("settings").doc("api_keys").get();
+        if (keysSnap.exists) {
+          const d = keysSnap.data() || {};
+          if (d.binanceApiKey) apiKey = d.binanceApiKey;
+          if (d.binanceSecretKey) apiSecret = d.binanceSecretKey;
+        }
+      } catch (e) {
+        console.error("Failed to fetch Binance API keys.", e);
+      }
       
       const timestamp = Date.now();
       const queryString = `timestamp=${timestamp}`;

@@ -97,6 +97,7 @@ import MyAdsProfile from "./MyAdsProfile";
 import AdminUserManagement from "./AdminUserManagement";
 import AdminSMMPricing from "./AdminSMMPricing";
 import AdminDashboardButtons from "./AdminDashboardButtons";
+import AdminApiKeys from "./AdminApiKeys";
 import ChildPanel from "./ChildPanel";
 import AdminChildPanel from "./AdminChildPanel";
 import ApiView from "./ApiView";
@@ -4064,6 +4065,8 @@ export default function App() {
             </div>
 
             <AdminDashboardButtons />
+
+            <AdminApiKeys />
 
             <AdminUserManagement />
 
