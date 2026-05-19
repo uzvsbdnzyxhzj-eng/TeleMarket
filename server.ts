@@ -532,14 +532,12 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
         if (data.status && data.payment_url) {
           res.json({ success: true, payment_url: data.payment_url });
         } else {
-          console.warn("Paymently API failed or expired, falling back to mock checkout.", data.message || "");
-          const fallbackUrl = `${baseUrl}/?mock_checkout=true&amount=${amountUSD}&method=${method}`;
-          res.json({ success: true, payment_url: fallbackUrl });
+          console.warn("Paymently API failed or expired.", data.message || "");
+          res.status(400).json({ success: false, message: "Payment gateway error: " + (data.message || "Unknown error") });
         }
       } catch (error: any) {
-        console.error("Paymently System error, falling back to mock checkout:", error.message);
-        const fallbackUrl = `${baseUrl}/?mock_checkout=true&amount=${amountUSD}&method=${method}`;
-        res.json({ success: true, payment_url: fallbackUrl });
+        console.error("Paymently System error:", error.message);
+        res.status(500).json({ success: false, message: "Internal Server Error during checkout" });
       }
     } else if (method === "crypto") {
       // Direct Cryptomus Logic
@@ -556,9 +554,8 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
           !CRYPTOMUS_MERCHANT_ID ||
           CRYPTOMUS_MERCHANT_ID === "YOUR_MERCHANT_ID"
         ) {
-          console.warn("Cryptomus keys are not configured. Falling back to mock checkout.");
-          const fallbackUrl = `${baseUrl}/?mock_checkout=true&amount=${amountUSD}&method=${method}`;
-          res.json({ success: true, payment_url: fallbackUrl });
+          console.warn("Cryptomus keys are not configured.");
+          res.status(400).json({ success: false, message: "Cryptomus gateway not configured." });
           return;
         }
 
@@ -592,14 +589,12 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
         if (data.state === 0 && data.result?.url) {
           res.json({ success: true, payment_url: data.result.url });
         } else {
-          console.warn("Failed to initiate Cryptomus payment. Falling back to mock checkout.", data.message || "");
-          const fallbackUrl = `${baseUrl}/?mock_checkout=true&amount=${amountUSD}&method=${method}`;
-          res.json({ success: true, payment_url: fallbackUrl });
+          console.warn("Failed to initiate Cryptomus payment.", data.message || "");
+          res.status(400).json({ success: false, message: "Cryptomus error: " + (data.message || "") });
         }
       } catch (error: any) {
-        console.error("Cryptomus System error, falling back to mock checkout:", error.message);
-        const fallbackUrl = `${baseUrl}/?mock_checkout=true&amount=${amountUSD}&method=${method}`;
-        res.json({ success: true, payment_url: fallbackUrl });
+        console.error("Cryptomus System error:", error.message);
+        res.status(500).json({ success: false, message: "Internal server error connecting to Cryptomus" });
       }
     } else {
       res
@@ -676,39 +671,38 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
         const uid = metadata.user_id;
         const amountUSD = Number(metadata.amount_usd);
 
-        // Find a pending transaction for this user
-        const txSnap = await db.collection("transactions")
-          .where("userId", "==", uid)
-          .where("status", "==", "pending")
-          .where("type", "==", "topup")
+        // Check if this transaction was already processed
+        const existingTx = await db.collection("transactions")
+          .where("paymently_tx_id", "==", transaction_id)
+          .limit(1)
           .get();
 
-        if (!txSnap.empty) {
-            // Find the closest matching transaction in amount (or just use the first pending one, but better to match amount roughly)
-            let matchingTx = txSnap.docs.find(d => Math.abs(d.data().amountUSD - amountUSD) < 0.02);
-            if (!matchingTx) matchingTx = txSnap.docs[0];
-
+        if (existingTx.empty) {
             await db.runTransaction(async (transaction) => {
-              const txRef = matchingTx.ref;
+              const txRef = db.collection("transactions").doc();
               const userRef = db.collection("users").doc(uid);
-              const txDoc = await transaction.get(txRef);
 
-              if (txDoc.exists && txDoc.data().status === "pending") {
-                transaction.update(txRef, {
-                  status: "paid",
-                  paymently_tx_id: transaction_id || "unknown",
-                  paidAt: Date.now()
-                });
-                transaction.update(userRef, {
-                  balanceUSD: admin.firestore.FieldValue.increment(amountUSD),
-                  total_deposited: admin.firestore.FieldValue.increment(amountUSD),
-                  last_update: Date.now()
-                });
-                console.log(`Successfully credited user ${uid} ${amountUSD} USD from webhook.`);
-              }
+              transaction.set(txRef, {
+                userId: uid,
+                type: "topup",
+                txType: "Credit",
+                amountUSD: amountUSD,
+                status: "paid",
+                details: { method: "payment_gateway" },
+                paymently_tx_id: transaction_id || "unknown",
+                createdAt: Date.now(),
+                paidAt: Date.now()
+              });
+
+              transaction.update(userRef, {
+                balanceUSD: admin.firestore.FieldValue.increment(amountUSD),
+                total_deposited: admin.firestore.FieldValue.increment(amountUSD),
+                last_update: Date.now()
+              });
             });
+            console.log(`Successfully credited user ${uid} ${amountUSD} USD from webhook.`);
         } else {
-            console.warn(`No pending tx found for webhook user ${uid} amount ${amountUSD}. Skipping.`);
+            console.warn(`Transaction ${transaction_id} already processed. Skipping.`);
         }
       } catch (e) {
         console.error("Webhook processing error:", e);

@@ -265,10 +265,6 @@ export default function App() {
   const [numericId, setNumericId] = useState<number | null>(null);
   const [customReferralCode, setCustomReferralCode] = useState<string | null>(null);
   const [userReferredBy, setUserReferredBy] = useState<string | null>(null);
-  const [mockCheckout, setMockCheckout] = useState<{
-    method: string;
-    amount: string;
-  } | null>(null);
   const [topupModal, setTopupModal] = useState(false);
   const [binanceTransferAmount, setBinanceTransferAmount] = useState<number | null>(null);
   const [binanceOrderId, setBinanceOrderId] = useState("");
@@ -673,13 +669,6 @@ export default function App() {
     const urlParams = new URLSearchParams(window.location.search);
     const tgStartParam = (window as any).Telegram?.WebApp?.initDataUnsafe?.start_param;
     const refParam = urlParams.get("ref") || tgStartParam;
-    const mockCheckoutParam = urlParams.get("mock_checkout");
-    if (mockCheckoutParam) {
-      setMockCheckout({
-        method: urlParams.get("method") || "",
-        amount: urlParams.get("amount") || "",
-      });
-    }
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -973,37 +962,13 @@ export default function App() {
       const data = await res.json();
 
       if (data.payment_url && currentUser) {
-        try {
-          const txRef = doc(collection(db, "transactions"));
-          await setDoc(txRef, {
-            userId: currentUser.uid,
-            type: "topup",
-            txType: "Credit",
-            amountUSD: finalAmount,
-            status: "pending",
-            details: { method, paymentUrl: data.payment_url },
-            createdAt: Date.now(),
-          });
-        } catch (e: any) {
-          console.error("Error creating pending topup", e);
-        }
-
         setTopupMethod(null);
         setTopupStep(1);
         setTopupInputBdt("");
         setTopupInputUsd("");
         setTopupAmount("");
         
-        try {
-          const popup = window.open(data.payment_url, "_blank");
-          if (!popup) {
-            toast(`Popup blocked! Please click "Pay Now" in Pending area.`);
-          } else {
-            toast(`Payment page opened in a new tab. Complete it there.`);
-          }
-        } catch(e) {
-          toast(`Cannot open new tab. Please click "Pay Now" below.`);
-        }
+        window.location.href = data.payment_url;
       } else if (data.success && currentUser) {
         toast(`Top-up request for $${finalAmount} submitted! Please wait for Admin approval. (Secure Mode)`);
 
@@ -1364,49 +1329,6 @@ export default function App() {
                   </div>
                 </button>
               </div>
-              {transactions.filter(
-                (t) => t.type === "topup" && t.status === "pending",
-              ).length > 0 && (
-                <div className="mb-4">
-                  <h3 className="text-sm font-bold text-gray-700 mb-2">
-                    Pending Payments
-                  </h3>
-                  <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
-                    {transactions
-                      .filter(
-                        (t) => t.type === "topup" && t.status === "pending",
-                      )
-                      .map((tx) => (
-                        <div
-                          key={tx.id}
-                          className="bg-orange-50 p-3 rounded-lg flex items-center justify-between border border-orange-100"
-                        >
-                          <div>
-                            <p className="font-bold text-sm text-orange-800 capitalize">
-                              {tx.details?.method || "Top-up"}{" "}
-                              <span className="font-normal text-orange-600">
-                                (Not Paid)
-                              </span>
-                            </p>
-                            <p className="text-xs text-orange-600 mt-1">
-                              ${tx.amountUSD?.toFixed(2)} USD
-                            </p>
-                          </div>
-                          {tx.details?.paymentUrl && (
-                            <a
-                              href={tx.details.paymentUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="bg-orange-500 text-white px-4 py-1.5 rounded-md text-sm font-bold hover:bg-orange-600 transition shadow-sm"
-                            >
-                              Pay Now
-                            </a>
-                          )}
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              )}
             </div>
           ) : (
             <div>
@@ -1472,7 +1394,7 @@ export default function App() {
                         setTopupError("Minimum top-up amount is 100 BDT.");
                         return;
                       }
-                      const amountUSDToPass = enteredBDT / TOPUP_RATE;
+                      const amountUSDToPass = Number((enteredBDT / TOPUP_RATE).toFixed(2));
                       setTopupAmount(amountUSDToPass);
                       setTopupError("");
                       handleTopup(topupMethod, amountUSDToPass);
@@ -2174,37 +2096,6 @@ export default function App() {
                 </div>
               </div>
             )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (mockCheckout) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-sans">
-        <div className="bg-white p-8 rounded-xl shadow-xl w-full max-w-md border border-gray-100 flex flex-col items-center">
-          <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-md bg-blue-500 text-white">
-            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-          </div>
-          <h2 className="text-2xl font-bold mb-2">Checkout Mockup</h2>
-          <p className="text-gray-500 text-center mb-6">You are simulating a payment using <span className="font-bold text-gray-800 capitalize">{mockCheckout.method}</span>.</p>
-          <div className="w-full bg-gray-50 rounded-xl p-6 border border-gray-100 mb-8 flex flex-col items-center justify-center gap-2">
-            <span className="text-sm font-medium text-gray-500 uppercase tracking-widest">Amount to Pay</span>
-            <span className="text-4xl font-extrabold text-gray-900">${mockCheckout.amount}</span>
-          </div>
-          <div className="w-full flex gap-3">
-            <button onClick={() => window.location.href = "/?payment=cancel"} className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 transition">Cancel</button>
-            <button onClick={async () => {
-                if (!currentUser) return;
-                try {
-                  const txRef = doc(collection(db, "transactions"));
-                  const topupAmountVal = Number(mockCheckout.amount);
-                  await setDoc(txRef, { userId: currentUser.uid, type: "topup", txType: "Credit", amountUSD: topupAmountVal, status: "paid", details: { method: mockCheckout.method }, createdAt: Date.now() });
-                  await updateDoc(doc(db, "users", currentUser.uid), { balanceUSD: increment(topupAmountVal), total_deposited: increment(topupAmountVal), last_update: Date.now() });
-                } catch (e) { console.error(e); }
-                window.location.href = "/?payment=success";
-              }} className="flex-[2] py-3 bg-[#2AABEE] text-white font-bold rounded-lg shadow-lg hover:bg-blue-500 transition">Simulate</button>
           </div>
         </div>
       </div>
