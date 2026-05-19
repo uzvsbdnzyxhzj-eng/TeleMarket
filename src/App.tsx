@@ -273,6 +273,7 @@ export default function App() {
   const [isSubmitBinance, setIsSubmitBinance] = useState(false);
   const [p2pModal, setP2pModal] = useState<any>(null);
   const [topupStep, setTopupStep] = useState<1 | 2>(1);
+  const [isTopupLoading, setIsTopupLoading] = useState(false);
   const [topupMethod, setTopupMethod] = useState<
     "bkash" | "nagad" | "binance" | "crypto" | null
   >(null);
@@ -947,6 +948,7 @@ export default function App() {
 
 
   const handleTopup = async (method: string, overrideAmount?: number) => {
+    setIsTopupLoading(true);
     const finalAmount =
       overrideAmount !== undefined ? overrideAmount : Number(topupAmount);
 
@@ -963,6 +965,24 @@ export default function App() {
       const data = await res.json();
 
       if (data.payment_url && currentUser) {
+        
+        let txIdForResume = "";
+        try {
+          const txRef = doc(collection(db, "transactions"));
+          txIdForResume = txRef.id;
+          await setDoc(txRef, {
+            userId: currentUser.uid,
+            type: "topup",
+            txType: "Credit",
+            amountUSD: finalAmount,
+            status: "pending",
+            details: { method, payment_url: data.payment_url },
+            createdAt: Date.now(),
+          });
+        } catch (e) {
+          console.error("Error setting pending topup", e);
+        }
+
         setTopupMethod(null);
         setTopupStep(1);
         setTopupInputBdt("");
@@ -995,6 +1015,8 @@ export default function App() {
     } catch (err) {
       console.error(err);
       toast("Payment request failed.");
+    } finally {
+      setIsTopupLoading(false);
     }
   };
 
@@ -1387,7 +1409,8 @@ export default function App() {
                       {topupError}
                     </div>
                   )}
-                    <button
+                  <button
+                    disabled={isTopupLoading}
                     onClick={() => {
                       setTopupError("");
                       const enteredBDT = Number(topupInputBdt);
@@ -1400,10 +1423,19 @@ export default function App() {
                       setTopupError("");
                       handleTopup(topupMethod, amountUSDToPass);
                     }}
-                    className={`w-full text-gray-900 py-3 rounded-lg font-bold transition flex items-center justify-center gap-2 mb-2 bg-white border border-gray-200 hover:bg-gray-50 shadow-sm`}
+                    className={`w-full text-gray-900 py-3 rounded-lg font-bold transition flex items-center justify-center gap-2 mb-2 bg-white border border-gray-200 hover:bg-gray-50 shadow-sm ${isTopupLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    {topupMethod === "bkash" ? <svg className="h-6 w-auto" viewBox="-18.0015 -28.3525 156.013 170.115"><g fill="none"><path fill="#D12053" d="M96.58 62.45l-53.03-8.31 7.03 31.6z"/><path fill="#E2136E" d="M96.58 62.45L56.62 6.93 43.56 54.15z"/><path fill="#D12053" d="M42.32 53.51L.45 0l54.83 6.55z"/><path fill="#9E1638" d="M23.25 31.15L0 9.24h6.12z"/><path fill="#D12053" d="M107.89 35.46l-9.84 26.69L82.1 40.09z"/><path fill="#E2136E" d="M56.77 84.14l38.61-15.51L97 63.7z"/><path fill="#9E1638" d="M25.89 113.41l16.54-58.02 8.39 37.75z"/><path fill="#E2136E" d="M109.43 35.67l-4.06 11.02 14.64-.24z"/></g></svg> : <img src="https://freelogopng.com/images/all_img/1679248787Nagad-Logo.png" alt="Nagad" className="h-6 object-contain" onError={(e) => { e.currentTarget.src = 'https://seeklogo.com/images/N/nagad-logo-7A70CCFEE0-seeklogo.com.png'; e.currentTarget.onerror = null; }} />}
-                    Pay with {topupMethod === "bkash" ? "bKash" : "Nagad"}
+                    {isTopupLoading ? (
+                      <span className="flex items-center gap-2">
+                        <svg className="animate-spin h-5 w-5 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        Processing...
+                      </span>
+                    ) : (
+                      <>
+                        {topupMethod === "bkash" ? <svg className="h-6 w-auto" viewBox="-18.0015 -28.3525 156.013 170.115"><g fill="none"><path fill="#D12053" d="M96.58 62.45l-53.03-8.31 7.03 31.6z"/><path fill="#E2136E" d="M96.58 62.45L56.62 6.93 43.56 54.15z"/><path fill="#D12053" d="M42.32 53.51L.45 0l54.83 6.55z"/><path fill="#9E1638" d="M23.25 31.15L0 9.24h6.12z"/><path fill="#D12053" d="M107.89 35.46l-9.84 26.69L82.1 40.09z"/><path fill="#E2136E" d="M56.77 84.14l38.61-15.51L97 63.7z"/><path fill="#9E1638" d="M25.89 113.41l16.54-58.02 8.39 37.75z"/><path fill="#E2136E" d="M109.43 35.67l-4.06 11.02 14.64-.24z"/></g></svg> : <img src="https://freelogopng.com/images/all_img/1679248787Nagad-Logo.png" alt="Nagad" className="h-6 object-contain" onError={(e) => { e.currentTarget.src = 'https://seeklogo.com/images/N/nagad-logo-7A70CCFEE0-seeklogo.com.png'; e.currentTarget.onerror = null; }} />}
+                        Pay with {topupMethod === "bkash" ? "bKash" : "Nagad"}
+                      </>
+                    )}
                   </button>
                 </>
               ) : (
@@ -1464,6 +1496,7 @@ export default function App() {
                     </div>
                   )}
                   <button
+                    disabled={isTopupLoading}
                     onClick={() => {
                       setTopupError("");
                       const enteredUSD = Number(topupInputUsd);
@@ -1481,19 +1514,28 @@ export default function App() {
                         handleTopup(topupMethod!, enteredUSD);
                       }
                     }}
-                    className={`w-full py-3 rounded-lg font-bold transition flex items-center justify-center gap-2 mb-2 ${topupMethod === "binance" ? "bg-[#1e2329] text-[#f3ba2f] hover:bg-[#15191d]" : "bg-white border border-gray-200 text-gray-800 hover:bg-gray-50"} shadow-sm`}
+                    className={`w-full py-3 rounded-lg font-bold transition flex items-center justify-center gap-2 mb-2 ${topupMethod === "binance" ? "bg-[#1e2329] text-[#f3ba2f] hover:bg-[#15191d]" : "bg-white border border-gray-200 text-gray-800 hover:bg-gray-50"} shadow-sm ${isTopupLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    {topupMethod === "binance" ? <svg className="h-6 w-auto text-[#f3ba2f] fill-current" viewBox="-52.785 -88 457.47 528"><path d="M79.5 176l-39.7 39.7L0 176l39.7-39.7zM176 79.5l68.1 68.1 39.7-39.7L176 0 68.1 107.9l39.7 39.7zm136.2 56.8L272.5 176l39.7 39.7 39.7-39.7zM176 272.5l-68.1-68.1-39.7 39.7L176 352l107.8-107.9-39.7-39.7zm0-56.8l39.7-39.7-39.7-39.7-39.8 39.7z"/></svg> : (
-                      <div className="flex -space-x-1 mr-1">
-                        <div className="w-5 h-5 rounded-full bg-[#F7931A] flex items-center justify-center p-0.5 border-2 border-white relative z-10">
-                          <svg className="w-full h-full text-white fill-current" viewBox="0 0 24 24"><path d="M14.4 12c1.32-.48 2.28-1.56 2.28-3.12 0-2.4-1.92-3.72-4.92-3.72H6.6v15.6h3.48v-2.16h1.8c3.24 0 5.4-1.56 5.4-4.2 0-1.8-1.2-3.12-2.88-3.6V12zm-3.84-4.32h1.56c1.2 0 1.92.6 1.92 1.56s-.72 1.56-1.92 1.56h-1.56V7.68zm1.92 8.16h-1.92v-3.36h1.92c1.32 0 2.28.6 2.28 1.68s-.96 1.68-2.28 1.68z"/></svg>
-                        </div>
-                        <div className="w-5 h-5 rounded-full bg-[#627EEA] flex items-center justify-center p-0.5 border-2 border-white relative z-0">
-                          <svg className="w-full h-full text-white fill-current" viewBox="0 0 24 24"><path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.22l7.365 4.339 7.365-4.34L12.056 0z"/></svg>
-                        </div>
-                      </div>
+                    {isTopupLoading ? (
+                      <span className="flex items-center gap-2">
+                        <svg className="animate-spin h-5 w-5 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        Processing...
+                      </span>
+                    ) : (
+                      <>
+                        {topupMethod === "binance" ? <svg className="h-6 w-auto text-[#f3ba2f] fill-current" viewBox="-52.785 -88 457.47 528"><path d="M79.5 176l-39.7 39.7L0 176l39.7-39.7zM176 79.5l68.1 68.1 39.7-39.7L176 0 68.1 107.9l39.7 39.7zm136.2 56.8L272.5 176l39.7 39.7 39.7-39.7zM176 272.5l-68.1-68.1-39.7 39.7L176 352l107.8-107.9-39.7-39.7zm0-56.8l39.7-39.7-39.7-39.7-39.8 39.7z"/></svg> : (
+                          <div className="flex -space-x-1 mr-1">
+                            <div className="w-5 h-5 rounded-full bg-[#F7931A] flex items-center justify-center p-0.5 border-2 border-white relative z-10">
+                              <svg className="w-full h-full text-white fill-current" viewBox="0 0 24 24"><path d="M14.4 12c1.32-.48 2.28-1.56 2.28-3.12 0-2.4-1.92-3.72-4.92-3.72H6.6v15.6h3.48v-2.16h1.8c3.24 0 5.4-1.56 5.4-4.2 0-1.8-1.2-3.12-2.88-3.6V12zm-3.84-4.32h1.56c1.2 0 1.92.6 1.92 1.56s-.72 1.56-1.92 1.56h-1.56V7.68zm1.92 8.16h-1.92v-3.36h1.92c1.32 0 2.28.6 2.28 1.68s-.96 1.68-2.28 1.68z"/></svg>
+                            </div>
+                            <div className="w-5 h-5 rounded-full bg-[#627EEA] flex items-center justify-center p-0.5 border-2 border-white relative z-0">
+                              <svg className="w-full h-full text-white fill-current" viewBox="0 0 24 24"><path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.22l7.365 4.339 7.365-4.34L12.056 0z"/></svg>
+                            </div>
+                          </div>
+                        )}
+                        <span>Pay with {topupMethod === "binance" ? "Binance Pay" : "Cryptomus"}</span>
+                      </>
                     )}
-                    <span>Pay with {topupMethod === "binance" ? "Binance Pay" : "Cryptomus"}</span>
                   </button>
                 </>
               )}
@@ -2608,6 +2650,14 @@ export default function App() {
                           {tx.type === "withdraw" ? "-" : "+"}$
                           {tx.amountUSD?.toFixed(2)}
                         </p>
+                        {tx.type === "topup" && tx.status === "pending" && tx.details?.payment_url && (
+                          <button 
+                            onClick={() => window.location.href = tx.details.payment_url}
+                            className="mt-2 bg-[#2AABEE] text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow-sm hover:bg-blue-600 transition inline-flex items-center justify-center gap-1"
+                          >
+                            Pay Now <ArrowRight className="w-4 h-4 ml-1" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))
