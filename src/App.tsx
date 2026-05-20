@@ -969,7 +969,17 @@ export default function App() {
           pendingTxId, 
         }),
       });
-      const data = await res.json();
+
+      let data;
+      try {
+        data = await res.json();
+      } catch (err: any) {
+        throw new Error("Server returned an invalid response. Usually a temporary issue.");
+      }
+
+      if (!res.ok) {
+        throw new Error(data.message || "Server returned " + res.status);
+      }
 
       if (data.payment_url) {
         
@@ -993,7 +1003,10 @@ export default function App() {
         setTopupInputUsd("");
         setTopupAmount("");
         
-        window.location.href = data.payment_url;
+        const newWin = window.open(data.payment_url, "_blank");
+        if (!newWin) {
+          toast("Popup blocked! Check your Recent Transactions to pay.", { duration: 5000 });
+        }
       } else if (data.success) {
         toast(`Top-up request for $${finalAmount} submitted! Please wait for Admin approval. (Secure Mode)`);
 
@@ -1017,7 +1030,7 @@ export default function App() {
       }
     } catch (err) {
       console.error(err);
-      toast("Payment request failed.");
+      toast("Payment request failed. Details: " + (err instanceof Error ? err.message : String(err)));
     } finally {
       setIsTopupLoading(false);
     }
@@ -1569,7 +1582,7 @@ export default function App() {
                     <div className="min-w-0 flex-1">
                       <div className="font-bold text-gray-700">${tx.amountUSD?.toFixed(2)} USD</div>
                       <div className="text-xs text-gray-500 font-medium mt-1 truncate">
-                        {tx.details?.method === "binance_manual" ? "Binance: " + tx.details?.orderId : tx.details?.method === "crypto" ? "Cryptomus" : tx.details?.method === "bkash" ? "bKash" : tx.details?.method === "nagad" ? "Nagad" : "Local Gateway"}
+                        {tx.details?.method === "binance_manual" ? "Binance: " + tx.details?.orderId : tx.details?.method === "binance" ? "Binance Pay" : tx.details?.method === "crypto" ? "Cryptomus" : tx.details?.method === "bkash" ? "bKash" : tx.details?.method === "nagad" ? "Nagad" : "Local Gateway"}
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
@@ -2700,7 +2713,7 @@ export default function App() {
                         </p>
                         {tx.type === "topup" && tx.status === "pending" && tx.details?.payment_url && (
                           <button 
-                            onClick={() => window.location.href = tx.details.payment_url}
+                            onClick={() => window.open(tx.details.payment_url, "_blank")}
                             className="mt-2 bg-[#2AABEE] text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow-sm hover:bg-blue-600 transition inline-flex items-center justify-center gap-1"
                           >
                             Pay Now <ArrowRight className="w-4 h-4 ml-1" />

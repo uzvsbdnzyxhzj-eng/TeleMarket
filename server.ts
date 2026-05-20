@@ -5,13 +5,36 @@ import { fileURLToPath } from "url";
 import { countries as countryList } from "countries-list";
 import crypto from "crypto";
 import admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
+import fs from "fs";
+
+const firebaseConfigPath = path.join(process.cwd(), "firebase-applet-config.json");
+let databaseId = "(default)";
+if (fs.existsSync(firebaseConfigPath)) {
+  const config = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf-8"));
+  if (config.firestoreDatabaseId) {
+    databaseId = config.firestoreDatabaseId;
+  }
+}
 
 if (!admin.apps.length) {
+  let credential = admin.credential.applicationDefault();
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    try {
+      const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+      credential = admin.credential.cert(sa);
+      console.log("Firebase Admin initialized with Service Account config.");
+    } catch (e) {
+      console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT", e);
+    }
+  }
+
   admin.initializeApp({
+    credential,
     projectId: "gen-lang-client-0153398594",
   });
 }
-const db = admin.firestore();
+const db = getFirestore(admin.app(), databaseId);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -463,26 +486,25 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
     let finalPayAmount: string;
     let paymentCurrency: string;
 
-    const baseUrl = req.headers.origin || `${req.protocol}://${req.get("host")}`;
+    const APP_URL = process.env.APP_URL || `http://localhost:3000`;
+    let baseUrl = req.headers.origin;
+    if (!baseUrl || !baseUrl.startsWith("http")) {
+      baseUrl = APP_URL.replace("http://localhost:3000", req.protocol + "://" + req.get("host"));
+    }
+    // Hard fallback just in case the proxy returns localhost for host
+    if (baseUrl.includes("localhost") && APP_URL && !APP_URL.includes("localhost")) {
+      baseUrl = APP_URL;
+    }
+
     const returnUrl = `${baseUrl}/?payment=success`;
     const cancelUrl = `${baseUrl}/?payment=cancel`;
     const webhookUrl = `${baseUrl}/api/payment/webhook`;
 
-    let PAYMENTLY_API_KEY = process.env.PAYMENTLY_API_KEY || "5wXlbXNzfcw8arZYxb8HVMcnVAvIhXQAgvHeQHtm";
-    let CRYPTOMUS_MERCHANT_ID = process.env.CRYPTOMUS_MERCHANT_ID || "75246d3d-3d5f-4385-810c-b1eb90ed88e4";
-    let CRYPTOMUS_PAYMENT_KEY = process.env.CRYPTOMUS_PAYMENT_KEY || "ZCKZ98YaRN3RzJ6dQDb3R0ctNeGsyQOziO2fhinpL97fHW4Olc8m076pUWMKzz8WdfVJAYJbRzDli7hISJxw5p26hXuycqaVuYLKE7fvXgB1QKZTCntUeT3rACOD0BWI";
+    console.log(`Generated URLs for Paymently: return=${returnUrl}, webhook=${webhookUrl}`);
 
-    try {
-      const keysSnap = await db.collection("settings").doc("api_keys").get();
-      if (keysSnap.exists) {
-        const d = keysSnap.data() || {};
-        if (d.paymentlyApiKey) PAYMENTLY_API_KEY = d.paymentlyApiKey;
-        if (d.cryptomusMerchantId) CRYPTOMUS_MERCHANT_ID = d.cryptomusMerchantId;
-        if (d.cryptomusPaymentKey) CRYPTOMUS_PAYMENT_KEY = d.cryptomusPaymentKey;
-      }
-    } catch(e) {
-      console.error("Failed to read API keys from DB", e);
-    }
+    let PAYMENTLY_API_KEY = "5wXlbXNzfcw8arZYxb8HVMcnVAvIhXQAgvHeQHtm";
+    let CRYPTOMUS_MERCHANT_ID = "75246d3d-3d5f-4385-810c-b1eb90ed88e4";
+    let CRYPTOMUS_PAYMENT_KEY = "ZCKZ98YaRN3RzJ6dQDb3R0ctNeGsyQOziO2fhinpL97fHW4Olc8m076pUWMKzz8WdfVJAYJbRzDli7hISJxw5p26hXuycqaVuYLKE7fvXgB1QKZTCntUeT3rACOD0BWI";
 
     if (method === "bkash" || method === "nagad" || method === "binance") {
       // Paymently logic
@@ -517,8 +539,8 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
               "RT-UDDOKTAPAY-API-KEY": PAYMENTLY_API_KEY,
             },
             body: JSON.stringify({
-              full_name: "User Topup",
-              email: uid ? `${uid}@example.com` : "customer@example.com",
+              full_name: "Telemarket User",
+              email: "customer@telemarket.com",
               amount: finalPayAmount,
               currency: paymentCurrency,
               metadata: {
@@ -612,19 +634,8 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
   app.post("/api/payment/binance/check", async (req, res) => {
     const { orderId, amount, uid } = req.body;
     try {
-      let apiKey = process.env.BINANCE_API_KEY || "ra2ZyraxFzBuQiGfYqs08VSyjbOgVkVbyi3Ll3OrHsakgm4tllv1r27J9p7EYz6T";
-      let apiSecret = process.env.BINANCE_SECRET_KEY || "DXwtIzuN4rBI9JkoWFZWSsDU9Woo8lIYEs8SdN6Olf0UVUpmxweUxlVPR0DuQTRw";
-
-      try {
-        const keysSnap = await db.collection("settings").doc("api_keys").get();
-        if (keysSnap.exists) {
-          const d = keysSnap.data() || {};
-          if (d.binanceApiKey) apiKey = d.binanceApiKey;
-          if (d.binanceSecretKey) apiSecret = d.binanceSecretKey;
-        }
-      } catch (e) {
-        console.error("Failed to fetch Binance API keys.", e);
-      }
+      let apiKey = "ra2ZyraxFzBuQiGfYqs08VSyjbOgVkVbyi3Ll3OrHsakgm4tllv1r27J9p7EYz6T";
+      let apiSecret = "DXwtIzuN4rBI9JkoWFZWSsDU9Woo8lIYEs8SdN6Olf0UVUpmxweUxlVPR0DuQTRw";
       
       const timestamp = Date.now();
       const queryString = `timestamp=${timestamp}`;

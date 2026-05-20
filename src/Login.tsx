@@ -318,7 +318,7 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
       setError(null);
       setSuccess(null);
       await sendPasswordResetEmail(auth, email);
-      setSuccess('Password reset email sent! Check your inbox.');
+      setSuccess("Check your email for a link to reset your password. If it doesn't appear, check your spam folder.");
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Failed to send reset email');
