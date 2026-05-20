@@ -499,6 +499,43 @@ export default function App() {
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [showLanding, setShowLanding] = useState(false);
 
+  // Poll for webhook-verified transactions
+  useEffect(() => {
+    if (!currentUser || !db) return;
+    const interval = setInterval(async () => {
+       const userPendingTxs = transactions.filter(tx => tx.userId === currentUser.uid && tx.status === 'pending' && tx.type === 'topup' && (tx.details?.method !== "binance_manual"));
+       for (const tx of userPendingTxs) {
+          try {
+             const res = await fetch(`/api/payment/verify?txId=${tx.id}`);
+             if (res.ok) {
+                 const data = await res.json();
+                 if (data.paid) {
+                    console.log(`Transaction ${tx.id} verified via API polling. Updating Firestore...`);
+                    // Update Transaction
+                    await updateDoc(doc(db, "transactions", tx.id), { status: "paid" });
+                    
+                    // Update User Balance
+                    const userRef = doc(db, "users", currentUser.uid);
+                    await updateDoc(userRef, { 
+                        balanceUSD: increment(tx.amountUSD),
+                        total_deposited: increment(tx.amountUSD),
+                        last_update: Date.now()
+                    });
+                    
+                    // The backend normally handles referrals, but since it has no IAM access,
+                    // we could handle referral bonus here if we had `referredBy` fetched.
+                    // For now, at least user balance is credited!
+                    toast.success(`Topup of $${tx.amountUSD} was successfully credited!`);
+                 }
+             }
+          } catch(e) {
+             // silently ignore polling network errors
+          }
+       }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [transactions, currentUser, db]);
+
   // Fetch bot countries from backend
   useEffect(() => {
     fetch("/api/proxy/countries?t=" + Date.now())

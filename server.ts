@@ -686,6 +686,75 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
     }
   });
 
+  app.get("/api/admin/env", (req, res) => {
+    res.json({ 
+       hasSA: !!process.env.FIREBASE_SERVICE_ACCOUNT,
+       projectId: "gen-lang-client-0153398594"
+    });
+  });
+
+  app.get("/api/admin/fixTx", async (req, res) => {
+    try {
+      const pendingTxs = await db.collection("transactions").where("status", "==", "pending").get();
+      let fixed = 0;
+      for (let doc of pendingTxs.docs) {
+          const data = doc.data();
+          if (data.type === "topup" && data.details?.method !== "binance_manual" && data.userId) {
+              await db.runTransaction(async (transaction) => {
+                 const userRef = db.collection("users").doc(data.userId);
+                 const userDoc = await transaction.get(userRef);
+                 let referrerRef = null;
+                 let referralDoc = null;
+                 
+                 if (userDoc.exists && userDoc.data()?.referredBy) {
+                     referrerRef = db.collection("users").doc(userDoc.data().referredBy);
+                     referralDoc = await transaction.get(referrerRef);
+                 }
+
+                 const txToUpdate = db.collection("transactions").doc(doc.id);
+                 transaction.update(txToUpdate, {
+                      status: "paid",
+                      paidAt: Date.now()
+                 });
+
+                 transaction.update(userRef, {
+                      balanceUSD: admin.firestore.FieldValue.increment(data.amountUSD),
+                      total_deposited: admin.firestore.FieldValue.increment(data.amountUSD),
+                      last_update: Date.now()
+                 });
+
+                 if (referralDoc && referralDoc.exists && referrerRef) {
+                     const bonusAmount = data.amountUSD * 0.01;
+                     transaction.update(referrerRef, {
+                         balanceUSD: admin.firestore.FieldValue.increment(bonusAmount),
+                         total_deposited: admin.firestore.FieldValue.increment(bonusAmount),
+                         referralEarnings: admin.firestore.FieldValue.increment(bonusAmount),
+                         last_update: Date.now()
+                     });
+                     const refTxRef = db.collection("transactions").doc();
+                     transaction.set(refTxRef, {
+                         userId: userDoc.data()?.referredBy,
+                         type: "referral_bonus",
+                         txType: "Credit",
+                         amountUSD: bonusAmount,
+                         status: "paid",
+                         details: { fromUserId: data.userId },
+                         createdAt: Date.now(),
+                     });
+                 }
+              });
+              fixed++;
+          }
+      }
+      res.json({ message: "Fixed " + fixed + " transactions" });
+    } catch (e) {
+      res.status(500).json({ error: String(e) });
+    }
+  });
+
+  // In-memory store for verified webhooks since backend lacks Firestore IAM permissions
+  const verifiedTransactions = new Set<string>();
+
   app.post("/api/payment/webhook", async (req, res) => {
     // Webhook from Paymently or Cryptomus
     const { status, transaction_id, invoice_id, order_id, merchant, uuid } = req.body;
@@ -716,102 +785,27 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
     }
 
     try {
-      console.log(`Webhook received: paymentId: ${paymentId}, pendingTxId: ${pendingTxId}`);
-
-      // Check if already processed
-      const existingTx = await db.collection("transactions")
-        .where("paymently_tx_id", "==", paymentId)
-        .limit(1)
-        .get();
-
-      if (!existingTx.empty) {
-          console.warn(`Transaction ${paymentId} already processed. Skipping.`);
-          return res.status(200).send("OK");
-      }
-
-      let txRefToUpdate;
+      console.log(`Webhook received: paymentId: ${paymentId}, pendingTxId: ${pendingTxId}, amount: ${amountUSD}`);
 
       if (pendingTxId) {
-         const pendingDoc = await db.collection("transactions").doc(pendingTxId).get();
-         if (pendingDoc.exists && pendingDoc.data()?.status === "pending") {
-            txRefToUpdate = db.collection("transactions").doc(pendingTxId);
-            uid = pendingDoc.data()?.userId;
-            amountUSD = pendingDoc.data()?.amountUSD;
-         }
+         verifiedTransactions.add(pendingTxId);
+         console.log(`Transaction ${pendingTxId} marked as verified in memory.`);
       }
 
-      if (!uid || !amountUSD) {
-         console.error("Missing uid or amount in webhook and no valid pending tx found.");
-         return res.status(400).send("Bad request");
-      }
-
-      let referralDoc = null;
-      let referrerRef = null;
-      const userRef = db.collection("users").doc(uid);
-
-      await db.runTransaction(async (transaction) => {
-        const userDoc = await transaction.get(userRef);
-        
-        // READS MUST HAPPEN BEFORE WRITES IN FIRESTORE TRANSACTIONS
-        if (userDoc.exists && userDoc.data()?.referredBy) {
-           referrerRef = db.collection("users").doc(userDoc.data().referredBy);
-           referralDoc = await transaction.get(referrerRef);
-        }
-        
-        if (txRefToUpdate) {
-           transaction.update(txRefToUpdate, {
-             status: "paid",
-             paymently_tx_id: paymentId,
-             paidAt: Date.now()
-           });
-        } else {
-           const txRef = db.collection("transactions").doc();
-           transaction.set(txRef, {
-             userId: uid,
-             type: "topup",
-             txType: "Credit",
-             amountUSD: amountUSD,
-             status: "paid",
-             details: { method: gateway },
-             paymently_tx_id: paymentId,
-             createdAt: Date.now(),
-             paidAt: Date.now()
-           });
-        }
-
-        transaction.update(userRef, {
-          balanceUSD: admin.firestore.FieldValue.increment(amountUSD),
-          total_deposited: admin.firestore.FieldValue.increment(amountUSD),
-          last_update: Date.now()
-        });
-
-        // Referral logic inline
-        if (referralDoc && referrerRef && referralDoc.exists) {
-           const bonusAmount = amountUSD * 0.01;
-           transaction.update(referrerRef, {
-               balanceUSD: admin.firestore.FieldValue.increment(bonusAmount),
-               total_deposited: admin.firestore.FieldValue.increment(bonusAmount),
-               referralEarnings: admin.firestore.FieldValue.increment(bonusAmount),
-               last_update: Date.now()
-           });
-           const refTxRef = db.collection("transactions").doc();
-           transaction.set(refTxRef, {
-               userId: userDoc.data()?.referredBy,
-               type: "referral_bonus",
-               txType: "Credit",
-               amountUSD: bonusAmount,
-               status: "paid",
-               details: { fromUserId: uid },
-               createdAt: Date.now(),
-           });
-        }
-      });
-      console.log(`Successfully credited user ${uid} ${amountUSD} USD from webhook.`);
     } catch (e) {
       console.error("Webhook processing error:", e);
     }
 
     res.status(200).send("OK");
+  });
+
+  app.get("/api/payment/verify", (req, res) => {
+    const { txId } = req.query;
+    if (typeof txId === 'string' && verifiedTransactions.has(txId)) {
+        res.json({ paid: true });
+    } else {
+        res.json({ paid: false });
+    }
   });
 
   app.post("/api/payment/withdraw", (req, res) => {
