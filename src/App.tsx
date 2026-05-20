@@ -245,11 +245,13 @@ export default function App() {
   // Monetag 5-click direct link logic (only triggered by explicit top/main nav buttons)
   useEffect(() => {
     let clickCount = 0;
-    const monetagLink = "https://omg10.com/4/10973887";
+    // We derive the direct link from the user's provided snippet: 
+    // <script src="https://quge5.com/88/tag.min.js" data-zone="236849" async data-cfasync="false"></script>
+    const monetagLink = "https://quge5.com/4/236849";
     
     (window as any).triggerAdClick = () => {
       clickCount++;
-      if (clickCount >= 3) {
+      if (clickCount >= 5) {
         clickCount = 0;
         window.open(monetagLink, "_blank");
       }
@@ -397,45 +399,7 @@ export default function App() {
     return () => document.removeEventListener("click", handleInteraction);
   }, []);
 
-  // Monetag Popunder Ad Initialization
-  useEffect(() => {
-    if (!currentUser) return;
-    let clickCount = 0;
-    let targetClicks = 5; // trigger every 5 clicks as requested
-
-    const triggerPop = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      
-      // Do not count clicks if inside buy or sell view
-      const viewContainer = target.closest('[data-view]');
-      const currentViewStr = viewContainer ? viewContainer.getAttribute('data-view') : null;
-      if (currentViewStr === "buy" || currentViewStr === "sell" || currentViewStr === "post-ad") {
-        return; // Ignore internal clicks in these views
-      }
-
-      const isInteractive = target.closest('button') || target.closest('a') || target.closest('[role="button"]') || target.closest('input') || target.closest('[class*="cursor-pointer"]');
-      
-      if (!isInteractive) return;
-
-      clickCount++;
-      if (clickCount >= targetClicks) {
-        try {
-          // @ts-ignore
-          if (typeof window !== "undefined" && typeof show_10960656 === "function") {
-            // @ts-ignore
-            show_10960656('pop').catch(() => {});
-          }
-        } catch (err) {
-          console.error(err);
-        }
-        clickCount = 0;
-        targetClicks = 5;
-      }
-    };
-    
-    document.addEventListener("click", triggerPop);
-    return () => document.removeEventListener("click", triggerPop);
-  }, [currentUser]);
+  // Removed global Monetag Popunder Ad listener as per user request to only track specific buttons
 
   // Load admin data
   useEffect(() => {
@@ -3539,7 +3503,7 @@ export default function App() {
               </div>
 
               <div
-                onClick={() => { requireAuth(() => { setSmmCategory("games"); setCurrentView("smm"); }) }}
+                onClick={() => { requireAuth(() => { (window as any).triggerAdClick?.(); setSmmCategory("games"); setCurrentView("smm"); }) }}
                 className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group h-full"
               >
                 <div 
@@ -3568,7 +3532,7 @@ export default function App() {
               </div>
 
               <div
-                onClick={() => { requireAuth(() => { setSmmCategory("streaming"); setCurrentView("smm"); }) }}
+                onClick={() => { requireAuth(() => { (window as any).triggerAdClick?.(); setSmmCategory("streaming"); setCurrentView("smm"); }) }}
                 className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group h-full"
               >
                 <div 
@@ -3599,7 +3563,7 @@ export default function App() {
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
               <div
-                onClick={() => { requireAuth(() => { setSmmCategory("social"); setCurrentView("smm"); }) }}
+                onClick={() => { requireAuth(() => { (window as any).triggerAdClick?.(); setSmmCategory("social"); setCurrentView("smm"); }) }}
                 className="col-span-2 bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group"
               >
                 <div 
@@ -3647,7 +3611,7 @@ export default function App() {
               </div>
 
               <div
-                onClick={() => { requireAuth(() => { setSmmCategory("regional"); setCurrentView("smm"); }) }}
+                onClick={() => { requireAuth(() => { (window as any).triggerAdClick?.(); setSmmCategory("regional"); setCurrentView("smm"); }) }}
                 className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group h-full"
               >
                 <div 
@@ -3676,7 +3640,7 @@ export default function App() {
               </div>
 
               <div
-                onClick={() => { requireAuth(() => { setSmmCategory("ecommerce"); setCurrentView("smm"); }) }}
+                onClick={() => { requireAuth(() => { (window as any).triggerAdClick?.(); setSmmCategory("ecommerce"); setCurrentView("smm"); }) }}
                 className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group h-full"
               >
                 <div 
@@ -5010,7 +4974,7 @@ export default function App() {
 
               <div className="p-4 flex-1 flex flex-col gap-2">
                 <button
-                  onClick={() => { setIsMobileMenuOpen(false); setCurrentView("dashboard"); }}
+                  onClick={() => { (window as any).triggerAdClick?.(); setIsMobileMenuOpen(false); setCurrentView("dashboard"); }}
                   className={`flex items-center gap-3 p-3 rounded-xl transition font-medium w-full text-left ${currentView === "dashboard" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
                 >
                   <Home className={`w-5 h-5 ${currentView === "dashboard" ? "text-blue-600" : "text-gray-400"}`} /> Home
@@ -5022,19 +4986,19 @@ export default function App() {
                   <Plus className="w-5 h-5 text-gray-400" /> Add Money
                 </button>
                 <button
-                  onClick={() => requireAuth(() => { setIsMobileMenuOpen(false); setCurrentView("records"); })}
+                  onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setIsMobileMenuOpen(false); setCurrentView("records"); })}
                   className={`flex items-center gap-3 p-3 rounded-xl transition font-medium w-full text-left ${currentView === "records" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
                 >
                   <Bookmark className={`w-5 h-5 ${currentView === "records" ? "text-blue-600" : "text-gray-400"}`} /> My Orders
                 </button>
                 <button
-                  onClick={() => { setIsMobileMenuOpen(false); setCurrentView("buy"); }}
+                  onClick={() => { (window as any).triggerAdClick?.(); setIsMobileMenuOpen(false); setCurrentView("buy"); }}
                   className={`flex items-center gap-3 p-3 rounded-xl transition font-medium w-full text-left ${currentView === "buy" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
                 >
                   <LayoutGrid className={`w-5 h-5 ${currentView === "buy" ? "text-blue-600" : "text-gray-400"}`} /> My Codes
                 </button>
                 <button
-                  onClick={() => requireAuth(() => { setIsMobileMenuOpen(false); setCurrentView("profile"); })}
+                  onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setIsMobileMenuOpen(false); setCurrentView("profile"); })}
                   className={`flex items-center gap-3 p-3 rounded-xl transition font-medium w-full text-left ${currentView === "profile" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
                 >
                   <User className={`w-5 h-5 ${currentView === "profile" ? "text-blue-600" : "text-gray-400"}`} /> My Account
@@ -5043,7 +5007,7 @@ export default function App() {
                 <div className="my-2 border-t border-gray-100"></div>
                 
                 <button
-                  onClick={() => requireAuth(() => { setIsMobileMenuOpen(false); setCurrentView("child-panel"); })}
+                  onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setIsMobileMenuOpen(false); setCurrentView("child-panel"); })}
                   className={`flex items-center gap-3 p-3 rounded-xl transition font-medium w-full text-left ${currentView === "child-panel" ? "bg-rose-50 text-rose-700" : "hover:bg-rose-50 text-gray-700"}`}
                 >
                   <Globe className={`w-5 h-5 ${currentView === "child-panel" ? "text-rose-500" : "text-rose-400"}`} /> Child Panel

@@ -57,20 +57,6 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
     <script>
-        window.adClickCount = 0;
-        window.triggerAdClick = function() {
-           try {
-              if (window.adClickCount === undefined) window.adClickCount = 0;
-              window.adClickCount++;
-              if (window.adClickCount >= 10) {
-                window.adClickCount = 0;
-                window.open("https://omg10.com/4/10973887", "_blank");
-              }
-           } catch(e) {}
-        };
-    </script>
-
-    <script>
       // Automatically expand the Telegram Mini App to full height if opened inside Telegram
       if (window.Telegram && window.Telegram.WebApp) {
         if (window.Telegram.WebApp.initData) {
