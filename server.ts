@@ -688,16 +688,21 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
 
   app.post("/api/payment/webhook", async (req, res) => {
     // Webhook from Paymently or Cryptomus
-    const { status, metadata, transaction_id, order_id, merchant, uuid } = req.body;
+    const { status, transaction_id, invoice_id, order_id, merchant, uuid } = req.body;
 
     let uid, amountUSD, paymentId, gateway, pendingTxId;
 
-    if (status === "COMPLETED" && metadata && metadata.user_id) {
-       uid = metadata.user_id;
-       amountUSD = Number(metadata.amount_usd);
-       paymentId = transaction_id || "unknown";
+    let meta = req.body.metadata;
+    if (typeof meta === 'string') {
+        try { meta = JSON.parse(meta); } catch(e) {}
+    }
+
+    if ((status === "COMPLETED" || status === "completed") && meta && meta.user_id) {
+       uid = meta.user_id;
+       amountUSD = Number(meta.amount_usd);
+       paymentId = transaction_id || invoice_id || "unknown";
        gateway = "paymently";
-       pendingTxId = metadata.pendingTxId;
+       pendingTxId = meta.pendingTxId;
     } else if (order_id && req.body.status && merchant) {
        // Cryptomus
        if (req.body.status !== "paid" && req.body.status !== "paid_over") {
@@ -747,6 +752,12 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
       await db.runTransaction(async (transaction) => {
         const userDoc = await transaction.get(userRef);
         
+        // READS MUST HAPPEN BEFORE WRITES IN FIRESTORE TRANSACTIONS
+        if (userDoc.exists && userDoc.data()?.referredBy) {
+           referrerRef = db.collection("users").doc(userDoc.data().referredBy);
+           referralDoc = await transaction.get(referrerRef);
+        }
+        
         if (txRefToUpdate) {
            transaction.update(txRefToUpdate, {
              status: "paid",
@@ -775,28 +786,24 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
         });
 
         // Referral logic inline
-        if (userDoc.exists && userDoc.data()?.referredBy) {
-           referrerRef = db.collection("users").doc(userDoc.data().referredBy);
-           referralDoc = await transaction.get(referrerRef);
-           if (referralDoc.exists) {
-              const bonusAmount = amountUSD * 0.01;
-              transaction.update(referrerRef, {
-                  balanceUSD: admin.firestore.FieldValue.increment(bonusAmount),
-                  total_deposited: admin.firestore.FieldValue.increment(bonusAmount),
-                  referralEarnings: admin.firestore.FieldValue.increment(bonusAmount),
-                  last_update: Date.now()
-              });
-              const refTxRef = db.collection("transactions").doc();
-              transaction.set(refTxRef, {
-                  userId: userDoc.data().referredBy,
-                  type: "referral_bonus",
-                  txType: "Credit",
-                  amountUSD: bonusAmount,
-                  status: "paid",
-                  details: { fromUserId: uid },
-                  createdAt: Date.now(),
-              });
-           }
+        if (referralDoc && referrerRef && referralDoc.exists) {
+           const bonusAmount = amountUSD * 0.01;
+           transaction.update(referrerRef, {
+               balanceUSD: admin.firestore.FieldValue.increment(bonusAmount),
+               total_deposited: admin.firestore.FieldValue.increment(bonusAmount),
+               referralEarnings: admin.firestore.FieldValue.increment(bonusAmount),
+               last_update: Date.now()
+           });
+           const refTxRef = db.collection("transactions").doc();
+           transaction.set(refTxRef, {
+               userId: userDoc.data()?.referredBy,
+               type: "referral_bonus",
+               txType: "Credit",
+               amountUSD: bonusAmount,
+               status: "paid",
+               details: { fromUserId: uid },
+               createdAt: Date.now(),
+           });
         }
       });
       console.log(`Successfully credited user ${uid} ${amountUSD} USD from webhook.`);
