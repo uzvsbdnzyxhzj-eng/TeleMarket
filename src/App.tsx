@@ -470,7 +470,14 @@ export default function App() {
        const userPendingTxs = transactions.filter(tx => tx.userId === currentUser.uid && tx.status === 'pending' && tx.type === 'topup' && (tx.details?.method !== "binance_manual"));
        for (const tx of userPendingTxs) {
           try {
-             const res = await fetch(`/api/payment/verify?txId=${tx.id}`);
+             let invoiceParam = "";
+             if (tx.details?.payment_url) {
+                const parts = tx.details.payment_url.split('/');
+                const invoice_id = parts[parts.length - 1];
+                if (invoice_id) invoiceParam = `&invoice_id=${invoice_id}`;
+             }
+             
+             const res = await fetch(`/api/payment/verify?txId=${tx.id}${invoiceParam}`);
              if (res.ok) {
                  const data = await res.json();
                  if (data.paid) {
@@ -4350,7 +4357,7 @@ export default function App() {
                   </div>
                   <div className="divide-y divide-gray-100 overflow-y-auto flex-1 h-full min-h-0">
                   {adminTxs
-                    .filter((tx) => tx.status === "pending" && (adminTab === "topups" ? (tx.type === "topup" && tx.details?.method === "binance_manual") : tx.type === "withdraw"))
+                    .filter((tx) => tx.status === "pending" && (adminTab === "topups" ? (tx.type === "topup") : tx.type === "withdraw"))
                     .filter((tx) => 
                        !adminSearchTxId || 
                        tx.id?.toLowerCase().includes(adminSearchTxId.toLowerCase()) ||
@@ -4364,7 +4371,7 @@ export default function App() {
                     </div>
                   ) : (
                     adminTxs
-                      .filter((tx) => tx.status === "pending" && (adminTab === "topups" ? (tx.type === "topup" && tx.details?.method === "binance_manual") : tx.type === "withdraw"))
+                      .filter((tx) => tx.status === "pending" && (adminTab === "topups" ? (tx.type === "topup") : tx.type === "withdraw"))
                       .filter((tx) => 
                        !adminSearchTxId || 
                        tx.id?.toLowerCase().includes(adminSearchTxId.toLowerCase()) ||

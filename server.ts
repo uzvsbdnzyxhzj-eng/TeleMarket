@@ -50,6 +50,7 @@ async function startServer() {
 
 
   app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
 
   // API Routes
   app.get("/api/proxy/countries", async (req, res) => {
@@ -756,8 +757,22 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
     }
   });
 
-  // In-memory store for verified webhooks since backend lacks Firestore IAM permissions
+  // In-memory & Local Disk store for verified webhooks since backend lacks Firestore IAM permissions by default.
   const verifiedTransactions = new Set<string>();
+  const VERIFIED_TX_FILE = path.join(process.cwd(), "verified_txs.json");
+  if (fs.existsSync(VERIFIED_TX_FILE)) {
+      try {
+          const arr = JSON.parse(fs.readFileSync(VERIFIED_TX_FILE, "utf-8"));
+          if (Array.isArray(arr)) {
+              arr.forEach(id => verifiedTransactions.add(id));
+          }
+      } catch(e) {}
+  }
+  const saveVerifiedTransactions = () => {
+      try {
+          fs.writeFileSync(VERIFIED_TX_FILE, JSON.stringify(Array.from(verifiedTransactions)));
+      } catch(e) {}
+  };
 
   app.post("/api/payment/webhook", async (req, res) => {
     // Webhook from Paymently or Cryptomus
@@ -793,7 +808,32 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
 
       if (pendingTxId) {
          verifiedTransactions.add(pendingTxId);
-         console.log(`Transaction ${pendingTxId} marked as verified in memory.`);
+         saveVerifiedTransactions();
+         console.log(`Transaction ${pendingTxId} marked as verified in memory & disk.`);
+      }
+
+      // If backend HAS service account permissions, ALSO try to process it directly!
+      try {
+          const txRef = db.collection("transactions").doc(pendingTxId);
+          const txDoc = await txRef.get();
+          if (txDoc.exists && txDoc.data()?.status === "pending") {
+               const data = txDoc.data()!;
+               await db.runTransaction(async (transaction) => {
+                    const userRef = db.collection("users").doc(data.userId);
+                    const userDoc = await transaction.get(userRef);
+                    if (userDoc.exists) {
+                       transaction.update(txRef, { status: "paid", paidAt: Date.now() });
+                       transaction.update(userRef, {
+                            balanceUSD: admin.firestore.FieldValue.increment(data.amountUSD),
+                            total_deposited: admin.firestore.FieldValue.increment(data.amountUSD),
+                            last_update: Date.now()
+                       });
+                    }
+               });
+               console.log(`Backend directly fulfilled tx ${pendingTxId} using Firestore IAM.`);
+          }
+      } catch (iamError) {
+          // Normal. This means backend lacks IAM, so frontend must poll `/api/payment/verify` to do it.
       }
 
     } catch (e) {
@@ -803,13 +843,39 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
     res.status(200).send("OK");
   });
 
-  app.get("/api/payment/verify", (req, res) => {
-    const { txId } = req.query;
+  app.get("/api/payment/verify", async (req, res) => {
+    const { txId, invoice_id } = req.query;
+    
     if (typeof txId === 'string' && verifiedTransactions.has(txId)) {
-        res.json({ paid: true });
-    } else {
-        res.json({ paid: false });
+        return res.json({ paid: true });
     }
+    
+    // Actively verify via Paymently if invoice_id is provided
+    if (typeof invoice_id === 'string' && invoice_id) {
+       try {
+         const PAYMENTLY_API_KEY = "5wXlbXNzfcw8arZYxb8HVMcnVAvIhXQAgvHeQHtm";
+         const verifyRes = await fetch("https://uday.paymently.io/api/verify-payment", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "RT-UDDOKTAPAY-API-KEY": PAYMENTLY_API_KEY,
+            },
+            body: JSON.stringify({ invoice_id })
+         });
+         const verifyData = await verifyRes.json();
+         if (verifyData.status === "COMPLETED" || verifyData.status === "completed" || verifyData.status === true || (verifyData.data && verifyData.data.status === "COMPLETED")) {
+            if (typeof txId === 'string') {
+               verifiedTransactions.add(txId);
+               saveVerifiedTransactions();
+            }
+            return res.json({ paid: true });
+         }
+       } catch (e) {
+         console.error("Paymently active verification failed:", e);
+       }
+    }
+    
+    res.json({ paid: false });
   });
 
   app.post("/api/payment/withdraw", (req, res) => {
