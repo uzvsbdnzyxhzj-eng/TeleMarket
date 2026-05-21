@@ -487,8 +487,8 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
     let paymentCurrency: string;
 
     const APP_URL = process.env.APP_URL || `http://localhost:3000`;
-    let baseUrl = req.headers.origin;
-    if (!baseUrl || !baseUrl.startsWith("http")) {
+    let baseUrl = req.body.baseUrl || req.headers.origin;
+    if (!baseUrl || !baseUrl.startsWith("http") || baseUrl.includes("localhost")) {
       baseUrl = APP_URL.replace("http://localhost:3000", req.protocol + "://" + req.get("host"));
     }
     // Hard fallback just in case the proxy returns localhost for host
@@ -684,6 +684,10 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
       console.error(e);
       res.json({ success: false, message: "API Error" });
     }
+  });
+
+  app.get("/api/ping", (req, res) => {
+    res.send("pong");
   });
 
   app.get("/api/admin/env", (req, res) => {

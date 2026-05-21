@@ -968,6 +968,7 @@ export default function App() {
           method,
           uid: currentUser.uid,
           pendingTxId, 
+          baseUrl: window.location.origin
         }),
       });
 
