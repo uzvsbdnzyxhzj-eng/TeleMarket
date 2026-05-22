@@ -42,8 +42,11 @@ export default function MyAdsProfile({ currentUser, onNavigate }: { currentUser:
 
       setExtendingAd(ad.id);
       try {
-        const newBalance = currentUser.balanceUSD - plan.price;
-        await updateDoc(doc(db, "users", currentUser.uid), { balanceUSD: newBalance });
+        await updateDoc(doc(db, "users", currentUser.uid), { 
+          balanceUSD: increment(-plan.price),
+          total_spent: increment(plan.price),
+          last_update: Date.now()
+        });
 
         const txId = Date.now().toString() + "-" + Math.random().toString(36).substring(7);
         await setDoc(doc(db, "transactions", txId), {

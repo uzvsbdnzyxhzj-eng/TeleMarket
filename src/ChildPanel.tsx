@@ -78,7 +78,9 @@ export default function ChildPanel({ currentUser, onNavigate, balanceUSD }: Chil
           createdAt: Date.now()
         }),
         updateDoc(doc(db, "users", currentUser.uid), {
-          balanceUSD: Number(balanceUSD) - INITIAL_PRICE
+          balanceUSD: increment(-INITIAL_PRICE),
+          total_spent: increment(INITIAL_PRICE),
+          last_update: Date.now()
         }),
         addDoc(collection(db, "transactions"), {
           type: "child_panel_order",

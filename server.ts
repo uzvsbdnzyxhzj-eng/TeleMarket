@@ -65,17 +65,7 @@ async function startServer() {
       }
 
       if (data.status === "error" || data.cod === 401 || !data.countries || Object.keys(data.countries).length === 0) {
-        // Fallback mock data to prevent UI from breaking if API key is invalid
-        data = {
-          status: "ok",
-          countries: {
-             "1": { code: "bd", name: "Bangladesh", price: "0.20", qty: "500", code_Num: "880" },
-             "2": { code: "in", name: "India", price: "0.15", qty: "1000", code_Num: "91" },
-             "3": { code: "us", name: "USA", price: "0.50", qty: "200", code_Num: "1" },
-             "4": { code: "id", name: "Indonesia", price: "0.18", qty: "1500", code_Num: "62" },
-             "5": { code: "ru", name: "Russia", price: "0.12", qty: "800", code_Num: "7" }
-          }
-        };
+        return res.status(502).json({ error: "Failed to fetch countries from provider." });
       }
 
       const defaultDialCodes: Record<string, string> = {
@@ -246,18 +236,6 @@ async function startServer() {
   let smmServicesCache: any = null;
   let smmServicesCacheTime: number = 0;
 
-// Dummy fallback data if SMM API is down
-const FALLBACK_SMM_SERVICES = [
-  { service: "1", name: "Instagram Followers [High Quality]", type: "Default", category: "Instagram Followers", rate: "0.50", min: "100", max: "10000" },
-  { service: "2", name: "Instagram Likes [Real]", type: "Default", category: "Instagram Likes", rate: "0.10", min: "50", max: "5000" },
-  { service: "3", name: "YouTube Views [Non-Drop]", type: "Default", category: "YouTube Views", rate: "1.20", min: "1000", max: "100000" },
-  { service: "4", name: "YouTube Subscribers [Speed: 50/Day]", type: "Default", category: "YouTube Subscribers", rate: "5.00", min: "100", max: "2000" },
-  { service: "5", name: "TikTok Followers", type: "Default", category: "TikTok", rate: "0.80", min: "100", max: "50000" },
-  { service: "6", name: "Facebook Page Likes", type: "Default", category: "Facebook", rate: "1.50", min: "100", max: "10000" },
-  { service: "7", name: "Telegram Members", type: "Default", category: "Telegram", rate: "0.30", min: "100", max: "20000" },
-  { service: "8", name: "Twitter/X Followers", type: "Default", category: "Twitter", rate: "2.00", min: "100", max: "5000" },
-];
-
   app.post("/api/proxy/smm/services", async (req, res) => {
     try {
       const now = Date.now();
@@ -280,8 +258,8 @@ const FALLBACK_SMM_SERVICES = [
         const text = await response.text();
         data = JSON.parse(text);
       } catch (err) {
-        console.error("SMM API request failed or returned invalid JSON. Using fallback.");
-        data = FALLBACK_SMM_SERVICES;
+        console.error("SMM API request failed or returned invalid JSON.");
+        return res.status(502).json({ error: "Failed to fetch SMM services" });
       }
       
       if (Array.isArray(data) && data.length > 0) {
@@ -289,13 +267,13 @@ const FALLBACK_SMM_SERVICES = [
         smmServicesCache = data;
         smmServicesCacheTime = now;
       } else {
-        data = smmServicesCache || FALLBACK_SMM_SERVICES;
+        data = smmServicesCache || [];
       }
       
       res.json(data);
     } catch (error) {
       console.error("SMM Services Error:", error);
-      res.json(smmServicesCache || FALLBACK_SMM_SERVICES);
+      res.json(smmServicesCache || []);
     }
   });
 
@@ -696,6 +674,40 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
        hasSA: !!process.env.FIREBASE_SERVICE_ACCOUNT,
        projectId: "gen-lang-client-0153398594"
     });
+  });
+
+  app.get("/api/admin/fixBalances", async (req, res) => {
+    try {
+      const users = await db.collection("users").get();
+      let fixed = 0;
+      let skipped = 0;
+      let logs = [];
+      const batch = db.batch();
+      for (let doc of users.docs) {
+        const data = doc.data();
+        if (data.balanceUSD > 10000 || data.balanceUSD < 0 || isNaN(data.balanceUSD) || typeof data.balanceUSD !== "number") {
+          logs.push(`Crazy balance ${doc.id}: ${data.balanceUSD}`);
+          batch.update(doc.ref, { balanceUSD: 0 });
+          fixed++;
+        } else if (data.balanceUSD === 0 && data.total_deposited > 0) {
+          const expected = (data.total_deposited || 0) - (data.total_spent || 0) + (data.referralEarnings || 0);
+          let actualExpected = expected < 0 ? 0 : expected;
+          if (actualExpected > 0) {
+             logs.push(`Zero balance ${doc.id} (dep:${data.total_deposited}, spent:${data.total_spent}) -> ${actualExpected}`);
+             batch.update(doc.ref, { balanceUSD: actualExpected });
+             fixed++;
+          } else {
+             skipped++;
+          }
+        }
+      }
+      if (fixed > 0) {
+         await batch.commit();
+      }
+      res.json({ message: `Fixed ${fixed} users, skipped ${skipped}`, logs });
+    } catch (e) {
+      res.status(500).json({ error: String(e) });
+    }
   });
 
   app.get("/api/admin/fixTx", async (req, res) => {

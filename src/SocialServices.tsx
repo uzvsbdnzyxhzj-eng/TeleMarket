@@ -245,7 +245,9 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
                    createdAt: Date.now()
                }),
                updateDoc(doc(db, "users", currentUser?.uid || ""), {
-                   balanceUSD: Number(balanceUSD) - Number(charge)
+                   balanceUSD: increment(-Number(charge)),
+                   total_spent: increment(Number(charge)),
+                   last_update: Date.now()
                })
            ]);
 
@@ -271,7 +273,7 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
   ];
 
   return (
-    <div className="absolute inset-0 z-50 bg-[#f8fafc] flex flex-col md:flex-row overflow-hidden pb-16 md:pb-0">
+    <div className="absolute inset-0 z-50 bg-transparent flex flex-col md:flex-row overflow-hidden pb-16 md:pb-0">
       {/* Mobile Header */}
       <div className="md:hidden bg-white text-gray-800 p-4 flex justify-between items-center shadow-sm z-20 border-b border-gray-100">
         <div className="flex items-center gap-3">
@@ -317,7 +319,7 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
                    {currentUser?.displayName || currentUser?.email?.split('@')[0] || "User"}
                 </div>
                 <div className="text-xs text-blue-600 font-bold bg-blue-50 inline-block px-2 py-0.5 rounded-full mt-0.5 border border-blue-100">
-                   Balance: ${balanceUSD.toFixed(3)}
+                   Balance: ${(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))}
                 </div>
              </div>
          </div>

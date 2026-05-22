@@ -3,6 +3,7 @@ import toast, { Toaster } from "react-hot-toast";
 import { motion, AnimatePresence } from "motion/react";
 import { CountryData } from "./types";
 import { t, Language } from "./i18n";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import {
   ShoppingCart,
   Store,
@@ -105,6 +106,7 @@ import SupportTickets from "./SupportTickets";
 import AdminTickets from "./AdminTickets";
 import SocialServices from "./SocialServices";
 import ChatBot from "./ChatBot";
+import AdminDataOverview from "./AdminDataOverview";
 
 export type View =
   | "buy"
@@ -304,6 +306,7 @@ export default function App() {
   const [adminTxs, setAdminTxs] = useState<any[]>([]);
   const [adminSearchTxId, setAdminSearchTxId] = useState("");
   const [adminTab, setAdminTab] = useState<"overview" | "topups" | "withdrawals" | "users" | "services" | "settings">("overview");
+  const [adminSubTab, setAdminSubTab] = useState<"pending" | "paid">("pending");
 
   const [adminAddBalanceUid, setAdminAddBalanceUid] = useState("");
   const [adminAddBalanceAmount, setAdminAddBalanceAmount] = useState<
@@ -1211,7 +1214,7 @@ export default function App() {
                     createdAt: Date.now(),
                   });
 
-                  // Mock transferring the money to the seller
+                  // Transfer the money to the seller
                   if (p2pModal.ownerId) {
                     try {
                       const sellerRef = doc(db, "users", p2pModal.ownerId);
@@ -1224,16 +1227,16 @@ export default function App() {
                         });
                       }
                     } catch (e) {
-                      console.error("Seller transfer mockup error", e);
+                      console.error("Seller transfer error", e);
                     }
                   }
 
-                  // Remove account from the list (will fail securely in mock mode)
+                  // Remove account from the list
                   if (p2pModal.id && typeof p2pModal.id === "string") {
                     try {
                       await deleteDoc(doc(db, "accounts", p2pModal.id));
                     } catch (e) {
-                      console.error("Secure deletion mockup error", e);
+                      console.error("Secure deletion error", e);
                     }
                   }
 
@@ -1665,7 +1668,7 @@ export default function App() {
               className="w-full p-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#2AABEE]"
             />
             <p className="text-xs text-gray-500 mt-1">
-              {i18n.availWithdrawLbl} ${balanceUSD.toFixed(2)}
+              {i18n.availWithdrawLbl} ${(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))}
             </p>
           </div>
 
@@ -2362,7 +2365,7 @@ export default function App() {
                   onClick={() => { requireAuth(() => setTopupModal(true)); }}
                 >
                   <Wallet className="w-4 h-4" />
-                  <span className="font-bold text-sm">${balanceUSD.toFixed(0)}</span>
+                  <span className="font-bold text-sm">${(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))}</span>
                 </div>
                 <div
                   className={`w-9 h-9 bg-[#5b8735] hover:opacity-90 text-white rounded-full flex items-center justify-center font-bold text-base cursor-pointer shadow-sm uppercase tracking-wider relative ${currentUser?.photoURL ? '' : 'overflow-hidden'}`}
@@ -2436,7 +2439,7 @@ export default function App() {
                 onClick={() => { requireAuth(() => setTopupModal(true)); }}
               >
                 <Wallet className="w-4 h-4" />
-                <span className="font-bold text-sm">${balanceUSD.toFixed(0)}</span>
+                <span className="font-bold text-sm">${(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))}</span>
               </div>
               <div
                 className={`w-9 h-9 lg:w-10 lg:h-10 bg-[#5b8735] hover:opacity-90 text-white rounded-full flex items-center justify-center font-bold text-lg cursor-pointer shadow-sm uppercase tracking-wider relative shrink-0 ${currentUser?.photoURL ? '' : 'overflow-hidden'}`}
@@ -2464,14 +2467,16 @@ export default function App() {
       {/* Main Content Area */}
       <main data-view={currentView} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 py-5 sm:py-8 pb-20 md:pb-8">
         {currentView === "post-ad" && (
-          <PostAd
-            balanceUSD={balanceUSD}
-            onNavigate={setCurrentView}
-            uid={currentUser?.uid || ""}
-          />
+          <div className="bg-gradient-to-br from-sky-100 to-indigo-200 p-4 sm:p-6 rounded-2xl border border-blue-200/50 shadow-md">
+            <PostAd
+              balanceUSD={balanceUSD}
+              onNavigate={setCurrentView}
+              uid={currentUser?.uid || ""}
+            />
+          </div>
         )}
         {currentView === "tickets" && (
-          <div className="max-w-4xl mx-auto py-8">
+          <div className="max-w-4xl mx-auto py-8 bg-gradient-to-br from-sky-100 to-indigo-200 p-4 sm:p-6 rounded-2xl border border-blue-200/50 shadow-md">
              <button
               onClick={() => { setCurrentView("dashboard"); }}
               className="md:hidden flex items-center text-gray-600 hover:text-gray-900 mb-2 font-medium bg-white px-4 py-2 rounded-full shadow-sm"
@@ -2485,19 +2490,23 @@ export default function App() {
           </div>
         )}
         {currentView === "smm" && (
-          <div className="w-full h-[calc(100vh-140px)] md:h-[calc(100vh-80px)] -mt-4 sm:-mt-8 -mx-3 sm:-mx-6 lg:-mx-8 p-0 relative">
+          <div className="w-full h-[calc(100vh-140px)] md:h-[calc(100vh-80px)] -mt-4 sm:-mt-8 -mx-3 sm:-mx-6 lg:-mx-8 p-0 relative bg-gradient-to-br from-sky-100 to-indigo-200">
             <SocialServices currentUser={currentUser} onNavigate={setCurrentView} balanceUSD={balanceUSD} socialMarkupPercent={socialMarkupPercent} smmMarkupData={smmMarkupData} smmCategoryGroupName={smmCategory} />
           </div>
         )}
         {currentView === "child-panel" && (
-          <ChildPanel currentUser={currentUser} onNavigate={(v) => setCurrentView(v as View)} balanceUSD={balanceUSD} />
+          <div className="bg-gradient-to-br from-sky-100 to-indigo-200 p-4 sm:p-6 rounded-2xl border border-blue-200/50 shadow-md">
+            <ChildPanel currentUser={currentUser} onNavigate={(v) => setCurrentView(v as View)} balanceUSD={balanceUSD} />
+          </div>
         )}
         {currentView === "api" && (
-          <ApiView onNavigate={(v) => setCurrentView(v as View)} />
+          <div className="bg-gradient-to-br from-sky-100 to-indigo-200 p-4 sm:p-6 rounded-2xl border border-blue-200/50 shadow-md">
+            <ApiView onNavigate={(v) => setCurrentView(v as View)} />
+          </div>
         )}
         {/* BUY VIEW */}
         {currentView === "buy" && (
-          <div className="space-y-6">
+          <div className="space-y-6 bg-gradient-to-br from-sky-100 to-indigo-200 p-4 sm:p-6 rounded-2xl border border-blue-200/50 shadow-md">
             <button
               onClick={() => { setCurrentView("dashboard"); }}
               className="md:hidden flex items-center text-gray-600 hover:text-gray-900 mb-2 font-medium bg-white px-4 py-2 rounded-full shadow-sm"
@@ -2601,7 +2610,7 @@ export default function App() {
 
         {/* SELL VIEW */}
         {currentView === "sell" && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center max-w-2xl mx-auto my-8">
+          <div className="bg-gradient-to-br from-sky-100 to-indigo-200 p-8 rounded-2xl shadow-md border border-blue-200/50 text-center max-w-2xl mx-auto my-8">
             <button
               onClick={() => { setCurrentView("dashboard"); }}
               className="md:hidden flex items-center text-gray-600 hover:text-gray-900 mb-6 font-medium bg-gray-50 px-4 py-2 rounded-full mx-auto shadow-sm"
@@ -2621,7 +2630,7 @@ export default function App() {
 
         {/* WALLET HISTORY VIEW */}
         {currentView === "wallet-history" && (
-          <div className="bg-white min-h-[500px] text-gray-900 rounded-lg overflow-hidden shadow-sm border border-gray-100">
+          <div className="bg-gradient-to-br from-sky-100 to-indigo-200 min-h-[500px] text-gray-900 rounded-2xl overflow-hidden shadow-md border border-blue-200/50 relative">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border-b border-gray-100 bg-gray-50/50">
               <h2 className="text-xl font-bold mb-4 sm:mb-0 flex items-center gap-2">
@@ -2738,7 +2747,7 @@ export default function App() {
 
         {/* RECORDS VIEW */}
         {currentView === "records" && (
-          <div className="bg-white min-h-[500px] text-gray-900 rounded-xl overflow-hidden shadow-sm border border-gray-200 relative">
+          <div className="bg-gradient-to-br from-sky-100 to-indigo-200 min-h-[500px] text-gray-900 rounded-2xl overflow-hidden shadow-md border border-blue-200/50 relative">
             <button
               onClick={() => { setCurrentView("dashboard"); }}
               className="md:hidden absolute top-4 right-4 flex items-center text-gray-600 hover:text-gray-900 font-medium bg-gray-100 px-3 py-1.5 rounded-full shadow-sm z-10"
@@ -2926,7 +2935,7 @@ export default function App() {
 
         {/* PROFILE VIEW */}
         {currentView === "profile" && (
-          <div className="space-y-6">
+          <div className="space-y-6 bg-gradient-to-br from-sky-100 to-indigo-200 p-4 sm:p-6 rounded-2xl border border-blue-200/50 shadow-md">
             <button
               onClick={() => { setCurrentView("dashboard"); }}
               className="md:hidden flex items-center text-gray-600 hover:text-gray-900 font-medium bg-white px-4 py-2 rounded-full shadow-sm"
@@ -2976,7 +2985,7 @@ export default function App() {
                     Hi, {currentUser?.displayName || currentUser?.email?.split('@')[0] || "User"}
                   </h3>
                   <div className="flex items-center justify-center gap-2 mb-6">
-                    <span className="text-gray-800 font-bold text-base">Available Balance : {balanceUSD.toFixed(2)} USD</span>
+                    <span className="text-gray-800 font-bold text-base">Available Balance : {(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))} USD</span>
                     <button onClick={() => window.location.reload()} className="p-1 hover:bg-gray-100 border border-gray-300 rounded-md transition shadow-sm">
                       <RefreshCw className="w-4 h-4 text-gray-700" />
                     </button>
@@ -3012,7 +3021,7 @@ export default function App() {
                   </div>
                   <div className="p-6">
                       <div className="bg-[#1cd435] text-white rounded-lg p-4 text-center mb-4">
-                        <div className="font-bold text-xl mb-1">{balanceUSD.toFixed(2)} USD</div>
+                        <div className="font-bold text-xl mb-1">{(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))} USD</div>
                         <div className="text-sm font-bold tracking-wide">Available Balance</div>
                       </div>
                       <div className="border border-gray-200 rounded-lg p-6 text-center shadow-sm">
@@ -3767,7 +3776,7 @@ export default function App() {
                     {i18n.availBal}
                   </p>
                   <h3 className="text-4xl font-bold tracking-tight">
-                    ${balanceUSD.toFixed(2)}{" "}
+                    ${(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))}{" "}
                     <span className="text-xl font-normal text-blue-200">
                       USD
                     </span>
@@ -3904,7 +3913,7 @@ export default function App() {
 
         {/* ADMIN VIEW */}
         {currentView === "admin" && (
-          <div className="space-y-6">
+          <div className="space-y-6 bg-gradient-to-br from-sky-100 to-indigo-200 p-4 sm:p-6 rounded-2xl border border-blue-200/50 shadow-md">
             <div className="bg-red-50 p-4 sm:p-6 rounded-xl border border-red-100 text-red-900 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div>
                 <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -3913,74 +3922,6 @@ export default function App() {
                 </h2>
                 <p className="opacity-80">{i18n.adminPanelSub}</p>
               </div>
-              <button
-                onClick={async () => {
-                  try {
-                    const mockAccounts = [
-                      {
-                        title: "Crypto Traders Pro",
-                        type: "Channel",
-                        subscribers: 15400,
-                        ageDays: 340,
-                        priceUSD: 150,
-                        verified: true,
-                        topic: "Finance",
-                      },
-                      {
-                        title: "Local Marketplace",
-                        type: "Group",
-                        subscribers: 5200,
-                        ageDays: 120,
-                        priceUSD: 45,
-                        verified: false,
-                        topic: "Trading",
-                      },
-                      {
-                        title: "Tech News Daily",
-                        type: "Channel",
-                        subscribers: 45000,
-                        ageDays: 850,
-                        priceUSD: 400,
-                        verified: true,
-                        topic: "Technology",
-                      },
-                      {
-                        title: "Gaming Community",
-                        type: "Group",
-                        subscribers: 1250,
-                        ageDays: 60,
-                        priceUSD: 20,
-                        verified: false,
-                        topic: "Gaming",
-                      },
-                      {
-                        title: "Airdrop Hunters",
-                        type: "Channel",
-                        subscribers: 25000,
-                        ageDays: 400,
-                        priceUSD: 250,
-                        verified: true,
-                        topic: "Crypto",
-                      },
-                    ];
-                    for (const acc of mockAccounts) {
-                      const accRef = doc(collection(db, "accounts"));
-                      await setDoc(accRef, {
-                        ...acc,
-                        ownerId: currentUser!.uid,
-                        createdAt: Date.now(),
-                      });
-                    }
-                    toast("Seeded mock accounts!");
-                  } catch (e) {
-                    console.error(e);
-                    toast("Error seeding accounts.");
-                  }
-                }}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition"
-              >
-                Seed Mock Accounts
-              </button>
             </div>
 
             {/* Admin Navigation Tabs */}
@@ -3995,7 +3936,7 @@ export default function App() {
               ].map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setAdminTab(tab.id as any)}
+                  onClick={() => { setAdminTab(tab.id as any); setAdminSubTab("pending"); }}
                   className={`px-4 py-2 font-bold text-sm whitespace-nowrap rounded-t-lg transition border-b-2 ${
                     adminTab === tab.id
                       ? "bg-blue-50 text-blue-600 border-blue-600"
@@ -4266,8 +4207,10 @@ export default function App() {
 
             {adminTab === "overview" && (
               <>
+                <AdminDataOverview />
+                
                 {/* Active Users Analytics */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
                     <div className="text-sm text-gray-500 font-medium mb-1">
                       Live Users
@@ -4349,15 +4292,33 @@ export default function App() {
             )}
 
             {(adminTab === "topups" || adminTab === "withdrawals") && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              <div className="flex gap-2 mb-4 bg-gray-100 p-1.5 rounded-xl w-full max-w-[400px]">
+                <button
+                  onClick={() => setAdminSubTab("pending")}
+                  className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${adminSubTab === "pending" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                >
+                  Pending {adminTab === "topups" ? "Top Ups" : "Withdrawals"}
+                </button>
+                <button
+                  onClick={() => setAdminSubTab("paid")}
+                  className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${adminSubTab === "paid" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                >
+                  Paid History
+                </button>
+              </div>
+            )}
+
+            {(adminTab === "topups" || adminTab === "withdrawals") && (
+              <div className="grid grid-cols-1 gap-6 mb-6">
                 {/* Pending Transactions Management */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full h-[600px]">
+                {adminSubTab === "pending" && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[600px]">
                   <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
                     <h3 className="font-bold text-gray-800">Pending {adminTab === "topups" ? "Top Ups" : "Withdrawals"}</h3>
                   </div>
                   <div className="divide-y divide-gray-100 overflow-y-auto flex-1 h-full min-h-0">
                   {adminTxs
-                    .filter((tx) => tx.status === "pending" && (adminTab === "topups" ? (tx.type === "topup") : tx.type === "withdraw"))
+                    .filter((tx) => tx.status === "pending" && (adminTab === "topups" ? (tx.type === "topup" && tx.details?.method === "binance_manual") : tx.type === "withdraw"))
                     .filter((tx) => 
                        !adminSearchTxId || 
                        tx.id?.toLowerCase().includes(adminSearchTxId.toLowerCase()) ||
@@ -4371,7 +4332,7 @@ export default function App() {
                     </div>
                   ) : (
                     adminTxs
-                      .filter((tx) => tx.status === "pending" && (adminTab === "topups" ? (tx.type === "topup") : tx.type === "withdraw"))
+                      .filter((tx) => tx.status === "pending" && (adminTab === "topups" ? (tx.type === "topup" && tx.details?.method === "binance_manual") : tx.type === "withdraw"))
                       .filter((tx) => 
                        !adminSearchTxId || 
                        tx.id?.toLowerCase().includes(adminSearchTxId.toLowerCase()) ||
@@ -4543,8 +4504,9 @@ export default function App() {
                 )}
               </div>
               </div>
+              )}
               
-              {adminTab === "topups" && (
+              {adminTab === "topups" && adminSubTab === "paid" && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[600px]">
                   <div className="p-4 border-b border-gray-200 bg-gray-50 shrink-0">
                     <h3 className="font-bold text-gray-800">
@@ -4645,7 +4607,7 @@ export default function App() {
               </div>
               )}
 
-              {adminTab === "withdrawals" && (
+              {adminTab === "withdrawals" && adminSubTab === "paid" && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[600px]">
                   <div className="p-4 border-b border-gray-200 bg-gray-50 shrink-0">
                     <h3 className="font-bold text-gray-800">
@@ -5036,7 +4998,7 @@ export default function App() {
                      </div>
                      <div className="overflow-hidden">
                        <p className="font-bold text-gray-800 truncate">{currentUser.email}</p>
-                       <p className="text-xs text-gray-500">Balance: ${balanceUSD.toFixed(2)}</p>
+                       <p className="text-xs text-gray-500">Balance: ${(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))}</p>
                      </div>
                   </div>
                   <button

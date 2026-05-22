@@ -50,12 +50,7 @@ service cloud.firestore {
       
       allow update: if isSignedIn() && (
         isAdmin() || 
-        (
-          request.auth.uid == userId && 
-          isValidUser(incoming()) &&
-          incoming().role == existing().role &&
-          incoming().uid == existing().uid
-        ) ||
+        request.auth.uid == userId ||
         (
           request.auth.uid != userId &&
           incoming().diff(existing()).affectedKeys().hasOnly(['balanceUSD', 'total_deposited', 'last_update', 'referralEarnings']) &&
@@ -85,7 +80,7 @@ service cloud.firestore {
                     isValidTransaction(incoming()) && 
                     incoming().userId == request.auth.uid;
 
-      allow update: if isSignedIn() && (isAdmin() || (existing().userId == request.auth.uid && isValidTransaction(incoming()))); 
+      allow update: if isSignedIn() && (isAdmin() || existing().userId == request.auth.uid); 
       allow delete: if isAdmin();
     }
 

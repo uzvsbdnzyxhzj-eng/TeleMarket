@@ -77,9 +77,8 @@ export default function PostAd({ balanceUSD, onNavigate, uid }: PostAdProps) {
       }
 
       // 1. Deduct balance from user
-      const newBalance = balanceUSD - plan.finalPrice;
       await updateDoc(doc(db, "users", uid), {
-        balanceUSD: newBalance,
+        balanceUSD: increment(-plan.finalPrice),
         total_spent: increment(plan.finalPrice),
         last_update: Date.now()
       });
@@ -260,7 +259,7 @@ export default function PostAd({ balanceUSD, onNavigate, uid }: PostAdProps) {
             <div className="w-full sm:w-auto text-center sm:text-left p-4 bg-white rounded-xl border border-gray-100 shadow-sm flex-1">
               <p className="text-gray-500 text-sm font-semibold uppercase tracking-wider mb-1 flex items-center justify-center sm:justify-start gap-2"><DollarSign className="w-4 h-4" /> Your Balance</p>
               <p className={`text-2xl font-black ${balanceUSD < plan.finalPrice ? 'text-red-500' : 'text-green-600'}`}>
-                ${balanceUSD.toFixed(2)}
+                ${(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))}
               </p>
             </div>
             <div className="w-full sm:w-auto text-center sm:text-right p-4 bg-indigo-600 text-white rounded-xl shadow-md flex-1">
