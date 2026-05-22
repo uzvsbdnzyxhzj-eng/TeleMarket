@@ -162,6 +162,8 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
     return lowerC.includes(search);
   });
   
+  const isGameCategory = (cat: string) => /free\s*fire|pubg|mobile\s*legends/i.test(cat || '');
+
   useEffect(() => {
      if (currentServices.length > 0 && (!selectedService || selectedService.category !== selectedCategory)) {
          setSelectedService(currentServices[0]);
@@ -169,7 +171,7 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
   }, [selectedCategory, currentServices]);
 
   const charge = selectedService && quantity && !isNaN(Number(quantity))
-    ? ((Number(quantity) / 1000) * parseFloat(selectedService.rate)).toFixed(4)
+    ? (isGameCategory(selectedService.category) ? (Number(quantity) * parseFloat(selectedService.rate)) : ((Number(quantity) / 1000) * parseFloat(selectedService.rate))).toFixed(4)
     : "0";
 
   const handlePlaceOrder = async () => {
@@ -506,7 +508,7 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
                                ) : selectedService ? (
                                    <span className="flex items-center gap-2 truncate">
                                        <span className="bg-gray-800 text-white px-2 py-0.5 rounded-full text-[11px] font-bold shrink-0">{selectedService.service}</span>
-                                       <span className="truncate">- {selectedService.name} [ ${selectedService.rate} per 1000 ]</span>
+                                       <span className="truncate">- {selectedService.name} [ ${selectedService.rate} per {isGameCategory(selectedService.category) ? '1' : '1000'} ]</span>
                                    </span>
                                ) : "Select a service"}
                             </div>
@@ -526,7 +528,7 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
                                      >
                                          <div className="flex items-start gap-2">
                                              <span className="bg-gray-800 text-white px-2 py-0.5 rounded-full text-[11px] font-bold mt-0.5 shrink-0">{s.service}</span>
-                                             <span className="text-sm font-medium text-gray-800 leading-snug">{s.name} - ${s.rate} per 1000</span>
+                                             <span className="text-sm font-medium text-gray-800 leading-snug">{s.name} - ${s.rate} per {isGameCategory(s.category) ? '1' : '1000'}</span>
                                          </div>
                                      </div>
                                  ))}
