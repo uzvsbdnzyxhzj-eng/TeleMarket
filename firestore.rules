@@ -50,12 +50,9 @@ service cloud.firestore {
       
       allow update: if isSignedIn() && (
         isAdmin() || 
-        request.auth.uid == userId ||
         (
-          request.auth.uid != userId &&
-          incoming().diff(existing()).affectedKeys().hasOnly(['balanceUSD', 'total_deposited', 'last_update', 'referralEarnings']) &&
-          incoming().balanceUSD >= existing().balanceUSD &&
-          incoming().total_deposited >= existing().total_deposited
+          request.auth.uid == userId &&
+          (!incoming().diff(existing()).affectedKeys().hasAny(['role', 'referralEarnings']))
         )
       );
       

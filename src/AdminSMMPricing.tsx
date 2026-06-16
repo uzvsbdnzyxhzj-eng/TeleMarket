@@ -175,7 +175,7 @@ export default function AdminSMMPricing({ socialMarkupPercent }: { socialMarkupP
                        <div className="font-medium text-gray-800 line-clamp-1" title={s.name}>{s.name}</div>
                        <div className="text-xs text-gray-500 mt-0.5">{s.category}</div>
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-gray-500">${base.toFixed(4)}</td>
+                    <td className="px-4 py-3 text-right font-mono text-gray-500">$base</td>
                     <td className="px-4 py-3">
                        <div className="flex justify-center">
                           <button 
@@ -188,10 +188,10 @@ export default function AdminSMMPricing({ socialMarkupPercent }: { socialMarkupP
                     </td>
                     <td className="px-4 py-3 text-right">
                        {!isCustom ? (
-                          <span className={`font-mono text-xs ${parseFloat(currentProfitStr) > 0 ? 'text-green-600 font-bold bg-green-50 px-2 py-1 rounded' : 'text-gray-500'}`}>+${currentProfitStr}</span>
+                          <span className={`font-mono text-xs ${parseFloat(currentProfitStr) > 0 ? 'text-green-600 font-bold bg-green-50 px-2 py-1 rounded' : 'text-gray-500'}`}>+$currentProfitStr</span>
                        ) : (
                           <div className="relative">
-                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">USD</span>
                              <input 
                                 type="number" 
                                 step="0.0001"
@@ -206,7 +206,7 @@ export default function AdminSMMPricing({ socialMarkupPercent }: { socialMarkupP
                        )}
                     </td>
                     <td className="px-4 py-3 text-right">
-                       <span className="font-mono text-gray-800 font-bold">${sellPriceStr}</span>
+                       <span className="font-mono text-gray-800 font-bold">$sellPriceStr</span>
                     </td>
                   </tr>
                 );

@@ -187,7 +187,7 @@ function TestimonialSlider() {
   }, []);
 
   return (
-    <div className="w-full overflow-hidden mt-12 py-16 bg-white border border-gray-100 shadow-sm relative rounded-[40px]">
+      <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }} className="w-full overflow-hidden mt-12 py-16 bg-white border border-gray-100 shadow-sm relative rounded-[40px]">
        <div className="text-center mb-10">
            <h2 className="text-3xl font-black text-gray-900 tracking-tight leading-tight">
              Trusted by Content Creators
@@ -220,7 +220,7 @@ function TestimonialSlider() {
              ))}
           </div>
        </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -239,8 +239,29 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
       setLoading(true);
       setError(null);
       setSuccess(null);
-      await signInWithGoogle();
+      const res = await signInWithGoogle();
       localStorage.removeItem("skip_auto_login");
+      
+      const deviceRecognized = localStorage.getItem("device_recognized");
+      if (!deviceRecognized && res.user?.email) {
+        try {
+           await fetch("/api/notify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                 to: res.user.email,
+                 subject: "New Login Alert - Telemarket",
+                 type: "new_login",
+                 details: {
+                    userAgent: navigator.userAgent
+                 }
+              })
+           });
+           localStorage.setItem("device_recognized", "true");
+        } catch(err) {
+           console.error("Failed to send login alert", err);
+        }
+      }
     } catch (err: any) {
       console.error(err);
       if (err.code === 'auth/operation-not-allowed') {
@@ -287,6 +308,28 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
       } else {
         await signInWithEmailAndPassword(auth, email, password);
         localStorage.removeItem("skip_auto_login");
+        
+        // Check for new device login
+        const deviceRecognized = localStorage.getItem("device_recognized");
+        if (!deviceRecognized) {
+          try {
+             await fetch("/api/notify", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                   to: email,
+                   subject: "New Login Alert - Telemarket",
+                   type: "new_login",
+                   details: {
+                      userAgent: navigator.userAgent
+                   }
+                })
+             });
+             localStorage.setItem("device_recognized", "true");
+          } catch(err) {
+             console.error("Failed to send login alert", err);
+          }
+        }
       }
     } catch (err: any) {
       console.error(err);
@@ -328,7 +371,7 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
   };
 
   return (
-    <div className="min-h-screen relative overflow-y-auto overflow-x-hidden font-sans" style={{ background: 'linear-gradient(to bottom, #ffffff, #F0FDF4)' }}>
+    <motion.div initial={{ opacity: 0, filter: 'blur(10px)' }} animate={{ opacity: 1, filter: 'blur(0px)' }} exit={{ opacity: 0, filter: 'blur(5px)' }} transition={{ duration: 0.4 }} className="min-h-screen relative overflow-y-auto overflow-x-hidden font-sans" style={{ background: 'linear-gradient(to bottom, #ffffff, #F0FDF4)' }}>
       {/* Geometric Background Lines */}
       <div 
         className="absolute inset-0 z-0 pointer-events-none opacity-20"
@@ -342,7 +385,7 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
       />
 
       {/* Header */}
-      <header className="relative z-10 flex items-center justify-between p-4 sm:p-6 lg:px-8 bg-white/80 backdrop-blur-sm border-b border-gray-100 shadow-sm">
+      <motion.header initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.4 }} className="relative z-10 flex items-center justify-between p-4 sm:p-6 lg:px-8 bg-white/80 backdrop-blur-sm border-b border-gray-100 shadow-sm">
         <div className="flex items-center gap-2 cursor-pointer" onClick={onBack}>
           <TelemarketLogo className="h-8 text-[#16a34a]" />
         </div>
@@ -351,9 +394,9 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
           <span className="w-5 h-0.5 bg-gray-800"></span>
           <span className="w-5 h-0.5 bg-gray-800"></span>
         </button>
-      </header>
+      </motion.header>
 
-      <div className="relative z-10 flex flex-col max-w-lg mx-auto px-4 py-8">
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2, duration: 0.4 }} className="relative z-10 flex flex-col max-w-lg mx-auto px-4 py-8">
         
         <div className="text-center mb-10">
           <h1 className="text-3xl sm:text-4xl font-black text-gray-900 leading-[1.1] tracking-tight mb-4">
@@ -365,21 +408,31 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
         </div>
 
         {/* Right Side -> Form */}
-        <div className="w-full relative">
-          <div className="bg-transparent">
+        <div className="w-full relative group">
+          <div className="absolute -inset-1 bg-gradient-to-r from-green-300 to-emerald-400 rounded-[2rem] blur opacity-25 group-hover:opacity-40 transition duration-500"></div>
+          <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-xl border border-white/50 relative z-10 backdrop-blur-xl">
+            <div className="mb-8 text-center">
+               <h2 className="text-2xl font-black text-gray-900 mb-1 tracking-tight">
+                 {mode === 'login' ? 'Welcome Back' : mode === 'signup' ? 'Create Account' : 'Reset Password'}
+               </h2>
+               <p className="text-sm text-gray-500 font-medium">
+                 {mode === 'login' ? 'Login to your TeleMarket dashboard' : mode === 'signup' ? 'Join the most affordable SMM provider' : 'Enter your email to reset password'}
+               </p>
+            </div>
+          
             {error && (
-              <div className="bg-white/90 text-red-600 p-4 rounded-xl text-sm mb-6 border border-red-200 shadow-sm backdrop-blur-sm text-center font-medium">
+              <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm mb-6 border border-red-100 shadow-sm text-center font-medium">
                 {error}
               </div>
             )}
             {success && (
-              <div className="bg-white/90 text-green-600 p-4 rounded-xl text-sm mb-6 border border-green-200 shadow-sm backdrop-blur-sm text-center font-medium flex items-center justify-center gap-2">
+              <div className="bg-green-50 text-green-600 p-4 rounded-xl text-sm mb-6 border border-green-100 shadow-sm text-center font-medium flex items-center justify-center gap-2">
                 <CheckSquare className="w-5 h-5 flex-shrink-0" />
                 <span>{success}</span>
               </div>
             )}
             
-            <form onSubmit={mode === 'reset' ? handleResetPassword : handleEmailAuth} className="space-y-4">
+            <motion.form key={mode} variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0, transition: { staggerChildren: 0.1 } } }} initial="hidden" animate="visible" onSubmit={mode === 'reset' ? handleResetPassword : handleEmailAuth} className="space-y-4">
               
               <AnimatePresence mode="popLayout">
                 {mode === 'signup' && (
@@ -387,24 +440,26 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="relative"
+                    className="relative overflow-hidden"
                   >
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                      <UserIcon className="h-5 w-5 text-[#16a34a]" />
-                    </div>
+                    <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }} className="relative mt-1">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <UserIcon className="h-5 w-5 text-[#16a34a]" />
+                      </div>
                     <input
                       type="text"
                       className="block w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#16a34a] focus:border-[#16a34a] sm:text-base outline-none transition-all shadow-sm font-medium text-gray-800 placeholder:text-gray-500"
                       placeholder="Full Name"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
-                      required={mode === 'signup'}
-                    />
+                        required={mode === 'signup'}
+                      />
+                    </motion.div>
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              <div className="relative">
+              <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }} className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <UserIcon className="h-5 w-5 text-[#16a34a]" />
                 </div>
@@ -416,10 +471,10 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
-              </div>
+              </motion.div>
 
               {mode !== 'reset' && (
-                <div className="relative">
+                <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }} className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                     <Lock className="h-5 w-5 text-[#16a34a]" />
                   </div>
@@ -432,11 +487,11 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
                     onChange={(e) => setPassword(e.target.value)}
                     minLength={6}
                   />
-                </div>
+                </motion.div>
               )}
 
               {mode === 'login' && (
-                <div className="flex items-center justify-between mt-4">
+                <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }} className="flex items-center justify-between mt-4">
                   <div 
                     className="flex items-center gap-2 cursor-pointer"
                     onClick={() => setRememberMe(!rememberMe)}
@@ -455,10 +510,10 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
                   >
                     Forgot password ? <span className="block text-right text-[#16a34a] font-bold">Reset</span>
                   </button>
-                </div>
+                </motion.div>
               )}
 
-              <div className="pt-4">
+              <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }} className="pt-4">
                 <button
                   type="submit"
                   disabled={loading}
@@ -470,11 +525,11 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
                     mode === 'login' ? 'Sign in' : mode === 'signup' ? 'Sign up' : 'Reset Password'
                   )}
                 </button>
-              </div>
+              </motion.div>
 
               {mode !== 'reset' && (
                 <>
-                  <div className="mt-4 flex justify-center w-full max-w-[280px] mx-auto">
+                  <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }} className="mt-4 flex justify-center w-full max-w-[280px] mx-auto">
                      <button
                         type="button"
                         onClick={handleGoogleLogin}
@@ -492,9 +547,9 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
                           <path d="M12.0003 5.57065C13.5353 5.57065 14.9083 6.09265 15.9913 7.04265L19.0143 4.07265C17.1683 2.37965 14.8083 1.62065 12.0003 1.62065C7.93535 1.62065 4.43135 3.81265 2.71835 7.17665L6.13035 9.79165C6.97435 7.37265 9.28135 5.57065 12.0003 5.57065Z" fill="#EA4335"/>
                         </svg>
                       </button>
-                  </div>
+                  </motion.div>
 
-                  <div className="mt-8 text-center pb-2">
+                  <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }} className="mt-8 text-center pb-2">
                     <p className="text-gray-700 font-medium text-lg">
                       {mode === 'login' ? "Don't Have an Account? " : "Already have an account? "}
                       <button 
@@ -505,12 +560,12 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
                         {mode === 'login' ? 'Signup Now' : 'Sign In Now'}
                       </button>
                     </p>
-                  </div>
+                  </motion.div>
                 </>
               )}
 
               {mode === 'reset' && (
-                <div className="mt-6 text-center">
+                <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }} className="mt-6 text-center">
                    <button 
                       type="button" 
                       onClick={() => setMode('login')} 
@@ -518,9 +573,9 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
                    >
                       Back to Login
                    </button>
-                </div>
+                </motion.div>
               )}
-            </form>
+            </motion.form>
           </div>
         </div>
 
@@ -597,7 +652,7 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
               </div>
            </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Global & Fast Marketing Section */}
       <div className="relative z-10 w-full bg-white rounded-t-[40px] shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)] pt-12 pb-16 px-4">
@@ -704,7 +759,7 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
           </div>
 
           {/* Basics border separated */}
-          <div className="grid sm:grid-cols-2 gap-12 pt-16 border-t border-gray-200">
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }} className="grid sm:grid-cols-2 gap-12 pt-16 border-t border-gray-200">
              <div>
                 <h3 className="text-2xl font-black text-gray-900 mb-4">Basics of SMM panels</h3>
                 <p className="text-gray-600 leading-relaxed text-sm mb-4">
@@ -720,7 +775,7 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
                   SMM panels work as intermediary platforms that gather a network of services that can perform the bought services for the clients using automated systems and networks.
                 </p>
              </div>
-          </div>
+          </motion.div>
 
           {/* Services Tailored Grid */}
           <div className="pt-16 border-t border-gray-200 text-center">
@@ -806,7 +861,7 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
                  </p>
              </div>
 
-             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+             <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }} className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
                 {[
                   { step: '01', title: 'Create an Account', icon: UserIcon, desc: 'Sign up on TeleMarket for free. It takes only a few minutes and gives you full access to our panel.' },
                   { step: '02', title: 'Add Funds', icon: DollarSign, desc: 'Use safe payment methods like PayPal, cards, or local wallets. We support global payments seamlessly.' },
@@ -828,20 +883,20 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
                       <p className="text-gray-600 text-sm sm:text-base leading-relaxed relative z-10">{item.desc}</p>
                    </div>
                 ))}
-             </div>
+             </motion.div>
           </div>
           
-          <div className="mt-16 flex justify-center pb-20">
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }} className="mt-16 flex justify-center pb-20">
                 <button 
                   onClick={() => { setMode('signup'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                   className="bg-[#16a34a] text-white px-8 py-4 rounded-xl font-black text-lg shadow-xl shadow-green-600/30 hover:scale-105 hover:bg-[#15803d] transition-all"
                 >
                   Signup Now
                 </button>
-             </div>
+             </motion.div>
 
           {/* Payment Methods Section */}
-          <div className="mt-16 pb-20 max-w-4xl mx-auto px-4">
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }} className="mt-16 pb-20 max-w-4xl mx-auto px-4">
              <div className="text-center sm:text-left mb-6">
                  <h2 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight leading-tight mb-4">
                    Payment Methods
@@ -893,10 +948,10 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
                    ))}
                 </div>
              </div>
-          </div>
+          </motion.div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 

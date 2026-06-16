@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { motion } from "motion/react";
 import { ArrowLeft, Code, Copy, CheckCircle, FileText, ChevronDown, ChevronRight, Zap } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -129,7 +130,7 @@ print_r($balance);
 ?>`;
 
   return (
-    <div className="max-w-4xl mx-auto py-8">
+    <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="max-w-4xl mx-auto py-8">
       <button
         onClick={() => onNavigate("dashboard")}
         className="md:hidden flex items-center text-gray-600 hover:text-gray-900 mb-4 font-medium bg-white px-4 py-2 rounded-full shadow-sm"
@@ -224,6 +225,6 @@ print_r($balance);
            </div>
          ))}
       </div>
-    </div>
+    </motion.div>
   );
 }

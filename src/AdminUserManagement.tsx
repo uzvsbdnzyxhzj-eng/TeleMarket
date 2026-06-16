@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { collection, getDocs, doc, updateDoc, query, where, orderBy, limit } from "firebase/firestore";
 import { db } from "./firebase";
 import { Search, User, Edit2, Check, X, Activity, Download, ShieldCheck } from "lucide-react";
+import toast from "react-hot-toast";
 
 export default function AdminUserManagement() {
   const [users, setUsers] = useState<any[]>([]);
@@ -46,18 +47,20 @@ export default function AdminUserManagement() {
          <div>
            <h3 className="font-bold text-blue-900 flex items-center gap-2 mb-1">
              <ShieldCheck className="w-5 h-5 text-blue-600" />
-             Automated Backup & Anti-Crash Protection
+             Automated Backup & Administrator Tools
            </h3>
            <p className="text-sm text-blue-800">
-             Your platform is powered by Google Firebase's infrastructure. It is horizontally scalable to handle unlimited traffic (completely un-crashable) and protected against malicious hacker attacks natively.
+             Your platform is powered by Google Firebase's infrastructure.
            </p>
          </div>
-         <button 
-           onClick={handleBackup}
-           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition flex items-center gap-2 shrink-0"
-         >
-           <Download className="w-4 h-4" /> Export Backup
-         </button>
+         <div className="flex gap-2 shrink-0">
+           <button 
+             onClick={handleBackup}
+             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition flex items-center gap-2"
+           >
+             <Download className="w-4 h-4" /> Export Backup
+           </button>
+         </div>
       </div>
 
       <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
@@ -148,16 +151,16 @@ function UserDetailsModal({ user, onClose }: { user: any, onClose: () => void })
 
   const saveBalance = async () => {
     const val = parseFloat(newBalanceStr);
-    if(isNaN(val)) return alert("Invalid amount");
-    if(!window.confirm("Are you sure you want to update balance to $" + val + "?")) return;
+    if(isNaN(val)) return toast.error("Invalid amount");
     try {
       await updateDoc(doc(db, "users", user.uid), {
         balanceUSD: val
       });
       user.balanceUSD = val; 
       setEditBalanceMode(false);
+      toast.success("Balance updated successfully");
     } catch(e: any) {
-      alert("Error: " + e.message);
+      toast.error("Error: " + e.message);
     }
   };
 

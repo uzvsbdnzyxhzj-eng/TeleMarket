@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { collection, query, where, onSnapshot, doc, updateDoc, setDoc } from "firebase/firestore";
+import { motion } from "motion/react";
+import { collection, query, where, onSnapshot, doc, updateDoc, setDoc, increment } from "firebase/firestore";
 import { db } from "./firebase";
 import { Clock, Plus, MonitorPlay, AlertTriangle } from "lucide-react";
 
@@ -33,7 +34,7 @@ export default function MyAdsProfile({ currentUser, onNavigate }: { currentUser:
     const selectedMonths = extendPlanFor[ad.id] || ad.planMonths || 1;
     const plan = plans.find(p => p.months === selectedMonths) || plans[0];
     
-    if (confirm(`Do you want to extend this ad for another ${plan.months} month(s) for $${plan.price}?`)) {
+    if (confirm(`Do you want to extend this ad for another ${plan.months} month(s) for $$plan.price?`)) {
       if (currentUser.balanceUSD < plan.price) {
         alert("Insufficient balance! Please top up to extend.");
         onNavigate("profile");
@@ -80,7 +81,7 @@ export default function MyAdsProfile({ currentUser, onNavigate }: { currentUser:
   if (loading) return null;
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mt-6 mb-6">
+    <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mt-6 mb-6">
       <div className="p-4 border-b border-gray-50 bg-gray-50/50 flex justify-between items-center">
         <h3 className="font-bold text-gray-800 flex items-center gap-2">
           <MonitorPlay className="w-5 h-5 text-indigo-500" /> My Advertisements
@@ -167,6 +168,6 @@ export default function MyAdsProfile({ currentUser, onNavigate }: { currentUser:
         })}
       </div>
       )}
-    </div>
+    </motion.div>
   );
 }

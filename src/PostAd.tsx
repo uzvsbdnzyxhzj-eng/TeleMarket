@@ -243,9 +243,9 @@ export default function PostAd({ balanceUSD, onNavigate, uid }: PostAdProps) {
                   
                   <div className="flex flex-col items-center justify-center gap-1 mt-3">
                     {p.discountText ? (
-                      <span className="text-gray-400 line-through text-sm font-medium">${p.price}</span>
+                      <span className="text-gray-400 line-through text-sm font-medium">$p.price</span>
                     ) : ( <span className="h-5"></span> )}
-                    <span className={`text-3xl font-black ${selectedPlan === p.months ? 'text-indigo-700' : 'text-indigo-600'}`}>${p.finalPrice}</span>
+                    <span className={`text-3xl font-black ${selectedPlan === p.months ? 'text-indigo-700' : 'text-indigo-600'}`}>$p.finalPrice</span>
                   </div>
                 </div>
               </motion.div>
@@ -264,7 +264,7 @@ export default function PostAd({ balanceUSD, onNavigate, uid }: PostAdProps) {
             </div>
             <div className="w-full sm:w-auto text-center sm:text-right p-4 bg-indigo-600 text-white rounded-xl shadow-md flex-1">
               <p className="text-indigo-100 text-sm font-semibold uppercase tracking-wider mb-1 opacity-90">Total Cost</p>
-              <p className="text-3xl font-black">${plan.finalPrice}</p>
+              <p className="text-3xl font-black">$plan.finalPrice</p>
             </div>
           </div>
           

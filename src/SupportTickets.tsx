@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { motion } from "motion/react";
 import { collection, query, where, orderBy, onSnapshot, addDoc, doc, updateDoc, getDoc, arrayUnion } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { db, auth, storage } from "./firebase";
@@ -237,7 +238,7 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
   }
 
   return (
-    <div className="mt-6 mb-16 md:mb-6">
+    <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="mt-6 mb-16 md:mb-6">
       <div className="bg-[#fdf3da] border border-[#f5e3bc] p-4 rounded-xl text-[#8b6508] mb-6 shadow-sm">
         <p className="font-medium text-sm sm:text-base">
           Our Support team will answer your ticket within 0-1 Hours max. Please don't create multiple tickets for the same issue.
@@ -363,6 +364,6 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }

@@ -130,13 +130,13 @@ import {
 
 export const TelemarketLogo = ({ className = "h-10" }: { className?: string }) => (
   <svg
-    viewBox="0 0 260 60"
+    viewBox="0 0 280 60"
     className={className}
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
   >
     {/* T Icon */}
-    <g transform="translate(30, 30)">
+    <g transform="translate(45, 30)">
       {/* Darker green shadow overlay for T */}
       <path d="M-15 -15 H15 V-5 H5 V15 H-5 V-5 H-15 Z" fill="#84D12F" />
       <path d="M-5 -5 H5 V15 H-5 Z" fill="#75bb29" />
@@ -156,7 +156,7 @@ export const TelemarketLogo = ({ className = "h-10" }: { className?: string }) =
 
     {/* Text */}
     <text
-      x="70"
+      x="85"
       y="35"
       textAnchor="start"
       fill="currentColor"
@@ -168,7 +168,7 @@ export const TelemarketLogo = ({ className = "h-10" }: { className?: string }) =
       TELEMARKET
     </text>
     <text
-      x="72"
+      x="87"
       y="48"
       textAnchor="start"
       fill="currentColor"
@@ -267,6 +267,18 @@ export default function App() {
 
   // User Dashboard State
   const [balanceUSD, setBalanceUSD] = useState(0);
+  const [balanceAnimate, setBalanceAnimate] = useState(false);
+  const prevBalanceRef = useRef(balanceUSD);
+
+  useEffect(() => {
+    if (balanceUSD !== prevBalanceRef.current) {
+      setBalanceAnimate(true);
+      const t = setTimeout(() => setBalanceAnimate(false), 500);
+      prevBalanceRef.current = balanceUSD;
+      return () => clearTimeout(t);
+    }
+  }, [balanceUSD]);
+
   const [numericId, setNumericId] = useState<number | null>(null);
   const [customReferralCode, setCustomReferralCode] = useState<string | null>(null);
   const [userReferredBy, setUserReferredBy] = useState<string | null>(null);
@@ -305,7 +317,7 @@ export default function App() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [adminTxs, setAdminTxs] = useState<any[]>([]);
   const [adminSearchTxId, setAdminSearchTxId] = useState("");
-  const [adminTab, setAdminTab] = useState<"overview" | "topups" | "withdrawals" | "users" | "services" | "settings">("overview");
+  const [adminTab, setAdminTab] = useState<"overview" | "topups" | "withdrawals" | "failed" | "users" | "services" | "settings">("overview");
   const [adminSubTab, setAdminSubTab] = useState<"pending" | "paid">("pending");
 
   const [adminAddBalanceUid, setAdminAddBalanceUid] = useState("");
@@ -621,6 +633,23 @@ export default function App() {
                   if (order.id) {
                      updates.push(updateDoc(doc(db, "transactions", order.id), {
                          status: orderStatus.status
+                     }).then(() => {
+                         if (orderStatus.status === "completed" && order.userEmail) {
+                             fetch("/api/notify", {
+                                 method: "POST",
+                                 headers: { "Content-Type": "application/json" },
+                                 body: JSON.stringify({
+                                     to: order.userEmail,
+                                     subject: "Order Completed - Telemarket",
+                                     type: "order_completed",
+                                     details: {
+                                         serviceName: order.serviceName || "Service",
+                                         charge: order.amountUSD || order.charge || "0.00",
+                                         quantity: order.quantity || "0"
+                                     }
+                                 })
+                             }).catch(() => {});
+                         }
                      }));
                   }
                }
@@ -731,6 +760,7 @@ export default function App() {
               await runTransaction(db, async (transaction) => {
                 const counterRef = doc(db, "counters", "users");
                 const counterDoc = await transaction.get(counterRef);
+                const tUserDoc = await transaction.get(userRef);
 
                 let nextId = 10000;
                 if (!counterDoc.exists()) {
@@ -741,18 +771,20 @@ export default function App() {
                 }
                 assignedNumericId = nextId;
 
-                transaction.set(userRef, {
-                  uid: user.uid,
-                  numericId: nextId,
-                  email: user.email || "",
-                  name: user.displayName || "",
-                  balanceUSD: 0,
-                  role: "user",
-                  referredBy: finalReferredBy,
-                  referralEarnings: 0,
-                  createdAt: Date.now(),
-                  updatedAt: Date.now(),
-                });
+                if (!tUserDoc.exists()) {
+                  transaction.set(userRef, {
+                    uid: user.uid,
+                    numericId: nextId,
+                    email: user.email || "",
+                    name: user.displayName || "",
+                    balanceUSD: increment(0),
+                    role: "user",
+                    referredBy: finalReferredBy,
+                    referralEarnings: increment(0),
+                    createdAt: Date.now(),
+                    updatedAt: Date.now(),
+                  }, { merge: true });
+                }
               });
             } catch (tError) {
               console.error(
@@ -760,18 +792,21 @@ export default function App() {
                 tError,
               );
               // Fallback if transaction fails
-              await setDoc(userRef, {
-                uid: user.uid,
-                numericId: 10000,
-                email: user.email || "",
-                name: user.displayName || "",
-                balanceUSD: 0,
-                role: "user",
-                referredBy: finalReferredBy,
-                referralEarnings: 0,
-                createdAt: Date.now(),
-                updatedAt: Date.now(),
-              });
+              const fallbackSnap = await getDoc(userRef);
+              if (!fallbackSnap.exists()) {
+                await setDoc(userRef, {
+                  uid: user.uid,
+                  numericId: 10000,
+                  email: user.email || "",
+                  name: user.displayName || "",
+                  balanceUSD: increment(0),
+                  role: "user",
+                  referredBy: finalReferredBy,
+                  referralEarnings: increment(0),
+                  createdAt: Date.now(),
+                  updatedAt: Date.now(),
+                }, { merge: true });
+              }
             }
           }
         } catch (error) {
@@ -899,7 +934,7 @@ export default function App() {
     if (!adminAddBalanceUid.trim())
       return toast("Please enter a User ID or Numeric UID");
     const amount = Number(adminAddBalanceAmount);
-    if (!amount || amount <= 0) return toast("Please enter a valid amount");
+    if (!amount || amount === 0) return toast("Please enter a valid amount (positive or negative)");
 
     try {
       let targetUserRef;
@@ -929,7 +964,7 @@ export default function App() {
       const currentTargetBalance = targetUserDoc.data().balanceUSD || 0;
       await updateDoc(targetUserRef, {
         balanceUSD: increment(amount),
-        total_deposited: increment(amount),
+        total_deposited: amount > 0 ? increment(amount) : increment(0),
         last_update: Date.now()
       });
 
@@ -939,22 +974,22 @@ export default function App() {
         userId: targetUserDoc.id,
         userNumericId: targetUserDoc.data().numericId,
         userEmail: targetUserDoc.data().email || "N/A",
-        type: "deposit",
-        txType: "Credit",
-        amountUSD: amount,
+        type: amount > 0 ? "deposit" : "withdraw",
+        txType: amount > 0 ? "Credit" : "Debit",
+        amountUSD: Math.abs(amount),
         status: "paid",
-        details: { method: "admin_topup", txId: "ADMIN-" + Date.now() },
+        details: { method: amount > 0 ? "admin_add" : "admin_subtract", txId: "ADMIN-" + Date.now() },
         createdAt: Date.now(),
       });
 
       toast(
-        `Successfully added $${amount} to user ${targetUserDoc.data().numericId || targetUserDoc.id}. Previous balance: $${currentTargetBalance.toFixed(2)}, New balance: ${(currentTargetBalance + amount).toFixed(2)}`
+        `Successfully ${amount > 0 ? "added" : "subtracted"} $${Math.abs(amount)} ${amount > 0 ? "to" : "from"} user ${targetUserDoc.data().numericId || targetUserDoc.id}. Previous balance: $${currentTargetBalance.toFixed(2)}, New balance: ${(currentTargetBalance + amount).toFixed(2)}`
       );
       setAdminAddBalanceUid("");
       setAdminAddBalanceAmount("");
     } catch (error: any) {
       console.error(error);
-      toast("Error adding balance: " + error.message);
+      toast("Error modifying balance: " + error.message);
     }
   };
 
@@ -1151,7 +1186,7 @@ export default function App() {
 
     return (
       <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[60]">
-        <div className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-md shadow-2xl">
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-md shadow-2xl">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-bold">Confirm Purchase</h3>
             <button onClick={() => setP2pModal(null)} className="text-gray-400 hover:text-gray-600 transition">
@@ -1253,14 +1288,14 @@ export default function App() {
           >
             Confirm & Pay
           </button>
-        </div>
+        </motion.div>
       </div>
     );
   };
 
   const renderPurchasedModal = () => (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[60]">
-      <div className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-md shadow-2xl">
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-md shadow-2xl">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-bold">{i18n.purchasedModalTitle}</h3>
           <button onClick={() => setPurchasedNumber(null)} className="text-gray-400 hover:text-gray-600 transition">
@@ -1308,14 +1343,14 @@ export default function App() {
             {i18n.getCodeBtn}
           </button>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 
   const renderTopupModal = () => {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-bold">{i18n.topupModalTitle}</h3>
             <button onClick={() => { setTopupModal(false); setTopupStep(1); setTopupMethod(null); }} className="text-gray-400 hover:text-gray-600 transition">
@@ -1612,7 +1647,7 @@ export default function App() {
               </div>
             </div>
           )}
-        </div>
+        </motion.div>
       </div>
     );
   };
@@ -1630,7 +1665,7 @@ export default function App() {
 
     return (
       <div className="fixed inset-0 bg-black/50 flex flex-col items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-bold">{i18n.withdrawModalTitle}</h3>
             <button onClick={() => setWithdrawModal(false)} className="text-gray-400 hover:text-gray-600 transition">
@@ -1798,7 +1833,27 @@ export default function App() {
                       },
                       createdAt: Date.now(),
                     });
+                    
+                    try {
+                      await fetch("/api/notify", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          to: currentUser.email,
+                          subject: "Withdrawal Request Received",
+                          type: "withdraw",
+                          details: {
+                            amount: amountObj,
+                            method: withdrawMethod,
+                            account: withdrawDetails
+                          }
+                        })
+                      });
+                    } catch (err) {
+                      console.error("Failed to notify:", err);
+                    }
                     toast(i18n.withdrawSuccessTxt);
+
                     setWithdrawModal(false);
                   } catch (e: any) {
                     toast("Error during withdrawal: " + e.message);
@@ -1864,7 +1919,7 @@ export default function App() {
               )}
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
     );
   };
@@ -1925,7 +1980,7 @@ export default function App() {
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 font-sans sm:py-8">
         <div className="bg-white/0 absolute inset-0" onClick={() => setBinanceTransferAmount(null)} />
         
-        <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col border border-gray-200 relative z-10 animate-in fade-in duration-300">
+        <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ type: "spring", damping: 20, stiffness: 300 }} className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col border border-gray-200 relative z-10">
           <div className="p-4 flex items-center justify-between border-b border-gray-100">
             <h2 className="text-xl font-medium text-gray-800 tracking-tight">Binance internal transfer</h2>
             <button onClick={() => setBinanceTransferAmount(null)} className="text-gray-400 hover:text-gray-600 transition p-1">
@@ -2136,11 +2191,39 @@ export default function App() {
                           body: JSON.stringify({
                             orderId: binanceOrderId,
                             amount: Number((binanceTransferAmount + usdFee).toFixed(2)),
-                            uid: currentUser?.uid
+                            uid: currentUser?.uid,
+                            email: currentUser?.email,
+                            numericId: numericId
                           })
                         });
                         const data = await res.json();
                         
+                        if (data.success) {
+                           setBinanceTransferAmount(null);
+                           setTopupModal(false);
+                           setBinanceOrderId("");
+                           
+                        try {
+                           await fetch("/api/notify", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                 to: currentUser?.email,
+                                 subject: "Deposit Successful",
+                                 type: "topup",
+                                 details: {
+                                    amount: enteredUSD.toFixed(2),
+                                    method: "Binance Auto",
+                                    status: "Paid"
+                                 }
+                              })
+                           });
+                        } catch (err) {}
+                        toast("Binance Verified Instantly! Balance updated.");
+                           setRefresher(r => r + 1);
+                           return;
+                        }
+
                         const txRef = doc(collection(db, "transactions"));
                         await setDoc(txRef, {
                           userId: currentUser?.uid,
@@ -2149,49 +2232,31 @@ export default function App() {
                           type: "topup",
                           txType: "Credit",
                           amountUSD: binanceTransferAmount,
-                          status: data.success ? "paid" : "pending",
+                          status: "pending",
                           details: { method: 'binance_manual', orderId: binanceOrderId, totalSent: binanceTransferAmount + usdFee },
                           createdAt: Date.now(),
                         });
                         
-                        if (data.success) {
-                           await updateDoc(doc(db, "users", currentUser?.uid), {
-                              balanceUSD: increment(binanceTransferAmount),
-                              total_deposited: increment(binanceTransferAmount),
-                              last_update: Date.now()
-                           });
-                           const userDoc = await getDoc(doc(db, "users", currentUser?.uid));
-                           if (userDoc.exists() && userDoc.data().referredBy) {
-                              const referrerId = userDoc.data().referredBy;
-                              const referrerRef = doc(db, "users", referrerId);
-                              const referrerDoc = await getDoc(referrerRef);
-                              if (referrerDoc.exists()) {
-                                  const bonusAmount = binanceTransferAmount * 0.01;
-                                  await updateDoc(referrerRef, {
-                                      balanceUSD: increment(bonusAmount),
-                                      total_deposited: increment(bonusAmount),
-                                      referralEarnings: increment(bonusAmount),
-                                      last_update: Date.now()
-                                  });
-                                  const refTxRef = doc(collection(db, "transactions"));
-                                  await setDoc(refTxRef, {
-                                      userId: referrerId,
-                                      type: "referral_bonus",
-                                      txType: "Credit",
-                                      amountUSD: bonusAmount,
-                                      status: "paid",
-                                      details: { fromUserId: currentUser?.uid },
-                                      createdAt: Date.now(),
-                                  });
-                              }
-                           }
-                           setBinanceTransferAmount(null);
-                           setTopupModal(false);
-                           setBinanceOrderId("");
-                           toast("Binance Verified Instantly! Balance updated.");
-                           return;
-                        }
+                        // remove referred logic
+                        // no operation here
 
+                        
+                        try {
+                           await fetch("/api/notify", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                 to: currentUser?.email,
+                                 subject: "Deposit Request Received",
+                                 type: "topup",
+                                 details: {
+                                    amount: enteredUSD.toFixed(2),
+                                    method: "Binance Manual",
+                                    status: "Pending Review"
+                                 }
+                              })
+                           });
+                        } catch (err) {}
                         toast("Your Order is submitted for review! It could not be instantly verified, an admin will review.");
                         setBinanceTransferAmount(null);
                         setTopupModal(false);
@@ -2213,7 +2278,7 @@ export default function App() {
             )}
             
           </div>
-        </div>
+        </motion.div>
       </div>
     );
   }
@@ -2316,7 +2381,7 @@ export default function App() {
 
       <TopTicker />
       {/* Navbar */}
-      <header className="bg-white/90 backdrop-blur-xl text-slate-800 shadow-[0_2px_20px_-3px_rgba(0,0,0,0.05)] sticky top-0 z-50 border-b border-slate-100/80">
+      <header className="bg-white/60 backdrop-blur-lg backdrop-saturate-150 text-slate-800 shadow-sm sticky top-0 z-50 border-b border-white/40">
         <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex justify-between items-center w-full md:w-auto">
             <div className="flex items-center gap-2">
@@ -2335,9 +2400,10 @@ export default function App() {
             </div>
 
             <div className="flex md:hidden items-center gap-2">
+                
                 <div className="flex items-center gap-1 text-gray-700 bg-gray-100 px-1.5 py-1.5 rounded-lg shrink-0 border border-gray-200">
                   <Globe className="w-4 h-4 opacity-80" />
-                  <select value={lang} onChange={(e) => setLang(e.target.value as Language)} className="bg-transparent border-none text-gray-700 outline-none cursor-pointer text-xs font-bold max-w-[50px]">
+                  <select value={lang} onChange={(e) => setLang(e.target.value as Language)} className="bg-transparent border-none text-gray-700 outline-none cursor-pointer text-xs font-bold max-w-[50px] no-scrollbar">
                     <option value="en">English</option>
                     <option value="bn">Bengali</option>
                     <option value="hi">Hindi</option>
@@ -2359,13 +2425,14 @@ export default function App() {
                     <option value="vi">Vietnamese</option>
                     <option value="th">Thai</option>
                   </select>
+                  
                 </div>
                 <div 
                   className="flex items-center gap-1 bg-[#1cd435] hover:bg-green-600 text-white px-3 py-1.5 rounded-full cursor-pointer transition shadow-sm"
                   onClick={() => { requireAuth(() => setTopupModal(true)); }}
                 >
                   <Wallet className="w-4 h-4" />
-                  <span className="font-bold text-sm">${(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))}</span>
+                  <span className={`font-bold text-sm inline-block transition-all duration-300 ${balanceAnimate ? 'scale-125 text-yellow-300' : ''}`}>${(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))}</span>
                 </div>
                 <div
                   className={`w-9 h-9 bg-[#5b8735] hover:opacity-90 text-white rounded-full flex items-center justify-center font-bold text-base cursor-pointer shadow-sm uppercase tracking-wider relative ${currentUser?.photoURL ? '' : 'overflow-hidden'}`}
@@ -2408,6 +2475,8 @@ export default function App() {
                 )}
               </nav>
 
+              
+
               <div className="flex items-center gap-1 text-gray-700 bg-gray-100 px-2 py-1 rounded-lg shrink-0 border border-gray-200">
                 <Globe className="w-4 h-4 opacity-80" />
                 <select value={lang} onChange={(e) => setLang(e.target.value as Language)} className="bg-transparent border-none text-gray-700 outline-none cursor-pointer text-xs font-bold max-w-[80px]">
@@ -2432,6 +2501,8 @@ export default function App() {
                   <option value="vi">Vietnamese</option>
                   <option value="th">Thai</option>
                 </select>
+                
+                
               </div>
 
               <div 
@@ -2439,7 +2510,7 @@ export default function App() {
                 onClick={() => { requireAuth(() => setTopupModal(true)); }}
               >
                 <Wallet className="w-4 h-4" />
-                <span className="font-bold text-sm">${(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))}</span>
+                <span className={`font-bold text-sm inline-block transition-all duration-300 ${balanceAnimate ? 'scale-125 text-yellow-300' : ''}`}>${(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))}</span>
               </div>
               <div
                 className={`w-9 h-9 lg:w-10 lg:h-10 bg-[#5b8735] hover:opacity-90 text-white rounded-full flex items-center justify-center font-bold text-lg cursor-pointer shadow-sm uppercase tracking-wider relative shrink-0 ${currentUser?.photoURL ? '' : 'overflow-hidden'}`}
@@ -2462,10 +2533,12 @@ export default function App() {
         </div>
       </header>
 
-      <AdvertisementBanner onPostAdClick={() => requireAuth(() => setCurrentView("post-ad"))} />
+      {currentView !== "admin" && <AdvertisementBanner onPostAdClick={() => requireAuth(() => setCurrentView("post-ad"))} />}
 
       {/* Main Content Area */}
-      <main data-view={currentView} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 py-5 sm:py-8 pb-20 md:pb-8">
+      <main data-view={currentView} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 py-5 sm:py-8 pb-20 md:pb-8 relative">
+        <AnimatePresence mode="wait">
+        <motion.div key={currentView} initial={{ opacity: 0, y: 30, scale: 0.95, filter: 'blur(10px)' }} animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }} exit={{ opacity: 0, y: -20, scale: 0.95, filter: 'blur(5px)' }} transition={{ type: "spring", stiffness: 260, damping: 25, mass: 0.5 }} className="w-full">
         {currentView === "post-ad" && (
           <div className="bg-gradient-to-br from-sky-100 to-indigo-200 p-4 sm:p-6 rounded-2xl border border-blue-200/50 shadow-md">
             <PostAd
@@ -2985,7 +3058,7 @@ export default function App() {
                     Hi, {currentUser?.displayName || currentUser?.email?.split('@')[0] || "User"}
                   </h3>
                   <div className="flex items-center justify-center gap-2 mb-6">
-                    <span className="text-gray-800 font-bold text-base">Available Balance : {(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))} USD</span>
+                    <span className="text-gray-800 font-bold text-base">Available Balance: ${(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))}</span>
                     <button onClick={() => window.location.reload()} className="p-1 hover:bg-gray-100 border border-gray-300 rounded-md transition shadow-sm">
                       <RefreshCw className="w-4 h-4 text-gray-700" />
                     </button>
@@ -3021,7 +3094,7 @@ export default function App() {
                   </div>
                   <div className="p-6">
                       <div className="bg-[#1cd435] text-white rounded-lg p-4 text-center mb-4">
-                        <div className="font-bold text-xl mb-1">{(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))} USD</div>
+                        <div className="font-bold text-xl mb-1">${(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))}</div>
                         <div className="text-sm font-bold tracking-wide">Available Balance</div>
                       </div>
                       <div className="border border-gray-200 rounded-lg p-6 text-center shadow-sm">
@@ -3063,12 +3136,12 @@ export default function App() {
                       </p>
                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                         <code className="bg-black/20 px-3 py-2 rounded-lg font-mono text-sm flex-1 overflow-x-auto whitespace-nowrap">
-                          {window.location.origin}/?ref={customReferralCode || numericId || currentUser?.uid}
+                          {window.location.origin}/?ref={numericId || currentUser?.uid}
                         </code>
                         <button
                           onClick={() => {
                             navigator.clipboard.writeText(
-                              `${window.location.origin}/?ref=${customReferralCode || numericId || currentUser?.uid}`,
+                              `${window.location.origin}/?ref=${numericId || currentUser?.uid}`,
                             );
                             toast("Website Link Copied!");
                           }}
@@ -3085,12 +3158,12 @@ export default function App() {
                       </p>
                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                         <code className="bg-black/20 px-3 py-2 rounded-lg font-mono text-sm flex-1 overflow-x-auto whitespace-nowrap">
-                          https://t.me/TeleMarket_official_bot?start={customReferralCode || numericId || currentUser?.uid}
+                          https://t.me/TeleMarket_official_bot?start={numericId}
                         </code>
                         <button
                           onClick={() => {
                             navigator.clipboard.writeText(
-                              `https://t.me/TeleMarket_official_bot?start=${customReferralCode || numericId || currentUser?.uid}`,
+                              `https://t.me/TeleMarket_official_bot?start=${numericId}`,
                             );
                             toast("Bot Link Copied!");
                           }}
@@ -3102,38 +3175,12 @@ export default function App() {
                     </div>
 
                     <div className="bg-orange-500/30 rounded-lg p-3 text-xs md:text-sm text-white flex items-center gap-2 border border-orange-300">
-                      <span className="text-xl shrink-0">🌐</span>
+                      <span className="text-xl shrink-0">💡</span>
                       <p>
-                        <strong>Access anywhere:</strong> Users can effortlessly manage their tasks and trade directly via the app website or through our Official Telegram Bot!
+                        <strong>How it works:</strong> Anyone who opens your Bot Link or Website Link will be automatically counted as your referral! The manual code box inside the app is only if they come without clicking any link.
                       </p>
                     </div>
                   </div>
-
-                  {!customReferralCode && (
-                     <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 mt-4 mb-4">
-                       <p className="text-xs text-orange-100 uppercase tracking-wider font-bold mb-2">
-                         Create Custom Referral Code
-                       </p>
-                       <form onSubmit={(e) => {
-                         e.preventDefault();
-                         const data = new FormData(e.currentTarget);
-                         handleSetCustomReferralCode(data.get("customCode") as string);
-                       }} className="flex gap-2">
-                         <input
-                           type="text"
-                           name="customCode"
-                           placeholder="my_code_123"
-                           className="flex-1 bg-white/20 border border-white/30 rounded-lg px-3 py-2 text-sm text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50"
-                           required
-                           minLength={3}
-                           maxLength={20}
-                         />
-                         <button type="submit" className="bg-white text-orange-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-orange-50 transition">
-                           Create
-                         </button>
-                       </form>
-                     </div>
-                  )}
 
                   {!userReferredBy ? (
                     <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 mt-4">
@@ -3411,8 +3458,8 @@ export default function App() {
 
         {/* DASHBOARD VIEW */}
         {currentView === "dashboard" && (
-          <div className="space-y-6 bg-gradient-to-br from-sky-100 to-indigo-200 p-4 sm:p-6 rounded-2xl border border-blue-200/50 shadow-md">
-            <div className="flex items-center justify-between border-b border-blue-300/50 pb-4">
+          <motion.div initial="hidden" animate="visible" variants={{ hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.1 } } }} className="space-y-6 bg-gradient-to-br from-sky-100 to-indigo-200 p-4 sm:p-6 rounded-2xl border border-blue-200/50 shadow-md">
+            <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }} className="flex items-center justify-between border-b border-blue-300/50 pb-4">
               <h2 className="text-2xl font-bold text-gray-800">
                 {i18n.dashboardTitle}
               </h2>
@@ -3431,11 +3478,14 @@ export default function App() {
                   </button>
                 </div>
               )}
-            </div>
+            </motion.div>
 
             {/* Quick Actions (Buy / Sell / Topup / Withdraw inside dashboard) */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-3 sm:mb-4">
-              <div
+              <motion.div
+                variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => { setCurrentView("buy"); }}
                 className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group"
               >
@@ -3477,9 +3527,12 @@ export default function App() {
                     <span className="truncate">130+ country available</span>
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
-              <div
+              <motion.div
+                variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => requireAuth(() => { setCurrentView("sell"); })}
                 className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group"
               >
@@ -3517,9 +3570,12 @@ export default function App() {
                     <span>Coming soon</span>
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
-              <div
+              <motion.div
+                variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => { requireAuth(() => { (window as any).triggerAdClick?.(); setSmmCategory("games"); setCurrentView("smm"); }) }}
                 className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group h-full"
               >
@@ -3546,9 +3602,12 @@ export default function App() {
                   </div>
                   <p className="text-xs text-gray-500 truncate mt-auto">Free Fire, PUBG Mobile, Mobile Legends</p>
                 </div>
-              </div>
+              </motion.div>
 
-              <div
+              <motion.div
+                variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => { requireAuth(() => { (window as any).triggerAdClick?.(); setSmmCategory("streaming"); setCurrentView("smm"); }) }}
                 className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group h-full"
               >
@@ -3575,11 +3634,14 @@ export default function App() {
                   </div>
                   <p className="text-xs text-gray-500 truncate mt-auto">Twitch, Kick, Spotify, SoundCloud, Audiomack, Deezer, Tidal, Vimeo</p>
                 </div>
-              </div>
+              </motion.div>
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
-              <div
+              <motion.div
+                variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => { requireAuth(() => { (window as any).triggerAdClick?.(); setSmmCategory("social"); setCurrentView("smm"); }) }}
                 className="col-span-2 bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group"
               >
@@ -3625,9 +3687,12 @@ export default function App() {
                     <span className="truncate">FB, IG, TikTok, YT, X, Telegram, WhatsApp...</span>
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
-              <div
+              <motion.div
+                variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => { requireAuth(() => { (window as any).triggerAdClick?.(); setSmmCategory("regional"); setCurrentView("smm"); }) }}
                 className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group h-full"
               >
@@ -3654,9 +3719,12 @@ export default function App() {
                   </div>
                   <p className="text-xs text-gray-500 truncate mt-auto">Kwai, Likee, VK, OK.ru, Lemon 8, Coub</p>
                 </div>
-              </div>
+              </motion.div>
 
-              <div
+              <motion.div
+                variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => { requireAuth(() => { (window as any).triggerAdClick?.(); setSmmCategory("ecommerce"); setCurrentView("smm"); }) }}
                 className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group h-full"
               >
@@ -3683,11 +3751,14 @@ export default function App() {
                   </div>
                   <p className="text-xs text-gray-500 truncate mt-auto">Shopee, Lazada, Google Reviews, Website Traffic, Yandex, Reverbnation</p>
                 </div>
-              </div>
+              </motion.div>
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
-              <div
+              <motion.div
+                variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => { requireAuth(() => setTopupModal(true)); }}
                 className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group"
               >
@@ -3715,9 +3786,12 @@ export default function App() {
                     Add money to wallet
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
-              <div
+              <motion.div
+                variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => { requireAuth(() => setWithdrawModal(true)); }}
                 className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group"
               >
@@ -3742,13 +3816,14 @@ export default function App() {
                     Withdraw earnings
                   </div>
                 </div>
-              </div>
+              </motion.div>
             </div>
 
 
 
             {/* Invite & Earn Banner */}
-            <div
+            <motion.div
+              variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }}
               onClick={() => requireAuth(() => { setCurrentView("profile"); })}
               className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl p-6 text-white cursor-pointer hover:shadow-xl transition transform hover:-translate-y-1 relative overflow-hidden group mb-6 mt-4 md:mt-0"
             >
@@ -3766,9 +3841,9 @@ export default function App() {
                 </div>
               </div>
               <div className="absolute right-[-5%] top-[-50%] w-48 h-48 bg-white/10 rounded-full blur-3xl outline-none"></div>
-            </div>
+            </motion.div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }} className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Balance Card */}
               <div className="bg-gradient-to-br from-[#2AABEE] to-blue-600 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
                 <div className="relative z-10">
@@ -3776,7 +3851,9 @@ export default function App() {
                     {i18n.availBal}
                   </p>
                   <h3 className="text-4xl font-bold tracking-tight">
-                    ${(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))}{" "}
+                    <span className={`inline-block transition-all duration-300 ${balanceAnimate ? 'scale-110 text-yellow-300' : ''}`}>
+                      ${(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))}
+                    </span>{" "}
                     <span className="text-xl font-normal text-blue-200">
                       USD
                     </span>
@@ -3832,10 +3909,10 @@ export default function App() {
                   {i18n.withdrawBtn}
                 </button>
               </div>
-            </div>
+            </motion.div>
 
             {/* Why Choose Us / Value Proposition */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+            <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }} className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
               <div className="bg-white p-5 rounded-xl border border-gray-100 text-center shadow-sm hover:shadow-md hover:border-blue-200 transition-all group">
                 <div className="bg-blue-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:bg-blue-500 transition-colors">
                   <Timer className="w-6 h-6 text-blue-500 group-hover:text-white transition-colors" />
@@ -3870,9 +3947,9 @@ export default function App() {
                   Dedicated support via Telegram or Help Desk whenever needed.
                 </p>
               </div>
-            </div>
+            </motion.div>
             {/* Contact Support Section */}
-            <div className="mt-8 pb-10">
+            <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }} className="mt-8 pb-10">
               <h2 className="text-xl font-bold mb-4 text-gray-800 border-b pb-2">Contact Us</h2>
               <div className="grid grid-cols-2 lg:grid-cols-2 gap-4 mb-6">
                 <a href="https://t.me/your_telegram" target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center justify-center gap-2 hover:bg-gray-50 transition">
@@ -3906,9 +3983,9 @@ export default function App() {
                    </div>
                 </a>
               </div>
-            </div>
+            </motion.div>
 
-          </div>
+          </motion.div>
         )}
 
         {/* ADMIN VIEW */}
@@ -3930,6 +4007,7 @@ export default function App() {
                 { id: "overview", label: "Overview" },
                 { id: "topups", label: "Top Ups" },
                 { id: "withdrawals", label: "Withdrawals" },
+                { id: "failed", label: "Failed" },
                 { id: "users", label: "Users" },
                 { id: "services", label: "Services" },
                 { id: "settings", label: "Settings" },
@@ -4460,6 +4538,28 @@ export default function App() {
                                         doc(db, "transactions", adminTx.id),
                                         { status: "paid" },
                                     );
+                                    
+                                    if (adminTx.userEmail) {
+                                      try {
+                                        await fetch("/api/notify", {
+                                          method: "POST",
+                                          headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({
+                                            to: adminTx.userEmail,
+                                            subject: adminTx.type === "withdraw" ? "Withdrawal Processed" : "Deposit Verified",
+                                            type: adminTx.type === "withdraw" ? "withdraw_paid" : "topup_success",
+                                            details: {
+                                              amount: adminTx.amountUSD?.toFixed(2) || adminTx.amountUSD,
+                                              method: adminTx.details?.method || adminTx.method || "System",
+                                              account: adminTx.details?.account || adminTx.account || "N/A"
+                                            }
+                                          })
+                                        });
+                                      } catch (e) {
+                                        console.error("Email notification failed", e);
+                                      }
+                                    }
+
                                     toast("Marked as paid");
                                 } else {
                                     toast("Already paid");
@@ -4487,6 +4587,27 @@ export default function App() {
                                   await updateDoc(doc(db, "transactions", adminTx.id), {
                                     status: "rejected"
                                   });
+                                  
+                                  if (adminTx.userEmail) {
+                                    try {
+                                      await fetch("/api/notify", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({
+                                          to: adminTx.userEmail,
+                                          subject: adminTx.type === "withdraw" ? "Withdrawal Rejected" : "Deposit Rejected",
+                                          type: adminTx.type === "withdraw" ? "withdraw_rejected" : "topup_rejected",
+                                          details: {
+                                            amount: adminTx.amountUSD?.toFixed(2) || adminTx.amountUSD,
+                                            method: adminTx.details?.method || adminTx.method || "System"
+                                          }
+                                        })
+                                      });
+                                    } catch (e) {
+                                      console.error("Email notification failed", e);
+                                    }
+                                  }
+
                                   toast("Transaction rejected successfully");
                                 } catch (e) {
                                   console.error(e);
@@ -4722,6 +4843,93 @@ export default function App() {
             </div>
             )}
 
+            {adminTab === "failed" && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[600px] mb-6 mt-6">
+                <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
+                  <h3 className="font-bold text-gray-800">
+                    Failed & Canceled Transactions
+                  </h3>
+                </div>
+                <div className="divide-y divide-gray-100 overflow-y-auto flex-1 h-full min-h-0">
+                {adminTxs
+                  .filter((tx) => tx.status === "failed" || tx.status === "canceled" || tx.status === "rejected" || tx.status === "cancelled")
+                  .length === 0 ? (
+                  <div className="p-4 text-center text-gray-500 italic">
+                    No failed or canceled transactions found
+                  </div>
+                ) : (
+                  adminTxs
+                    .filter((tx) => tx.status === "failed" || tx.status === "canceled" || tx.status === "rejected" || tx.status === "cancelled")
+                    .map((adminTx) => (
+                    <div
+                      key={adminTx.id}
+                      className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:bg-gray-50 transition"
+                    >
+                      <div>
+                        <p className="font-bold text-gray-900 border-b border-gray-100 pb-2 mb-2 flex flex-wrap items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold text-white uppercase bg-red-500`}>{adminTx.type}</span>
+                          <span className="text-gray-500">Req:</span> ${adminTx.amountUSD?.toFixed(2) || 0} USD
+                        </p>
+                        {adminTx.details && (
+                          <div className="flex gap-2 items-center mt-1">
+                            <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-bold uppercase transition">
+                              {adminTx.details.method || adminTx.details.provider || "N/A"}
+                            </span>
+                            <span 
+                              onClick={() => {
+                                const textToCopy = adminTx.details?.account || adminTx.details?.orderId || "N/A";
+                                if(textToCopy && textToCopy !== "N/A") {
+                                    navigator.clipboard.writeText(textToCopy);
+                                    toast("Copied to clipboard: " + textToCopy);
+                                }
+                              }}
+                              className="text-sm font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 cursor-pointer hover:bg-gray-200 transition"
+                              title="Click to copy account details"
+                            >
+                              {adminTx.details.account || adminTx.details.orderId || "N/A"}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-2 items-center mt-3">
+                          <span 
+                            className="font-bold text-gray-600 bg-gray-100 px-2 py-0.5 rounded text-xs border border-gray-200 cursor-pointer hover:bg-gray-200 transition"
+                            title="Click to copy Transaction ID"
+                            onClick={() => {
+                              if (adminTx.id) {
+                                navigator.clipboard.writeText(adminTx.id);
+                                toast("Transaction ID copied: " + adminTx.id);
+                              }
+                            }}
+                          >
+                            ID: {adminTx.id}
+                          </span>
+                          <span className="font-bold text-gray-600 bg-gray-200 px-2 py-0.5 rounded text-xs">
+                            {adminTx.userNumericId
+                              ? `UID: ${adminTx.userNumericId}`
+                              : "UID: N/A"}
+                          </span>
+                          <span className="text-xs font-medium text-gray-500">
+                            {adminTx.userEmail ||
+                              adminTx.userId?.slice(0, 8) + "..."}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            Updated:{" "}
+                            {new Date(adminTx.updatedAt || adminTx.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-sm font-bold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg border border-red-200 capitalize">
+                          {adminTx.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
             {adminTab === "settings" && (
               <>
               <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
@@ -4851,6 +5059,8 @@ export default function App() {
             )}
           </div>
         )}
+        </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* Mobile Bottom Navigation Bar */}
@@ -4909,10 +5119,12 @@ export default function App() {
       )}
 
       {/* Modals */}
-      {p2pModal && renderP2pModal()}
-      {topupModal && renderTopupModal()}
-      {withdrawModal && renderWithdrawModal()}
-      {purchasedNumber && renderPurchasedModal()}
+      <AnimatePresence>
+        {p2pModal && renderP2pModal()}
+        {topupModal && renderTopupModal()}
+        {withdrawModal && renderWithdrawModal()}
+        {purchasedNumber && renderPurchasedModal()}
+      </AnimatePresence>
 
       {/* Hamburger / Side Menu */}
       <AnimatePresence>

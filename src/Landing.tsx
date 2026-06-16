@@ -265,69 +265,81 @@ export default function Landing({ onGetStarted, lang, setLang, countries = [], m
       {/* Footer */}
       <footer className="bg-[#0B101E] text-white pt-16 pb-8 border-t border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={{
+                hidden: { opacity: 0 },
+                visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
+            }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-12 lg:gap-8 mb-20"
+          >
             {/* Brand Column */}
-            <div className="lg:col-span-1 flex flex-col items-center md:items-start text-center md:text-left">
-              <div className="bg-white/10 p-2 rounded-lg inline-block mb-4">
-                <TelemarketLogo className="h-8 text-white" />
+            <motion.div variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }} className="lg:col-span-4 flex flex-col items-center md:items-start text-center md:text-left pr-0 lg:pr-8">
+              <div className="relative inline-block mb-8 group cursor-pointer">
+                <div className="absolute -inset-3 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-2xl blur-lg opacity-20 group-hover:opacity-40 transition duration-500"></div>
+                <div className="relative bg-[#111827] px-4 py-3 rounded-2xl border border-gray-800 flex items-center justify-center">
+                  <TelemarketLogo className="h-9 text-white" />
+                </div>
               </div>
-              <p className="text-gray-400 text-sm leading-relaxed mb-6 font-medium">
+              <p className="text-gray-400 text-[15px] leading-loose mb-8 font-medium">
                 Founded in 2018, {i18n.appName || 'TeleMarket'} is a leading provider of affordable and effective automated accounts services and neighboring regions. We offer diverse digital solutions across platforms like Telegram, Discord, Facebook, and more.
               </p>
-              <div className="flex items-center gap-3">
-                <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-blue-600 hover:scale-110 transition-transform">
+              <div className="flex items-center gap-4">
+                <a href="#" className="w-11 h-11 bg-[#111827] border border-gray-800 rounded-2xl flex items-center justify-center text-gray-400 hover:text-blue-500 hover:border-blue-500 hover:shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:-translate-y-1 transition-all duration-300">
                   <Facebook className="w-5 h-5 fill-current" />
                 </a>
-                <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-black hover:scale-110 transition-transform">
+                <a href="#" className="w-11 h-11 bg-[#111827] border border-gray-800 rounded-2xl flex items-center justify-center text-gray-400 hover:text-white hover:border-white hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:-translate-y-1 transition-all duration-300">
                   <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/></svg>
                 </a>
-                <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-red-600 hover:scale-110 transition-transform">
+                <a href="#" className="w-11 h-11 bg-[#111827] border border-gray-800 rounded-2xl flex items-center justify-center text-gray-400 hover:text-red-500 hover:border-red-500 hover:shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:-translate-y-1 transition-all duration-300">
                   <Youtube className="w-5 h-5 fill-current" />
                 </a>
-                <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-blue-500 hover:scale-110 transition-transform">
+                <a href="#" className="w-11 h-11 bg-[#111827] border border-gray-800 rounded-2xl flex items-center justify-center text-gray-400 hover:text-blue-400 hover:border-blue-400 hover:shadow-[0_0_20px_rgba(96,165,250,0.3)] hover:-translate-y-1 transition-all duration-300">
                   <Linkedin className="w-5 h-5 fill-current" />
                 </a>
-                <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-[#2AABEE] hover:scale-110 transition-transform">
+                <a href="#" className="w-11 h-11 bg-[#111827] border border-gray-800 rounded-2xl flex items-center justify-center text-gray-400 hover:text-[#2AABEE] hover:border-[#2AABEE] hover:shadow-[0_0_20px_rgba(42,171,238,0.3)] hover:-translate-y-1 transition-all duration-300">
                   <Send className="w-5 h-5 fill-current ml-[-2px] mt-[1px]" />
                 </a>
               </div>
-            </div>
+            </motion.div>
 
             {/* Links Columns */}
-            <div className="flex flex-col items-center md:items-start">
-              <h3 className="text-xl font-bold mb-6 text-white tracking-wide">Company</h3>
-              <ul className="space-y-4 text-gray-400 font-medium">
-                <li><a href="#" className="hover:text-white transition-colors">Home</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Blog</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Services</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">About Us</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Contact Us</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">FAQ's</a></li>
+            <motion.div variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }} className="lg:col-span-2 flex flex-col items-center md:items-start lg:ml-8">
+              <h3 className="text-sm font-bold mb-8 text-white tracking-widest uppercase">Company</h3>
+              <ul className="space-y-4 text-gray-400 font-medium text-[15px]">
+                <li><a href="#" className="hover:text-[#16a34a] hover:translate-x-1 inline-block transition-all duration-300">Home</a></li>
+                <li><a href="#" className="hover:text-[#16a34a] hover:translate-x-1 inline-block transition-all duration-300">Blog</a></li>
+                <li><a href="#" className="hover:text-[#16a34a] hover:translate-x-1 inline-block transition-all duration-300">Services</a></li>
+                <li><a href="#" className="hover:text-[#16a34a] hover:translate-x-1 inline-block transition-all duration-300">About Us</a></li>
+                <li><a href="#" className="hover:text-[#16a34a] hover:translate-x-1 inline-block transition-all duration-300">Contact Us</a></li>
+                <li><a href="#" className="hover:text-[#16a34a] hover:translate-x-1 inline-block transition-all duration-300">FAQ's</a></li>
               </ul>
-            </div>
+            </motion.div>
 
-            <div className="flex flex-col items-center md:items-start">
-              <h3 className="text-xl font-bold mb-6 text-white tracking-wide">Support</h3>
-              <ul className="space-y-4 text-gray-400 font-medium">
-                <li><a href="#" className="text-orange-500 hover:text-orange-400 transition-colors">Tickets Support</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Contact Us</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">WhatsApp Community</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Telegram Channel</a></li>
+            <motion.div variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }} className="lg:col-span-3 flex flex-col items-center md:items-start lg:ml-8">
+              <h3 className="text-sm font-bold mb-8 text-white tracking-widest uppercase">Support</h3>
+              <ul className="space-y-4 text-gray-400 font-medium text-[15px]">
+                <li><a href="#" className="text-[#16a34a] hover:text-emerald-400 hover:translate-x-1 inline-block transition-all duration-300">Tickets Support</a></li>
+                <li><a href="#" className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300">Contact Us</a></li>
+                <li><a href="#" className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> WhatsApp Community</a></li>
+                <li><a href="#" className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div> Telegram Channel</a></li>
               </ul>
-            </div>
+            </motion.div>
 
-            <div className="flex flex-col items-center md:items-start">
-              <h3 className="text-xl font-bold mb-6 text-white tracking-wide">Our Services</h3>
-              <ul className="space-y-4 text-gray-400 font-medium">
-                <li><a href="#" className="hover:text-white transition-colors">Facebook Services</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Instagram Services</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Twitter Services</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Telegram Services</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">YouTube Services</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">TikTok Services</a></li>
+            <motion.div variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }} className="lg:col-span-3 flex flex-col items-center md:items-start">
+              <h3 className="text-sm font-bold mb-8 text-white tracking-widest uppercase">Our Services</h3>
+              <ul className="space-y-4 text-gray-400 font-medium text-[15px]">
+                <li><a href="#" className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300">Facebook Services</a></li>
+                <li><a href="#" className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300">Instagram Services</a></li>
+                <li><a href="#" className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300">Twitter Services</a></li>
+                <li><a href="#" className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300">Telegram Services</a></li>
+                <li><a href="#" className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300">YouTube Services</a></li>
+                <li><a href="#" className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300">TikTok Services</a></li>
               </ul>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
 
           <div className="border-t border-gray-800 pt-8 mt-12 flex flex-col md:flex-row items-center justify-between">
             <div className="flex flex-wrap items-center justify-center gap-4 mb-6 md:mb-0">
