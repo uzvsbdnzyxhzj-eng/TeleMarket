@@ -3,12 +3,14 @@ import { motion } from "motion/react";
 import { collection, query, where, onSnapshot, doc, updateDoc, setDoc, increment } from "firebase/firestore";
 import { db } from "./firebase";
 import { Clock, Plus, MonitorPlay, AlertTriangle } from "lucide-react";
+import toast from "react-hot-toast";
 
 export default function MyAdsProfile({ currentUser, onNavigate }: { currentUser: any, onNavigate: (v: string) => void }) {
   const [ads, setAds] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [extendingAd, setExtendingAd] = useState<string | null>(null);
   const [extendPlanFor, setExtendPlanFor] = useState<{ [adId: string]: number }>({});
+  const [confirmAdId, setConfirmAdId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!currentUser?.uid) return;
@@ -23,58 +25,56 @@ export default function MyAdsProfile({ currentUser, onNavigate }: { currentUser:
 
   if (!currentUser) return null;
 
-  const handleExtend = async (ad: any) => {
-      const plans = [
-        { months: 1, price: 27 },
-        { months: 4, price: 78 },
-        { months: 8, price: 132 },
-        { months: 12, price: 180 },
-      ];
-    
+  const executeExtend = async (ad: any) => {
+    const plans = [
+      { months: 1, price: 27 },
+      { months: 4, price: 78 },
+      { months: 8, price: 132 },
+      { months: 12, price: 180 },
+    ];
+  
     const selectedMonths = extendPlanFor[ad.id] || ad.planMonths || 1;
     const plan = plans.find(p => p.months === selectedMonths) || plans[0];
     
-    if (confirm(`Do you want to extend this ad for another ${plan.months} month(s) for $$plan.price?`)) {
-      if (currentUser.balanceUSD < plan.price) {
-        alert("Insufficient balance! Please top up to extend.");
-        onNavigate("profile");
-        return;
-      }
+    if (currentUser.balanceUSD < plan.price) {
+      toast.error("Insufficient balance! Please top up to extend.");
+      onNavigate("profile");
+      return;
+    }
 
-      setExtendingAd(ad.id);
-      try {
-        await updateDoc(doc(db, "users", currentUser.uid), { 
-          balanceUSD: increment(-plan.price),
-          total_spent: increment(plan.price),
-          last_update: Date.now()
-        });
+    setExtendingAd(ad.id);
+    try {
+      await updateDoc(doc(db, "users", currentUser.uid), { 
+        balanceUSD: increment(-plan.price),
+        total_spent: increment(plan.price),
+        last_update: Date.now()
+      });
 
-        const txId = Date.now().toString() + "-" + Math.random().toString(36).substring(7);
-        await setDoc(doc(db, "transactions", txId), {
-          userId: currentUser.uid,
-          type: "buy",
-          amountUSD: plan.price,
-          status: "OK",
-          description: `Ad Extension - ${plan.months} Month(s)`,
-          createdAt: Date.now()
-        });
+      const txId = Date.now().toString() + "-" + Math.random().toString(36).substring(7);
+      await setDoc(doc(db, "transactions", txId), {
+        userId: currentUser.uid,
+        type: "buy",
+        amountUSD: plan.price,
+        status: "OK",
+        description: `Ad Extension - ${plan.months} Month(s)`,
+        createdAt: Date.now()
+      });
 
-        // Ensure we add duration to either now (if expired) or the current expiration
-        const baseTime = ad.expiresAt > Date.now() ? ad.expiresAt : Date.now();
-        const newExpiresAt = baseTime + (plan.months * 30 * 24 * 60 * 60 * 1000);
-        await updateDoc(doc(db, "ads", ad.id), {
-          expiresAt: newExpiresAt,
-          isActive: true,
-          planMonths: plan.months,  // update plan length
-          price: plan.price
-        });
+      // Ensure we add duration to either now (if expired) or the current expiration
+      const baseTime = ad.expiresAt > Date.now() ? ad.expiresAt : Date.now();
+      const newExpiresAt = baseTime + (plan.months * 30 * 24 * 60 * 60 * 1000);
+      await updateDoc(doc(db, "ads", ad.id), {
+        expiresAt: newExpiresAt,
+        isActive: true,
+        planMonths: plan.months,  // update plan length
+        price: plan.price
+      });
 
-        alert("Ad extended successfully!");
-      } catch (e: any) {
-        alert("Error extending ad: " + e.message);
-      } finally {
-        setExtendingAd(null);
-      }
+      toast.success("Ad extended successfully!");
+    } catch (e: any) {
+      toast.error("Error extending ad: " + e.message);
+    } finally {
+      setExtendingAd(null);
     }
   };
 
@@ -135,10 +135,11 @@ export default function MyAdsProfile({ currentUser, onNavigate }: { currentUser:
                   </div>
 
                   {(isExpiringSoon || isExpired) && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <select 
                         value={extendPlanFor[ad.id] || ad.planMonths || 1}
                         onChange={(e) => setExtendPlanFor({...extendPlanFor, [ad.id]: Number(e.target.value)})}
+                        disabled={extendingAd === ad.id || confirmAdId === ad.id}
                         className="text-xs border border-gray-300 rounded-md px-2 py-1 outline-none"
                       >
                         <option value={1}>1 Month ($27)</option>
@@ -146,13 +147,35 @@ export default function MyAdsProfile({ currentUser, onNavigate }: { currentUser:
                         <option value={8}>8 Months ($132)</option>
                         <option value={12}>12 Months ($180)</option>
                       </select>
-                      <button
-                        onClick={() => handleExtend(ad)}
-                        disabled={extendingAd === ad.id}
-                        className="bg-indigo-600 text-white text-xs px-3 py-1.5 rounded-md font-bold hover:bg-indigo-700 transition shadow-sm disabled:opacity-50"
-                      >
-                        {extendingAd === ad.id ? "Working..." : "Renew"}
-                      </button>
+                      
+                      {confirmAdId === ad.id ? (
+                        <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 p-1 rounded-md animate-in fade-in duration-200">
+                          <span className="text-[10px] text-amber-800 font-bold px-1">Sure?</span>
+                          <button
+                            onClick={() => {
+                              setConfirmAdId(null);
+                              executeExtend(ad);
+                            }}
+                            className="bg-amber-600 text-white text-[10px] px-2 py-1 rounded font-bold hover:bg-amber-700 transition"
+                          >
+                            Yes
+                          </button>
+                          <button
+                            onClick={() => setConfirmAdId(null)}
+                            className="bg-gray-200 text-gray-700 text-[10px] px-2 py-1 rounded font-bold hover:bg-gray-300 transition"
+                          >
+                            No
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmAdId(ad.id)}
+                          disabled={extendingAd === ad.id}
+                          className="bg-indigo-600 text-white text-xs px-3 py-1.5 rounded-md font-bold hover:bg-indigo-700 transition shadow-sm disabled:opacity-50"
+                        >
+                          {extendingAd === ad.id ? "Working..." : "Renew"}
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

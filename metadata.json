@@ -2,5 +2,5 @@
   "name": "Remix: TeleMarket",
   "description": "A secure and professional marketplace for buying and selling Telegram accounts, channels, and groups.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

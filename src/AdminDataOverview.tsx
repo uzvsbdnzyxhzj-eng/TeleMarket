@@ -6,7 +6,19 @@ import { DollarSign, Activity, Calendar, Award, TrendingUp } from "lucide-react"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 export default function AdminDataOverview() {
+    const getTodayDateString = () => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    };
+    
+    const getDaysAgoDateString = (days: number) => {
+        const d = new Date(Date.now() - days * 86400000);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    };
+
     const [period, setPeriod] = useState("all");
+    const [customStart, setCustomStart] = useState(getDaysAgoDateString(7));
+    const [customEnd, setCustomEnd] = useState(getTodayDateString());
     const [stats, setStats] = useState({ netProfit: 0, details: [] as any[], chartData: [] as any[] });
     const [loading, setLoading] = useState(true);
 
@@ -18,6 +30,11 @@ export default function AdminDataOverview() {
             const tempDetails: any[] = [];
             
             const now = Date.now();
+            const startLimitStr = customStart || getDaysAgoDateString(7);
+            const endLimitStr = customEnd || getTodayDateString();
+            const dStart = new Date(startLimitStr + "T00:00:00");
+            const dEnd = new Date(endLimitStr + "T23:59:59");
+            const diffDays = Math.ceil(Math.abs(dEnd.getTime() - dStart.getTime()) / (1000 * 60 * 60 * 24));
             
             // Generate chart skeleton based on period
             const chartData: any[] = [];
@@ -44,7 +61,40 @@ export default function AdminDataOverview() {
                         tsEnd: new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime()
                     });
                 }
-            } else if (period === "annual" || period === "all") {
+            } else if (period === "all") {
+                let minCreatedAt = now;
+                txSnap.docs.forEach(docSnap => {
+                    const c = docSnap.data().createdAt || 0;
+                    if (c > 0 && c < minCreatedAt) {
+                        minCreatedAt = c;
+                    }
+                });
+                const twelveMonthsAgo = now - 365 * 24 * 60 * 60 * 1000;
+                if (minCreatedAt > twelveMonthsAgo) {
+                    minCreatedAt = twelveMonthsAgo;
+                }
+
+                let current = new Date(minCreatedAt);
+                current.setDate(1);
+                current.setHours(0,0,0,0);
+                
+                const endLimit = new Date();
+                endLimit.setMonth(endLimit.getMonth() + 1);
+                endLimit.setDate(1);
+                endLimit.setHours(0,0,0,0);
+                
+                while (current.getTime() < endLimit.getTime()) {
+                    const nextMonth = new Date(current.getFullYear(), current.getMonth() + 1, 1);
+                    chartData.push({
+                        date: current.toLocaleString('default', { month: 'short', year: '2-digit' }),
+                        topups: 0,
+                        withdrawals: 0,
+                        tsStart: current.getTime(),
+                        tsEnd: nextMonth.getTime()
+                    });
+                    current = nextMonth;
+                }
+            } else if (period === "annual") {
                 // Last 12 months
                 for (let i = 11; i >= 0; i--) {
                     const d = new Date();
@@ -56,6 +106,48 @@ export default function AdminDataOverview() {
                         tsStart: new Date(d.getFullYear(), d.getMonth(), 1).getTime(),
                         tsEnd: new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime()
                     });
+                }
+            } else if (period === "custom") {
+                const sTs = dStart.getTime();
+                const eTs = dEnd.getTime();
+                
+                if (diffDays <= 1) {
+                    for (let hour = 0; hour < 24; hour++) {
+                        const d = new Date(dStart.getTime() + hour * 3600000);
+                        chartData.push({
+                            date: `${d.getHours()}:00`,
+                            topups: 0,
+                            withdrawals: 0,
+                            tsStart: d.getTime(),
+                            tsEnd: d.getTime() + 3600000
+                        });
+                    }
+                } else if (diffDays > 60) {
+                    let current = new Date(dStart.getFullYear(), dStart.getMonth(), 1);
+                    const endLimit = new Date(dEnd.getFullYear(), dEnd.getMonth() + 1, 1);
+                    while (current.getTime() < endLimit.getTime()) {
+                        const nextMonth = new Date(current.getFullYear(), current.getMonth() + 1, 1);
+                        chartData.push({
+                            date: current.toLocaleString('default', { month: 'short', year: '2-digit' }),
+                            topups: 0,
+                            withdrawals: 0,
+                            tsStart: current.getTime(),
+                            tsEnd: nextMonth.getTime()
+                        });
+                        current = nextMonth;
+                    }
+                } else {
+                    for (let i = 0; i <= diffDays; i++) {
+                        const d = new Date(dStart.getTime() + i * 86400000);
+                        if (d.getTime() > eTs) break;
+                        chartData.push({
+                            date: `${d.getMonth() + 1}/${d.getDate()}`,
+                            topups: 0,
+                            withdrawals: 0,
+                            tsStart: new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(),
+                            tsEnd: new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime()
+                        });
+                    }
                 }
             } else { // "monthly"
                 for (let i = 29; i >= 0; i--) {
@@ -84,10 +176,10 @@ export default function AdminDataOverview() {
 
                // Populate 30-day Chart
                if (!isPending && !isCanceled && (status === "paid" || status === "ok" || status === "success" || status === "completed")) {
-                   if (type === "topup" || type === "withdraw") {
+                   if (type === "topup" || type === "deposit" || type === "withdraw") {
                        const entry = chartData.find(day => createdAt >= day.tsStart && createdAt < day.tsEnd);
                        if (entry) {
-                           if (type === "topup") entry.topups += parseFloat(data.amountUSD || 0);
+                           if (type === "topup" || type === "deposit") entry.topups += parseFloat(data.amountUSD || 0);
                            if (type === "withdraw") entry.withdrawals += parseFloat(data.amountUSD || 0);
                        }
                    }
@@ -98,6 +190,9 @@ export default function AdminDataOverview() {
                if (period === "weekly" && now - createdAt > 604800000) return;
                if (period === "monthly" && now - createdAt > 2592000000) return;
                if (period === "annual" && now - createdAt > 31536000000) return;
+               if (period === "custom") {
+                   if (createdAt < dStart.getTime() || createdAt > dEnd.getTime()) return;
+               }
 
                // Profit calculations based on service type.
                if (!isPending && !isCanceled && (status === "paid" || status === "ok" || status === "success" || status === "completed")) {
@@ -140,7 +235,7 @@ export default function AdminDataOverview() {
     
     useEffect(() => {
         fetchStats();
-    }, [period]);
+    }, [period, customStart, customEnd]);
 
     return (
         <div className="space-y-6">
@@ -150,16 +245,41 @@ export default function AdminDataOverview() {
                    <p className="text-sm text-gray-500 mt-1">Net profit based on platform markup algorithms over the chosen period.</p>
                 </div>
                 
-                <div className="flex gap-2 bg-gray-100 p-1 rounded-xl">
-                   {["all", "daily", "weekly", "monthly", "annual"].map(p => (
-                       <button
-                         key={p}
-                         onClick={() => setPeriod(p)}
-                         className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${period === p ? "bg-white shadow-sm text-indigo-600" : "text-gray-500 hover:text-gray-800"}`}
-                       >
-                         {p.charAt(0).toUpperCase() + p.slice(1)}
-                       </button>
-                   ))}
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-xl">
+                       {["all", "daily", "weekly", "monthly", "annual", "custom"].map(p => (
+                           <button
+                             key={p}
+                             onClick={() => setPeriod(p)}
+                             className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${period === p ? "bg-white shadow-sm text-indigo-600" : "text-gray-500 hover:text-gray-800"}`}
+                           >
+                             {p === "custom" ? "Custom Range" : p.charAt(0).toUpperCase() + p.slice(1)}
+                           </button>
+                       ))}
+                    </div>
+
+                    {period === "custom" && (
+                        <div className="flex flex-wrap items-center gap-2 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-xl shadow-sm">
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-semibold text-gray-400">Start:</span>
+                                <input 
+                                    type="date" 
+                                    value={customStart} 
+                                    onChange={(e) => setCustomStart(e.target.value)}
+                                    className="text-xs bg-white border border-gray-200 rounded-lg px-2 py-1 font-medium text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition"
+                                />
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-semibold text-gray-400">End:</span>
+                                <input 
+                                    type="date" 
+                                    value={customEnd} 
+                                    onChange={(e) => setCustomEnd(e.target.value)}
+                                    className="text-xs bg-white border border-gray-200 rounded-lg px-2 py-1 font-medium text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition"
+                                />
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -180,7 +300,7 @@ export default function AdminDataOverview() {
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
                 <h3 className="font-bold text-gray-800 flex items-center gap-2 mb-4">
                     <TrendingUp className="w-5 h-5 text-blue-500" /> 
-                    {period === "daily" ? "24-Hour" : period === "weekly" ? "7-Day" : period === "monthly" ? "30-Day" : "12-Month"} Cash Flow Trend
+                    {period === "daily" ? "24-Hour" : period === "weekly" ? "7-Day" : period === "monthly" ? "30-Day" : period === "custom" ? "Custom Range" : "12-Month"} Cash Flow Trend
                 </h3>
                 <div className="h-[250px] w-full mt-4">
                     <ResponsiveContainer width="100%" height="100%">

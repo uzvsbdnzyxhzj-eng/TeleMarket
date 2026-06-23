@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { collection, getDocs, doc, updateDoc, query, where, orderBy, limit } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, query, where, orderBy, limit, setDoc } from "firebase/firestore";
 import { db } from "./firebase";
-import { Search, User, Edit2, Check, X, Activity, Download, ShieldCheck } from "lucide-react";
+import { Search, User, Edit2, Check, X, Download, ShieldCheck, Activity } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function AdminUserManagement() {
@@ -152,15 +152,32 @@ function UserDetailsModal({ user, onClose }: { user: any, onClose: () => void })
   const saveBalance = async () => {
     const val = parseFloat(newBalanceStr);
     if(isNaN(val)) return toast.error("Invalid amount");
+    const currentBal = Number(user.balanceUSD) || 0;
+    const diff = val - currentBal;
     try {
+      if (Math.abs(diff) > 0.001) {
+        const txRef = doc(collection(db, "transactions"));
+        await setDoc(txRef, {
+          userId: user.uid,
+          userNumericId: user.numericId || "",
+          userEmail: user.email || "N/A",
+          type: diff > 0 ? "deposit" : "withdraw",
+          txType: diff > 0 ? "Credit" : "Debit",
+          amountUSD: Math.abs(diff),
+          status: "paid",
+          details: { method: "admin_adjustment", reason: "Administrator direct balance adjustment" },
+          createdAt: Date.now()
+        });
+      }
+
       await updateDoc(doc(db, "users", user.uid), {
         balanceUSD: val
       });
       user.balanceUSD = val; 
       setEditBalanceMode(false);
-      toast.success("Balance updated successfully");
+      toast.success("Balance updated successfully with ledger adjustment");
     } catch(e: any) {
-      toast.error("Error: " + e.message);
+      toast.error("Error editing balance: " + e.message);
     }
   };
 

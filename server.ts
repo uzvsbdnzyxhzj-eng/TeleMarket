@@ -1,4 +1,3 @@
-import nodemailer from "nodemailer";
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
@@ -43,6 +42,14 @@ const __dirname = path.dirname(__filename);
 const TG_LION_API_KEY = process.env.TG_LION_API_KEY || "kg5yi86f4lzhje3bsa";
 const TG_LION_ID = process.env.TG_LION_ID || "6168111530";
 const TG_LION_BASE = "https://TG-Lion.net";
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[PROCESS ERROR] Unhandled Rejection at:", promise, "reason:", reason);
+});
+
+process.on("uncaughtException", (err, origin) => {
+  console.error("[PROCESS ERROR] Uncaught Exception:", err, "origin:", origin);
+});
 
 async function startServer() {
   const app = express();
@@ -480,8 +487,8 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
       baseUrl = APP_URL;
     }
 
-    const returnUrl = `${baseUrl}/?payment=success`;
-    const cancelUrl = `${baseUrl}/?payment=cancel`;
+    const returnUrl = `${baseUrl}/?payment=success&txId=${pendingTxId || ""}`;
+    const cancelUrl = `${baseUrl}/?payment=cancel&txId=${pendingTxId || ""}`;
     const webhookUrl = `${baseUrl}/api/payment/webhook`;
 
     console.log(`Generated URLs for Paymently: return=${returnUrl}, webhook=${webhookUrl}`);
@@ -489,6 +496,24 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
     let PAYMENTLY_API_KEY = "5wXlbXNzfcw8arZYxb8HVMcnVAvIhXQAgvHeQHtm";
     let CRYPTOMUS_MERCHANT_ID = "75246d3d-3d5f-4385-810c-b1eb90ed88e4";
     let CRYPTOMUS_PAYMENT_KEY = "ZCKZ98YaRN3RzJ6dQDb3R0ctNeGsyQOziO2fhinpL97fHW4Olc8m076pUWMKzz8WdfVJAYJbRzDli7hISJxw5p26hXuycqaVuYLKE7fvXgB1QKZTCntUeT3rACOD0BWI";
+
+    // Allow client to pass active keys in case of backend Firestore permission issues
+    if (req.body.paymentlyApiKey) PAYMENTLY_API_KEY = req.body.paymentlyApiKey;
+    if (req.body.cryptomusMerchantId) CRYPTOMUS_MERCHANT_ID = req.body.cryptomusMerchantId;
+    if (req.body.cryptomusPaymentKey) CRYPTOMUS_PAYMENT_KEY = req.body.cryptomusPaymentKey;
+
+    try {
+      const keysDoc = await db.collection("settings").doc("api_keys").get();
+      if (keysDoc.exists) {
+        const data = keysDoc.data();
+        if (data?.paymentlyApiKey) PAYMENTLY_API_KEY = data.paymentlyApiKey;
+        if (data?.cryptomusMerchantId) CRYPTOMUS_MERCHANT_ID = data.cryptomusMerchantId;
+        if (data?.cryptomusPaymentKey) CRYPTOMUS_PAYMENT_KEY = data.cryptomusPaymentKey;
+        console.log("Dynamically loaded active API Keys from Firestore (topup)");
+      }
+    } catch (err) {
+      console.log("Proceeding with default or client-provided API keys (topup)");
+    }
 
     if (method === "bkash" || method === "nagad" || method === "binance") {
       // Paymently logic
@@ -513,43 +538,65 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
         paymentCurrency = "BDT";
       }
 
-      try {
-        const response = await fetch(
-          "https://uday.paymently.io/api/checkout-v2",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "RT-UDDOKTAPAY-API-KEY": PAYMENTLY_API_KEY,
-            },
-            body: JSON.stringify({
-              full_name: "Telemarket User",
-              email: "customer@telemarket.com",
-              amount: finalPayAmount,
-              currency: paymentCurrency,
-              metadata: {
-                user_id: uid,
-                amount_usd: amountUSD,
-                type: "topup",
-                pendingTxId: pendingTxId || "",
-              },
-              redirect_url: returnUrl,
-              cancel_url: cancelUrl,
-              webhook_url: webhookUrl,
-            }),
-          },
-        );
+      let data = null;
+      let checkoutError = null;
+      const checkoutDomains = ["https://uday.paymently.io", "https://uday.paymently.icu"];
+      
+      for (const domain of checkoutDomains) {
+         try {
+           console.log(`Attempting Paymently checkout on ${domain}...`);
+           const response = await fetch(
+             `${domain}/api/checkout-v2`,
+             {
+               method: "POST",
+               headers: {
+                 "Content-Type": "application/json",
+                 "RT-UDDOKTAPAY-API-KEY": PAYMENTLY_API_KEY,
+               },
+               body: JSON.stringify({
+                 full_name: "Telemarket User",
+                 email: "customer@telemarket.com",
+                 amount: finalPayAmount,
+                 currency: paymentCurrency,
+                 metadata: {
+                   user_id: uid,
+                   amount_usd: amountUSD,
+                   type: "topup",
+                   pendingTxId: pendingTxId || "",
+                 },
+                 redirect_url: returnUrl,
+                 cancel_url: cancelUrl,
+                 webhook_url: webhookUrl,
+               }),
+             },
+           );
+           
+           if (response.ok) {
+             const resJson = await response.json();
+             if (resJson.status && resJson.payment_url) {
+                data = resJson;
+                break;
+             } else {
+                checkoutError = resJson.message || "Invalid status/payment_url response";
+             }
+           } else {
+             checkoutError = `HTTP ${response.status}`;
+           }
+         } catch (error: any) {
+           console.error(`Checkout failed on ${domain}:`, error.message);
+           checkoutError = error.message;
+         }
+      }
 
-        const data = await response.json();
-        if (data.status && data.payment_url) {
-          res.json({ success: true, payment_url: data.payment_url });
-        } else {
-          console.warn("Paymently API failed or expired.", data.message || "");
-          res.status(400).json({ success: false, message: "Payment gateway error: " + (data.message || "Unknown error") });
-        }
-      } catch (error: any) {
-        console.error("Paymently System error:", error.message);
-        res.status(500).json({ success: false, message: "Internal Server Error during checkout" });
+      if (data && data.payment_url) {
+        res.json({ 
+          success: true, 
+          payment_url: data.payment_url,
+          invoice_id: data.invoice_id || data.id || data.payment_id || null
+        });
+      } else {
+        console.warn("All Paymently checkout attempts failed.", checkoutError);
+        res.status(400).json({ success: false, message: "Payment gateway error: " + (checkoutError || "Unknown error") });
       }
     } else if (method === "crypto") {
       // Direct Cryptomus Logic
@@ -729,10 +776,7 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
                          }
                      }
                  });
-                 if (email) {
-await sendEmailNotification(email.toString(), "Deposit Verified", "topup_success", { amount: Number(amount).toFixed(2), method: "Binance Auto" });
-}
-return res.json({ success: true, message: "Order verified and balance updated." });
+                 return res.json({ success: true, message: "Order verified and balance updated." });
              } catch (e: any) {
                  if (e.message === "AlreadyProcessed") {
                     return res.json({ success: true, message: "Order verified and already processed." });
@@ -764,9 +808,106 @@ return res.json({ success: true, message: "Order verified and balance updated." 
 
 
 
-  app.get("/api/admin/recalcBalances", async (req, res) => {
-    return res.status(403).json({ error: "Access Denied" });
-  });
+  const fixBalancesHandler = async (req: any, res: any) => {
+    try {
+      console.log("Recalculating all user balances started...");
+      const usersSnap = await db.collection("users").get();
+      let fixedCount = 0;
+      const details: any[] = [];
+
+      for (const udoc of usersSnap.docs) {
+        const userId = udoc.id;
+        const userData = udoc.data();
+        const currentBalance = Number(userData.balanceUSD) || 0;
+
+        // Fetch transactions for this user
+        const txsSnap = await db.collection("transactions").where("userId", "==", userId).get();
+        
+        let calculatedBalance = 0;
+        let total_deposited = 0;
+        let total_spent = 0;
+        let referralEarnings = 0;
+
+        txsSnap.forEach(txDoc => {
+           const tx = txDoc.data();
+           const amount = Number(tx.amountUSD) || 0;
+           
+           const isTopUpPaid = tx.type === 'topup' && (tx.status === 'paid' || tx.status === 'completed' || tx.status === 'success' || tx.status === 'OK' || tx.status === 'COMPLETED');
+           const isDepositPaid = tx.type === 'deposit' && (tx.status === 'paid' || tx.status === 'completed' || tx.status === 'success');
+           const isReferralPaid = tx.type === 'referral_bonus' && (tx.status === 'paid' || tx.status === 'completed');
+           
+           if (isTopUpPaid || isDepositPaid) {
+              calculatedBalance += amount;
+              total_deposited += amount;
+           }
+           if (isReferralPaid) {
+              calculatedBalance += amount;
+              referralEarnings += amount;
+           }
+
+           const isPurchase = tx.type === 'purchase' || tx.type === 'p2p_buy' || tx.type === 'buy';
+           const isWithdraw = tx.type === 'withdraw' && tx.status !== 'rejected';
+           const isChildPanel = tx.type === 'child_panel';
+
+           if (isPurchase || isWithdraw || isChildPanel) {
+              calculatedBalance -= amount;
+              total_spent += amount;
+           }
+        });
+
+        // Safe threshold for expected balance
+        const expectedBalance = calculatedBalance < 0 ? 0 : calculatedBalance;
+
+        // Check if there is any mismatch in balanceUSD, total_deposited, total_spent, or referralEarnings
+        const currentDeposited = Number(userData.total_deposited) || 0;
+        const currentSpent = Number(userData.total_spent) || 0;
+        const currentReferrals = Number(userData.referralEarnings) || 0;
+
+        const needsFix = 
+          Math.abs(currentBalance - expectedBalance) > 0.0001 ||
+          Math.abs(currentDeposited - total_deposited) > 0.0001 ||
+          Math.abs(currentSpent - total_spent) > 0.0001 ||
+          Math.abs(currentReferrals - referralEarnings) > 0.0001 ||
+          isNaN(userData.balanceUSD) ||
+          typeof userData.balanceUSD !== "number";
+
+        if (needsFix) {
+          console.log(`Fixing balance for ${userData.email || userId}: calculated ${expectedBalance} (was ${currentBalance})`);
+          await db.collection("users").doc(userId).update({
+              balanceUSD: expectedBalance,
+              total_deposited,
+              total_spent,
+              referralEarnings,
+              last_update: Date.now()
+          });
+          fixedCount++;
+          details.push({
+            userId,
+            email: userData.email || "N/A",
+            oldBalance: currentBalance,
+            newBalance: expectedBalance,
+            total_deposited,
+            total_spent,
+            referralEarnings
+          });
+        }
+      }
+
+      console.log(`Recalculation finished. Fixed ${fixedCount} balances.`);
+      res.json({
+        success: true,
+        message: `Successfully recalculated balances for ${usersSnap.size} users. Fixed ${fixedCount} users.`,
+        fixedCount,
+        details
+      });
+    } catch (err: any) {
+      console.error("Error in recalcBalances:", err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  };
+
+  app.get("/api/admin/recalcBalances", fixBalancesHandler);
+  app.get("/api/admin/fixBalances", fixBalancesHandler);
 
   app.get("/api/admin/fixTx", async (req, res) => {
     return res.status(403).json({ error: "Access Denied" });
@@ -871,9 +1012,6 @@ return res.json({ success: true, message: "Order verified and balance updated." 
                     }
                });
                console.log(`Backend directly fulfilled tx ${pendingTxId} using Firestore IAM.`);
-if (data.userEmail) {
-    await sendEmailNotification(data.userEmail.toString(), "Deposit Verified", "topup_success", { amount: Number(data.amountUSD).toFixed(2), method: data.details?.method || data.method || "System" });
-}
           }
       } catch (iamError) {
           // Normal. This means backend lacks IAM, so frontend must poll `/api/payment/verify` to do it.
@@ -887,262 +1025,141 @@ if (data.userEmail) {
   });
 
   app.get("/api/payment/verify", async (req, res) => {
-    const { txId, invoice_id } = req.query;
-    
-    if (typeof txId === 'string' && verifiedTransactions.has(txId)) {
-        return res.json({ paid: true });
-    }
-    
-    // Actively verify via Paymently if invoice_id is provided
-    if (typeof invoice_id === 'string' && invoice_id) {
-       try {
-         const PAYMENTLY_API_KEY = "5wXlbXNzfcw8arZYxb8HVMcnVAvIhXQAgvHeQHtm";
-         const verifyRes = await fetch("https://uday.paymently.io/api/verify-payment", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "RT-UDDOKTAPAY-API-KEY": PAYMENTLY_API_KEY,
-            },
-            body: JSON.stringify({ invoice_id })
-         });
-         const verifyData = await verifyRes.json();
-         if (verifyData.status === "COMPLETED" || verifyData.status === "completed" || verifyData.status === true || (verifyData.data && verifyData.data.status === "COMPLETED")) {
-            if (typeof txId === 'string') {
-               verifiedTransactions.add(txId);
-               saveVerifiedTransactions();
-            }
-            return res.json({ paid: true });
-         }
-       } catch (e) {
-         console.error("Paymently active verification failed:", e);
-       }
-    }
-    
-    res.json({ paid: false });
-  });
-
-  
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: Number(process.env.SMTP_PORT || 465),
-  secure: true,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
-
-async function sendEmailNotification(to: string, subject: string, type: string, details: any) {
-  if (!to || !subject) return false;
-
-  const getTemplate = (title: string, bodyContent: string) => `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>${title}</title>
-      <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f5f7; margin: 0; padding: 40px 20px; color: #000000; }
-        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
-        .header { padding: 40px 20px 30px; text-align: center; border-bottom: 1px solid #cbd5e1; }
-        .header h1 { color: #3b71ca; margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -1px; display: flex; align-items: center; justify-content: center; }
-        .header-icon { display: inline-block; width: 32px; height: 32px; background-color: #3b71ca; border-radius: 6px; margin-right: 12px; position: relative; }
-        .header-icon::after { content: ''; position: absolute; top: 8px; left: 8px; right: 8px; bottom: 8px; border: 3px solid white; border-radius: 2px; }
-        .content { padding: 40px 40px 50px; font-size: 16px; line-height: 1.6; color: #1e293b; }
-        .content h2 { color: #0f172a; font-size: 24px; font-weight: 700; margin-top: 0; margin-bottom: 24px; line-height: 1.3;}
-        .content p { margin: 0 0 16px 0; }
-        .content p strong { color: #000000; }
-        .details-box { margin: 30px 0; font-size: 15px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;}
-        .detail-row { padding: 14px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
-        .detail-row:last-child { border-bottom: none; }
-        .detail-label { font-weight: 600; color: #64748b; }
-        .detail-value { font-weight: 600; color: #0f172a; text-align: right; }
-        .status-badge { font-weight: 600; padding: 4px 10px; border-radius: 20px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
-        .status-success { color: #15803d; background-color: #dcfce7; }
-        .status-pending { color: #b45309; background-color: #fef3c7; }
-        .status-rejected { color: #b91c1c; background-color: #fee2e2; }
-        .security-alert { background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 16px 20px; color: #991b1b; margin-top: 30px; border-radius: 0 8px 8px 0; font-weight: 500; font-size: 15px; }
-        .footer-legal { max-width: 600px; margin: 0 auto; padding: 30px 20px; text-align: center; font-size: 14px; line-height: 1.6; color: #64748b; }
-        .footer-legal p { margin: 0 0 10px 0; }
-        .footer-legal a { color: #3b71ca; text-decoration: none; font-weight: 500; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1><div class="header-icon"></div> TELEMARKET</h1>
-        </div>
-        <div class="content">
-          <h2>${title}</h2>
-          ${bodyContent}
-          <p style="margin-top: 32px; font-weight: 500; color: #0f172a;">Thank you for choosing Telemarket.</p>
-        </div>
-      </div>
-      <div class="footer-legal">
-        <p>&copy; ${new Date().getFullYear()} Telemarket. All rights reserved.</p>
-        <p>This email was sent by Telemarket to keep you updated on your account activity.</p>
-      </div>
-    </body>
-    </html>
-  `;
-
-  let title = subject;
-  let bodyContent = "";
-
-  const renderRow = (label: string, value: string) => `
-    <div class="detail-row">
-      <span class="detail-label">${label}</span>
-      <span class="detail-value">${value}</span>
-    </div>
-  `;
-
-  const getStatusBadge = (status: string) => {
-    let lower = status.toLowerCase();
-    if (lower.includes('paid') || lower.includes('success') || lower.includes('completed') || lower.includes('verified')) {
-      return `<span class="status-badge status-success">${status}</span>`;
-    } else if (lower.includes('reject')) {
-      return `<span class="status-badge status-rejected">${status}</span>`;
-    } else {
-      return `<span class="status-badge status-pending">${status}</span>`;
-    }
-  };
-  
-  if (type === "withdraw") {
-    bodyContent = `
-      <p>We have received your withdrawal request. It is currently under review by our team.</p>
-      <div class="details-box">
-        ${renderRow("Amount", '$' + details.amount)}
-        ${renderRow("Method", details.method || 'System')}
-        ${renderRow("Account Details", details.account || 'N/A')}
-        ${renderRow("Status", getStatusBadge("Pending"))}
-      </div>
-    `;
-  } else if (type === "withdraw_paid") {
-    bodyContent = `
-      <p>Your withdrawal request has been successfully processed and the funds have been dispatched.</p>
-      <div class="details-box">
-        ${renderRow("Amount", '$' + details.amount)}
-        ${renderRow("Method", details.method || 'System')}
-        ${renderRow("Account Details", details.account || 'N/A')}
-        ${renderRow("Status", getStatusBadge("Paid"))}
-      </div>
-    `;
-  } else if (type === "withdraw_rejected") {
-    bodyContent = `
-      <p>Unfortunately, your recent withdrawal request could not be processed and has been rejected. Your balance has been refunded.</p>
-      <div class="details-box">
-        ${renderRow("Amount", '$' + details.amount)}
-        ${renderRow("Method", details.method || 'System')}
-        ${renderRow("Status", getStatusBadge("Rejected"))}
-      </div>
-    `;
-  } else if (type === "order") {
-    bodyContent = `
-      <p>Your order has been successfully placed in our system and is currently being processed.</p>
-      <div class="details-box">
-        ${renderRow("Service", details.serviceName)}
-        ${renderRow("Quantity", details.quantity)}
-        ${renderRow("Total Charge", '$' + details.charge)}
-        ${renderRow("Status", getStatusBadge("Processing"))}
-      </div>
-    `;
-  } else if (type === "order_completed") {
-    bodyContent = `
-      <p>Your recent order has been successfully fulfilled.</p>
-      <div class="details-box">
-        ${renderRow("Service", details.serviceName)}
-        ${renderRow("Quantity", details.quantity)}
-        ${renderRow("Total Charge", '$' + details.charge)}
-        ${renderRow("Status", getStatusBadge("Completed"))}
-      </div>
-    `;
-  } else if (type === "topup") {
-    const statusText = details.status || 'Pending';
-    bodyContent = `
-      <p>We have received your deposit request. It is currently awaiting verification.</p>
-      <div class="details-box">
-        ${renderRow("Amount", '$' + details.amount)}
-        ${renderRow("Payment Method", details.method || 'System')}
-        ${renderRow("Status", getStatusBadge(statusText))}
-      </div>
-    `;
-  } else if (type === "topup_success") {
-    bodyContent = `
-      <p>Your deposit has been successfully verified and added to your wallet balance.</p>
-      <div class="details-box">
-        ${renderRow("Amount", '$' + details.amount)}
-        ${renderRow("Payment Method", details.method || 'System')}
-        ${renderRow("Status", getStatusBadge("Verified"))}
-      </div>
-    `;
-  } else if (type === "topup_rejected") {
-    bodyContent = `
-      <p>We were unable to verify your recent deposit request, and it has been rejected.</p>
-      <div class="details-box">
-        ${renderRow("Amount", '$' + details.amount)}
-        ${renderRow("Payment Method", details.method || 'System')}
-        ${renderRow("Status", getStatusBadge("Rejected"))}
-      </div>
-    `;
-  } else if (type === "child_panel") {
-    bodyContent = `
-      <p>Congratulations! Your Child Panel order has been successfully provisioned.</p>
-      <div class="details-box">
-        ${renderRow("Domain", details.domain)}
-        ${renderRow("Price", '$' + details.price)}
-        ${renderRow("Status", getStatusBadge("Active"))}
-      </div>
-    `;
-  } else if (type === "new_login") {
-    bodyContent = `
-      <p>We noticed a new login to your Telemarket account from an unrecognized device or browser.</p>
-      <div class="details-box">
-        ${renderRow("Device", details.userAgent || 'Unknown Device')}
-        ${renderRow("Time", new Date().toLocaleString())}
-      </div>
-      <div class="security-alert">
-        আপনি না করে থাকলে দ্রুত পাসওয়ার্ড পরিবর্তন করুন!
-        <br><br>
-        (If you did not authorize this login, please secure your account by changing your password immediately!)
-      </div>
-    `;
-  }
-
-  const htmlContent = getTemplate(title, bodyContent);
-
-  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
     try {
-      await transporter.sendMail({
-        from: `"Telemarket" <${process.env.SMTP_USER}>`,
-        to,
-        subject,
-        html: htmlContent,
-      });
-      console.log("Email sent successfully to", to);
-      return true;
-    } catch(err) {
-      console.error("Failed to send email to", to, err);
-      return false;
-    }
-  } else {
-     console.warn("SMTP credentials not set, email simulated. Would have sent to: " + to);
-     return false;
-  }
-}
-
-  app.post("/api/notify", async (req, res) => {
-    try {
-      const { to, subject, type, details } = req.body;
-      const success = await sendEmailNotification(to, subject, type, details);
-      if (success) {
-        res.json({ success: true });
-      } else {
-        res.status(500).json({ error: "Failed to send email, credentials missing or error" });
+      const { txId, invoice_id } = req.query;
+      
+      if (typeof txId === 'string' && verifiedTransactions.has(txId)) {
+          return res.json({ paid: true });
       }
-    } catch (e) {
-      console.error("Failed to send email:", e);
-      res.status(500).json({ error: "Failed to send email" });
+
+      let PAYMENTLY_API_KEY = "5wXlbXNzfcw8arZYxb8HVMcnVAvIhXQAgvHeQHtm";
+      let CRYPTOMUS_MERCHANT_ID = "75246d3d-3d5f-4385-810c-b1eb90ed88e4";
+      let CRYPTOMUS_PAYMENT_KEY = "ZCKZ98YaRN3RzJ6dQDb3R0ctNeGsyQOziO2fhinpL97fHW4Olc8m076pUWMKzz8WdfVJAYJbRzDli7hISJxw5p26hXuycqaVuYLKE7fvXgB1QKZTCntUeT3rACOD0BWI";
+
+      // Handle client-supplied secrets in case backend Firestore cannot read them
+      if (req.query.paymentlyApiKey && typeof req.query.paymentlyApiKey === "string") {
+        PAYMENTLY_API_KEY = req.query.paymentlyApiKey;
+      }
+      if (req.query.cryptomusMerchantId && typeof req.query.cryptomusMerchantId === "string") {
+        CRYPTOMUS_MERCHANT_ID = req.query.cryptomusMerchantId;
+      }
+      if (req.query.cryptomusPaymentKey && typeof req.query.cryptomusPaymentKey === "string") {
+        CRYPTOMUS_PAYMENT_KEY = req.query.cryptomusPaymentKey;
+      }
+
+      // Attempt backend db load if available
+      try {
+        const keysDoc = await db.collection("settings").doc("api_keys").get();
+        if (keysDoc.exists) {
+          const data = keysDoc.data();
+          if (data?.paymentlyApiKey) PAYMENTLY_API_KEY = data.paymentlyApiKey;
+          if (data?.cryptomusMerchantId) CRYPTOMUS_MERCHANT_ID = data.cryptomusMerchantId;
+          if (data?.cryptomusPaymentKey) CRYPTOMUS_PAYMENT_KEY = data.cryptomusPaymentKey;
+        }
+      } catch (e) {
+        // Quiet fallback
+      }
+      
+      // 1. Actively verify via Cryptomus if txId is provided (matching Cryptomus's order_id)
+      if (typeof txId === 'string' && txId) {
+         try {
+           const payload = { order_id: txId };
+           const payloadStr = JSON.stringify(payload);
+           const base64Payload = Buffer.from(payloadStr).toString("base64");
+           const sign = crypto
+             .createHash("md5")
+             .update(base64Payload + CRYPTOMUS_PAYMENT_KEY)
+             .digest("hex");
+
+           const controller = new AbortController();
+           const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+           const verifyRes = await fetch("https://api.cryptomus.com/v1/payment/info", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                merchant: CRYPTOMUS_MERCHANT_ID,
+                sign: sign
+              },
+              body: payloadStr,
+              signal: controller.signal
+           });
+           clearTimeout(timeoutId);
+           
+           if (verifyRes.ok) {
+              const verifyData = await verifyRes.json();
+              if (verifyData.state === 0 && (verifyData.result?.status === "paid" || verifyData.result?.status === "paid_over" || verifyData.result?.status === "completed" || verifyData.result?.status === "paid_over_usd")) {
+                 console.log(`Cryptomus active verification succeeded for order ${txId}`);
+                 verifiedTransactions.add(txId);
+                 saveVerifiedTransactions();
+                 return res.json({ paid: true });
+              }
+           }
+         } catch (e) {
+           console.error("Cryptomus active verification failed:", e);
+         }
+      }
+      
+      // 2. Actively verify via Paymently if invoice_id is provided
+      if (typeof invoice_id === 'string' && invoice_id) {
+         try {
+           // Query only active uday.paymently.io (as .icu has no DNS)
+           const verifyDomains = ["https://uday.paymently.io"];
+           let verified = false;
+
+           for (const domain of verifyDomains) {
+              try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+                const verifyRes = await fetch(`${domain}/api/verify-payment`, {
+                   method: "POST",
+                   headers: {
+                     "Content-Type": "application/json",
+                     "RT-UDDOKTAPAY-API-KEY": PAYMENTLY_API_KEY,
+                   },
+                   body: JSON.stringify({ invoice_id }),
+                   signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                
+                if (verifyRes.ok) {
+                   const verifyData = await verifyRes.json();
+                   console.log(`Paymently active verification response on ${domain}:`, JSON.stringify(verifyData));
+                   if (
+                     verifyData.status === "COMPLETED" || 
+                     verifyData.status === "completed" || 
+                     verifyData.status === true || 
+                     (verifyData.data && (verifyData.data.status === "COMPLETED" || verifyData.data.status === "completed"))
+                   ) {
+                      verified = true;
+                      console.log(`Verified successfully via Paymently on ${domain} for invoice_id ${invoice_id}`);
+                      break;
+                   }
+                } else {
+                   console.warn(`Verify response failed on ${domain}: ${verifyRes.status}`);
+                }
+              } catch (err: any) {
+                console.error(`Active verification details on ${domain} failed:`, err.message || err);
+              }
+           }
+
+           if (verified) {
+              if (typeof txId === 'string' && txId) {
+                 verifiedTransactions.add(txId);
+                 saveVerifiedTransactions();
+              }
+              return res.json({ paid: true });
+           }
+         } catch (e) {
+           console.error("Paymently active verification system level failed:", e);
+         }
+      }
+      
+      return res.json({ paid: false });
+    } catch (routeError: any) {
+      console.error("Error in /api/payment/verify route handler:", routeError);
+      return res.status(500).json({ error: routeError?.message || String(routeError), paid: false });
     }
   });
 

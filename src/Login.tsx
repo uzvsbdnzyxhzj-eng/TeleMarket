@@ -239,29 +239,8 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
       setLoading(true);
       setError(null);
       setSuccess(null);
-      const res = await signInWithGoogle();
+      await signInWithGoogle();
       localStorage.removeItem("skip_auto_login");
-      
-      const deviceRecognized = localStorage.getItem("device_recognized");
-      if (!deviceRecognized && res.user?.email) {
-        try {
-           await fetch("/api/notify", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                 to: res.user.email,
-                 subject: "New Login Alert - Telemarket",
-                 type: "new_login",
-                 details: {
-                    userAgent: navigator.userAgent
-                 }
-              })
-           });
-           localStorage.setItem("device_recognized", "true");
-        } catch(err) {
-           console.error("Failed to send login alert", err);
-        }
-      }
     } catch (err: any) {
       console.error(err);
       if (err.code === 'auth/operation-not-allowed') {
@@ -308,28 +287,6 @@ export default function Login({ lang, setLang, onBack, initialMode = 'login' }: 
       } else {
         await signInWithEmailAndPassword(auth, email, password);
         localStorage.removeItem("skip_auto_login");
-        
-        // Check for new device login
-        const deviceRecognized = localStorage.getItem("device_recognized");
-        if (!deviceRecognized) {
-          try {
-             await fetch("/api/notify", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                   to: email,
-                   subject: "New Login Alert - Telemarket",
-                   type: "new_login",
-                   details: {
-                      userAgent: navigator.userAgent
-                   }
-                })
-             });
-             localStorage.setItem("device_recognized", "true");
-          } catch(err) {
-             console.error("Failed to send login alert", err);
-          }
-        }
       }
     } catch (err: any) {
       console.error(err);

@@ -252,25 +252,6 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
                })
            ]);
 
-           try {
-              await fetch("/api/notify", {
-                 method: "POST",
-                 headers: { "Content-Type": "application/json" },
-                 body: JSON.stringify({
-                    to: currentUser?.email,
-                    subject: "Order Confirmation - Telemarket",
-                    type: "order",
-                    details: {
-                       serviceName: selectedService.name,
-                       charge: charge,
-                       quantity: quantity
-                    }
-                 })
-              });
-           } catch(err) {
-              console.error("Failed to send order email:", err);
-           }
-
            toast.dismiss(loadingToast);
            toast.success(`Order placed successfully! ID: ${data.order}`);
            setLink("");
@@ -587,7 +568,7 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
                           <label className="block text-[#1a1a1a] text-[15px] mb-2 pl-0.5">Charge</label>
                           <input 
                              type="text"
-                             value={`$${charge}`}
+                             value={`${charge}`}
                              readOnly
                              className="w-full bg-gray-50 border border-[#e2e8f0] rounded-xl px-4 py-3.5 text-gray-500 font-medium outline-none cursor-not-allowed"
                            />
@@ -613,7 +594,7 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
                        <div className="bg-white p-5 space-y-4">
                            <div className="flex justify-between border-b border-gray-100 pb-3 border-dashed">
                                <span className="font-bold text-gray-800 text-sm">Charge</span>
-                               <span className="text-blue-600 font-medium">$charge</span>
+                               <span className="text-blue-600 font-medium">${charge}</span>
                            </div>
                            <div className="flex items-center justify-between border-b border-gray-100 pb-3 border-dashed">
                                <span className="font-bold text-gray-800 text-sm">Category</span>
@@ -650,7 +631,7 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
                               <tr key={s.service} className="hover:bg-[#ffffff] transition-colors">
                                  <td className="px-4 py-3.5"><span className="bg-gray-800 text-white px-2 py-0.5 rounded-full text-[11px] font-bold">{s.service}</span></td>
                                  <td className="px-4 py-3.5 font-medium text-gray-700">{s.name}</td>
-                                 <td className="px-4 py-3.5 font-mono text-[#2AABEE] font-bold">$s.rate</td>
+                                 <td className="px-4 py-3.5 font-mono text-[#2AABEE] font-bold">${s.rate}</td>
                                  <td className="px-4 py-3.5 text-gray-500 whitespace-nowrap text-right">{s.min} / {s.max}</td>
                               </tr>
                            ))}

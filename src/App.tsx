@@ -130,13 +130,13 @@ import {
 
 export const TelemarketLogo = ({ className = "h-10" }: { className?: string }) => (
   <svg
-    viewBox="0 0 280 60"
+    viewBox="0 0 260 60"
     className={className}
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
   >
     {/* T Icon */}
-    <g transform="translate(45, 30)">
+    <g transform="translate(30, 30)">
       {/* Darker green shadow overlay for T */}
       <path d="M-15 -15 H15 V-5 H5 V15 H-5 V-5 H-15 Z" fill="#84D12F" />
       <path d="M-5 -5 H5 V15 H-5 Z" fill="#75bb29" />
@@ -156,7 +156,7 @@ export const TelemarketLogo = ({ className = "h-10" }: { className?: string }) =
 
     {/* Text */}
     <text
-      x="85"
+      x="70"
       y="35"
       textAnchor="start"
       fill="currentColor"
@@ -168,7 +168,7 @@ export const TelemarketLogo = ({ className = "h-10" }: { className?: string }) =
       TELEMARKET
     </text>
     <text
-      x="87"
+      x="72"
       y="48"
       textAnchor="start"
       fill="currentColor"
@@ -222,6 +222,16 @@ export default function App() {
   const [markupPercent, setMarkupPercent] = useState(20);
   const [socialMarkupPercent, setSocialMarkupPercent] = useState(25);
   const [smmMarkupData, setSmmMarkupData] = useState<Record<string, any>>({});
+  const [paymentKeys, setPaymentKeys] = useState<any>(null);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "settings", "api_keys"), (docSnap) => {
+      if (docSnap.exists()) {
+        setPaymentKeys(docSnap.data());
+      }
+    }, (error) => console.error("api_keys onSnapshot error", error));
+    return () => unsub();
+  }, []);
 
     useEffect(() => {
     const unsub = onSnapshot(doc(db, "settings", "smm_markup"), (docSnap) => {
@@ -269,6 +279,7 @@ export default function App() {
   const [balanceUSD, setBalanceUSD] = useState(0);
   const [balanceAnimate, setBalanceAnimate] = useState(false);
   const prevBalanceRef = useRef(balanceUSD);
+  const runningVerificationsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (balanceUSD !== prevBalanceRef.current) {
@@ -304,6 +315,23 @@ export default function App() {
     "Binance" | "BSC-USDT" | "bKash" | "Nagad"
   >("Binance");
   const [withdrawDetails, setWithdrawDetails] = useState("");
+
+  const [confirmModal, setConfirmModal] = useState<{
+    show: boolean;
+    message: string;
+    onConfirm: () => void;
+  }>({ show: false, message: "", onConfirm: () => {} });
+
+  const askConfirmation = (msg: string, callback: () => void) => {
+    setConfirmModal({
+      show: true,
+      message: msg,
+      onConfirm: () => {
+        setConfirmModal((prev) => ({ ...prev, show: false }));
+        callback();
+      }
+    });
+  };
 
   const [purchasedNumber, setPurchasedNumber] = useState<{
     number: string;
@@ -478,49 +506,193 @@ export default function App() {
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [showLanding, setShowLanding] = useState(false);
 
+  // Atomic double-spend secure wallet crediting system
+  const executeAtomicTopUpCredit = async (txId: string, amountUSD: number, userId: string) => {
+    if (!db) return false;
+    try {
+      const result = await runTransaction(db, async (trans) => {
+        const txDocRef = doc(db, "transactions", txId);
+        const txSnap = await trans.get(txDocRef);
+        if (!txSnap.exists()) {
+          console.warn(`[Atomic Credit] Transaction ${txId} does not exist.`);
+          return { success: false, code: "not_found" };
+        }
+        
+        const txData = txSnap.data();
+        if (txData.status === "paid") {
+          console.log(`[Atomic Credit] Transaction ${txId} is already marked paid.`);
+          return { success: false, code: "already_paid" };
+        }
+
+        const userDocRef = doc(db, "users", userId);
+        const userSnap = await trans.get(userDocRef);
+        if (!userSnap.exists()) {
+          console.warn(`[Atomic Credit] User ${userId} does not exist.`);
+          return { success: false, code: "user_not_found" };
+        }
+
+        // Update transaction status
+        trans.update(txDocRef, { 
+          status: "paid",
+          last_verified: Date.now()
+        });
+
+        // Update user balance safely
+        trans.update(userDocRef, {
+          balanceUSD: increment(amountUSD),
+          total_deposited: increment(amountUSD),
+          last_update: Date.now()
+        });
+
+        // Compute referral award in transaction
+        const referredBy = userSnap.data().referredBy;
+        let referralCreated = null;
+        if (referredBy) {
+          const referrerDocRef = doc(db, "users", referredBy);
+          const referrerSnap = await trans.get(referrerDocRef);
+          if (referrerSnap.exists()) {
+            const bonusAmount = amountUSD * 0.01;
+            trans.update(referrerDocRef, {
+              balanceUSD: increment(bonusAmount),
+              total_deposited: increment(bonusAmount),
+              referralEarnings: increment(bonusAmount),
+              last_update: Date.now()
+            });
+
+            const refTxRef = doc(collection(db, "transactions"));
+            trans.set(refTxRef, {
+              userId: referredBy,
+              type: "referral_bonus",
+              txType: "Credit",
+              amountUSD: bonusAmount,
+              status: "success",
+              createdAt: Date.now(),
+              details: { message: `1% Referral Bonus from ${userSnap.data().email || 'User'}'s topup` }
+            });
+            referralCreated = { referredBy, bonusAmount };
+          }
+        }
+
+        return { success: true, referralCreated };
+      });
+
+      return result.success;
+    } catch (err) {
+      console.error("[Atomic Credit] Transaction execution error:", err);
+      return false;
+    }
+  };
+
   // Poll for webhook-verified transactions
   useEffect(() => {
     if (!currentUser || !db) return;
     const interval = setInterval(async () => {
        const userPendingTxs = transactions.filter(tx => tx.userId === currentUser.uid && tx.status === 'pending' && tx.type === 'topup' && (tx.details?.method !== "binance_manual"));
        for (const tx of userPendingTxs) {
+          if (runningVerificationsRef.current.has(tx.id)) {
+             continue;
+          }
+          runningVerificationsRef.current.add(tx.id);
           try {
              let invoiceParam = "";
-             if (tx.details?.payment_url) {
+             let invoiceIdVal = tx.details?.invoice_id;
+             if (!invoiceIdVal && tx.details?.payment_url) {
                 const parts = tx.details.payment_url.split('/');
-                const invoice_id = parts[parts.length - 1];
-                if (invoice_id) invoiceParam = `&invoice_id=${invoice_id}`;
+                let matchedId = parts[parts.length - 1];
+                if (matchedId) {
+                   if (matchedId.includes('?')) {
+                      matchedId = matchedId.split('?')[0];
+                   }
+                   invoiceIdVal = matchedId;
+                }
+             }
+             if (invoiceIdVal) {
+                invoiceParam = `&invoice_id=${invoiceIdVal}`;
              }
              
-             const res = await fetch(`/api/payment/verify?txId=${tx.id}${invoiceParam}`);
+             const apiKeyParam = paymentKeys?.paymentlyApiKey ? `&paymentlyApiKey=${paymentKeys.paymentlyApiKey}` : "";
+             const cryptomusIdParam = paymentKeys?.cryptomusMerchantId ? `&cryptomusMerchantId=${paymentKeys.cryptomusMerchantId}` : "";
+             const cryptomusKeyParam = paymentKeys?.cryptomusPaymentKey ? `&cryptomusPaymentKey=${paymentKeys.cryptomusPaymentKey}` : "";
+
+             const res = await fetch(`/api/payment/verify?txId=${tx.id}${invoiceParam}${apiKeyParam}${cryptomusIdParam}${cryptomusKeyParam}`);
              if (res.ok) {
                  const data = await res.json();
                  if (data.paid) {
-                    console.log(`Transaction ${tx.id} verified via API polling. Updating Firestore...`);
-                    // Update Transaction
-                    await updateDoc(doc(db, "transactions", tx.id), { status: "paid" });
-                    
-                    // Update User Balance
-                    const userRef = doc(db, "users", currentUser.uid);
-                    await updateDoc(userRef, { 
-                        balanceUSD: increment(tx.amountUSD),
-                        total_deposited: increment(tx.amountUSD),
-                        last_update: Date.now()
-                    });
-                    
-                    // The backend normally handles referrals, but since it has no IAM access,
-                    // we could handle referral bonus here if we had `referredBy` fetched.
-                    // For now, at least user balance is credited!
-                    toast.success(`Topup of $${tx.amountUSD} was successfully credited!`);
+                    console.log(`Transaction ${tx.id} verified via API polling. Updating atomic credit...`);
+                    const success = await executeAtomicTopUpCredit(tx.id, tx.amountUSD, currentUser.uid);
+                    if (success) {
+                       toast.success(`Topup of $${tx.amountUSD} was successfully credited!`);
+                    }
                  }
              }
           } catch(e) {
              // silently ignore polling network errors
+          } finally {
+             runningVerificationsRef.current.delete(tx.id);
           }
        }
     }, 5000);
     return () => clearInterval(interval);
-  }, [transactions, currentUser, db]);
+  }, [transactions, currentUser, db, paymentKeys]);
+
+  // Admin auto-verification loop for all pending automatic top-up transactions (bKash, Nagad, Cryptomus)
+  useEffect(() => {
+    if (!currentUser || !db) return;
+    const isUserAdmin = (currentUser.email === "admin@gmail.com" || currentUser.email === "uzvsbdnzyxhzj@gmail.com" || currentUser.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2");
+    if (!isUserAdmin) return;
+
+    const interval = setInterval(async () => {
+       const pendingTxs = adminTxs.filter((tx: any) => tx.status === 'pending' && tx.type === 'topup' && (tx.details?.method !== "binance_manual"));
+       for (const tx of pendingTxs) {
+          if (runningVerificationsRef.current.has(tx.id)) {
+             continue;
+          }
+          runningVerificationsRef.current.add(tx.id);
+          try {
+             let invoiceParam = "";
+             let invoiceIdVal = tx.details?.invoice_id;
+             if (!invoiceIdVal && tx.details?.payment_url) {
+                const parts = tx.details.payment_url.split('/');
+                let matchedId = parts[parts.length - 1];
+                if (matchedId) {
+                    if (matchedId.includes('?')) {
+                        matchedId = matchedId.split('?')[0];
+                    }
+                    invoiceIdVal = matchedId;
+                }
+             }
+             if (invoiceIdVal) {
+                invoiceParam = `&invoice_id=${invoiceIdVal}`;
+             }
+             
+             const apiKeyParam = paymentKeys?.paymentlyApiKey ? `&paymentlyApiKey=${paymentKeys.paymentlyApiKey}` : "";
+             const cryptomusIdParam = paymentKeys?.cryptomusMerchantId ? `&cryptomusMerchantId=${paymentKeys.cryptomusMerchantId}` : "";
+             const cryptomusKeyParam = paymentKeys?.cryptomusPaymentKey ? `&cryptomusPaymentKey=${paymentKeys.cryptomusPaymentKey}` : "";
+
+             const res = await fetch(`/api/payment/verify?txId=${tx.id}${invoiceParam}${apiKeyParam}${cryptomusIdParam}${cryptomusKeyParam}`);
+             if (res.ok) {
+                 const data = await res.json();
+                 if (data.paid) {
+                    console.log(`[Admin Auto-Verify] Transaction ${tx.id} verified. Finalizing via atomic credit...`);
+                    const success = await executeAtomicTopUpCredit(tx.id, tx.amountUSD, tx.userId);
+                    if (success) {
+                       toast.success(`[System Auto-Verified] Payment of $${tx.amountUSD} found completed! Wallet is credited.`);
+                    }
+                 }
+             }
+          } catch(e: any) {
+             if (e && e.message === "Failed to fetch") {
+                console.warn(`[Admin Auto-Verify] Connection pending (Server is restarting or temporary disconnect) for tx ${tx.id}`);
+             } else {
+                console.error("Admin auto-verify failed for tx " + tx.id, e);
+             }
+          } finally {
+             runningVerificationsRef.current.delete(tx.id);
+          }
+       }
+    }, 7000);
+    return () => clearInterval(interval);
+  }, [adminTxs, currentUser, db, paymentKeys]);
 
   // Fetch bot countries from backend
   useEffect(() => {
@@ -633,23 +805,6 @@ export default function App() {
                   if (order.id) {
                      updates.push(updateDoc(doc(db, "transactions", order.id), {
                          status: orderStatus.status
-                     }).then(() => {
-                         if (orderStatus.status === "completed" && order.userEmail) {
-                             fetch("/api/notify", {
-                                 method: "POST",
-                                 headers: { "Content-Type": "application/json" },
-                                 body: JSON.stringify({
-                                     to: order.userEmail,
-                                     subject: "Order Completed - Telemarket",
-                                     type: "order_completed",
-                                     details: {
-                                         serviceName: order.serviceName || "Service",
-                                         charge: order.amountUSD || order.charge || "0.00",
-                                         quantity: order.quantity || "0"
-                                     }
-                                 })
-                             }).catch(() => {});
-                         }
                      }));
                   }
                }
@@ -686,7 +841,94 @@ export default function App() {
     return () => unsub();
   }, [currentUser]);
 
+  // Automated background balance auto-reconciliation & correction
+  useEffect(() => {
+    if (!currentUser || transactions.length === 0) return;
 
+    const checkAndFixBalance = async () => {
+      let calculatedBalance = 0;
+      let total_deposited = 0;
+      let total_spent = 0;
+      let referralEarnings = 0;
+
+      transactions.forEach((tx) => {
+        const amount = Number(tx.amountUSD) || 0;
+        
+        // topup/deposit transactions check
+        const isTopUpPaid = tx.type === 'topup' && (
+          tx.status === 'paid' || 
+          tx.status === 'completed' || 
+          tx.status === 'success' || 
+          tx.status === 'OK' || 
+          tx.status === 'COMPLETED'
+        );
+        const isDepositPaid = tx.type === 'deposit' && (
+          tx.status === 'paid' || 
+          tx.status === 'completed' || 
+          tx.status === 'success'
+        );
+        const isReferralPaid = tx.type === 'referral_bonus' && (
+          tx.status === 'paid' || 
+          tx.status === 'completed' ||
+          tx.status === 'success'
+        );
+        
+        if (isTopUpPaid || isDepositPaid) {
+          calculatedBalance += amount;
+          total_deposited += amount;
+        }
+        if (isReferralPaid) {
+          calculatedBalance += amount;
+          referralEarnings += amount;
+        }
+
+        // spent transactions check
+        const isPurchase = tx.type === 'purchase' || tx.type === 'p2p_buy' || tx.type === 'buy' || tx.type === 'smm_order';
+        const isWithdraw = tx.type === 'withdraw' && tx.status !== 'rejected';
+        const isChildPanel = tx.type === 'child_panel' || tx.type === 'child_panel_order';
+
+        if (isPurchase || isWithdraw || isChildPanel) {
+          calculatedBalance -= amount;
+          total_spent += amount;
+        }
+      });
+
+      const expectedBalance = calculatedBalance < 0 ? 0 : calculatedBalance;
+
+      // Compare with the user profile in Firestore
+      const userRef = doc(db, "users", currentUser.uid);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        const dbBalance = Number(userData.balanceUSD) || 0;
+        const dbDeposited = Number(userData.total_deposited) || 0;
+        const dbSpent = Number(userData.total_spent) || 0;
+        const dbReferrals = Number(userData.referralEarnings) || 0;
+
+        const needsFix = 
+          Math.abs(dbBalance - expectedBalance) > 0.0001 ||
+          Math.abs(dbDeposited - total_deposited) > 0.0001 ||
+          Math.abs(dbSpent - total_spent) > 0.0001 ||
+          Math.abs(dbReferrals - referralEarnings) > 0.0001 ||
+          isNaN(userData.balanceUSD) ||
+          typeof userData.balanceUSD !== "number";
+
+        if (needsFix) {
+          console.log(`Auto-healing database balance mismatch: ${dbBalance} -> ${expectedBalance}`);
+          await updateDoc(userRef, {
+            balanceUSD: expectedBalance,
+            total_deposited,
+            total_spent,
+            referralEarnings,
+            last_update: Date.now()
+          });
+          setBalanceUSD(expectedBalance);
+        }
+      }
+    };
+
+    checkAndFixBalance().catch(err => console.error("Auto balance sync error:", err));
+  }, [transactions, currentUser, db]);
 
   // Track user activity
   useEffect(() => {
@@ -825,14 +1067,65 @@ export default function App() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const paymentStatus = urlParams.get("payment");
-    if (paymentStatus === "success") {
-      toast.success("Payment was successful! Your balance will be updated once verified.");
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } else if (paymentStatus === "cancel") {
-      toast.error("Payment was cancelled or failed.");
+    const txId = urlParams.get("txId");
+    const invoice_id = urlParams.get("invoice_id") || urlParams.get("invoiceId");
+
+    const runInstantVerification = async () => {
+      if (paymentStatus === "success") {
+        if (txId && db) {
+          if (runningVerificationsRef.current.has(txId)) return;
+          runningVerificationsRef.current.add(txId);
+          toast.loading("Verifying your payment... please wait.", { id: "verify-toast" });
+          try {
+            const txRef = doc(db, "transactions", txId);
+            const txSnap = await getDoc(txRef);
+            if (txSnap.exists()) {
+              const txData = txSnap.data();
+              if (txData.status === "paid") {
+                toast.success("Payment verified! Your balance is already credited.", { id: "verify-toast" });
+                return;
+              }
+
+              const apiKeyParam = paymentKeys?.paymentlyApiKey ? `&paymentlyApiKey=${paymentKeys.paymentlyApiKey}` : "";
+              const cryptomusIdParam = paymentKeys?.cryptomusMerchantId ? `&cryptomusMerchantId=${paymentKeys.cryptomusMerchantId}` : "";
+              const cryptomusKeyParam = paymentKeys?.cryptomusPaymentKey ? `&cryptomusPaymentKey=${paymentKeys.cryptomusPaymentKey}` : "";
+              
+              const invoiceParam = invoice_id ? `&invoice_id=${invoice_id}` : "";
+              const res = await fetch(`/api/payment/verify?txId=${txId}${invoiceParam}${apiKeyParam}${cryptomusIdParam}${cryptomusKeyParam}`);
+              
+              if (res.ok) {
+                 const verifyData = await res.json();
+                 if (verifyData.paid) {
+                    const success = await executeAtomicTopUpCredit(txId, txData.amountUSD, txData.userId);
+                    if (success) {
+                       toast.success(`Successfully Verified! Credited $${txData.amountUSD} to your wallet.`, { id: "verify-toast" });
+                    } else {
+                       toast.success("Payment verified! Your balance is already credited.", { id: "verify-toast" });
+                    }
+                    return;
+                 }
+              }
+            }
+            toast.success("Payment submitted! It is being verified. Check your transactions tab in a few moments.", { id: "verify-toast" });
+          } catch(e) {
+            console.error("Instant verify failed:", e);
+            toast.error("Payment submission failed. Check your Recent Transactions.", { id: "verify-toast" });
+          } finally {
+            runningVerificationsRef.current.delete(txId);
+          }
+        } else {
+          toast.success("Payment was successful! Your balance will be updated once verified.");
+        }
+      } else if (paymentStatus === "cancel") {
+        toast.error("Payment was cancelled or failed.");
+      }
+    };
+
+    if (paymentStatus) {
+      runInstantVerification();
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, []);
+  }, [db, paymentKeys]);
 
   // Conversion Rates
   const TOPUP_RATE = 129;
@@ -1013,7 +1306,10 @@ export default function App() {
           method,
           uid: currentUser.uid,
           pendingTxId, 
-          baseUrl: window.location.origin
+          baseUrl: window.location.origin,
+          paymentlyApiKey: paymentKeys?.paymentlyApiKey || null,
+          cryptomusMerchantId: paymentKeys?.cryptomusMerchantId || null,
+          cryptomusPaymentKey: paymentKeys?.cryptomusPaymentKey || null,
         }),
       });
 
@@ -1037,7 +1333,11 @@ export default function App() {
             txType: "Credit",
             amountUSD: finalAmount,
             status: "pending",
-            details: { method, payment_url: data.payment_url },
+            details: { 
+              method, 
+              payment_url: data.payment_url,
+              invoice_id: data.invoice_id || null
+            },
             createdAt: Date.now(),
           });
         } catch (e) {
@@ -1091,12 +1391,10 @@ export default function App() {
       return;
     }
     
-    if (
-      window.confirm(
-        `${i18n.buyConfirmTxt} ${country.country}? Price: $${finalPrice.toFixed(2)}`,
-      )
-    ) {
-      try {
+    askConfirmation(
+      `${i18n.buyConfirmTxt} ${country.country}? Price: $${finalPrice.toFixed(2)}`,
+      async () => {
+        try {
           const res = await fetch("/api/proxy/buy", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1139,6 +1437,7 @@ export default function App() {
           toast("Network error while buying account.");
         }
       }
+    );
   };
 
   const handleGetCode = async (
@@ -1804,61 +2103,43 @@ export default function App() {
                   return;
                 }
                 if (currentUser) {
-                  if (!window.confirm(`Are you sure you want to withdraw $${amountObj.toFixed(2)} to ${withdrawMethod}?`)) {
-                    return;
-                  }
-                  try {
-                    await updateDoc(doc(db, "users", currentUser.uid), {
-                      balanceUSD: increment(-amountObj),
-                      total_spent: increment(amountObj),
-                      last_update: Date.now()
-                    });
-                    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-                    let wId = "W-";
-                    for(let i=0; i<36; i++) wId += chars.charAt(Math.floor(Math.random() * chars.length));
-                    const txRef = doc(db, "transactions", wId);
-                    await setDoc(txRef, {
-                      userId: currentUser.uid,
-                      userNumericId: numericId,
-                      userEmail: currentUser.email || "N/A",
-                      type: "withdraw",
-                      txType: "Debit",
-                      amountUSD: amountObj,
-                      status: "pending",
-                      details: {
-                        method: withdrawMethod,
-                        account: withdrawDetails,
-                        payoutUsd: totalGetUsd,
-                        payoutBdt: totalGetBdt,
-                      },
-                      createdAt: Date.now(),
-                    });
-                    
-                    try {
-                      await fetch("/api/notify", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          to: currentUser.email,
-                          subject: "Withdrawal Request Received",
+                  askConfirmation(
+                    `Are you sure you want to withdraw $${amountObj.toFixed(2)} to ${withdrawMethod}?`,
+                    async () => {
+                      try {
+                        await updateDoc(doc(db, "users", currentUser.uid), {
+                          balanceUSD: increment(-amountObj),
+                          total_spent: increment(amountObj),
+                          last_update: Date.now()
+                        });
+                        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+                        let wId = "W-";
+                        for(let i=0; i<36; i++) wId += chars.charAt(Math.floor(Math.random() * chars.length));
+                        const txRef = doc(db, "transactions", wId);
+                        await setDoc(txRef, {
+                          userId: currentUser.uid,
+                          userNumericId: numericId,
+                          userEmail: currentUser.email || "N/A",
                           type: "withdraw",
+                          txType: "Debit",
+                          amountUSD: amountObj,
+                          status: "pending",
                           details: {
-                            amount: amountObj,
                             method: withdrawMethod,
-                            account: withdrawDetails
-                          }
-                        })
-                      });
-                    } catch (err) {
-                      console.error("Failed to notify:", err);
+                            account: withdrawDetails,
+                            payoutUsd: totalGetUsd,
+                            payoutBdt: totalGetBdt,
+                          },
+                          createdAt: Date.now(),
+                        });
+                        toast(i18n.withdrawSuccessTxt);
+                        setWithdrawModal(false);
+                      } catch (e: any) {
+                        toast("Error during withdrawal: " + e.message);
+                        console.error(e);
+                      }
                     }
-                    toast(i18n.withdrawSuccessTxt);
-
-                    setWithdrawModal(false);
-                  } catch (e: any) {
-                    toast("Error during withdrawal: " + e.message);
-                    console.error(e);
-                  }
+                  );
                 }
               }}
               className="w-full bg-green-500 text-white py-3 rounded-lg font-bold hover:bg-green-600 transition"
@@ -1934,39 +2215,22 @@ export default function App() {
 
   const requireAuth = (callback?: () => void) => {
     if (!currentUser) {
-      setShowLanding(true);
+      setAuthMode('login');
+      setShowAuth(true);
       return;
     }
     if (callback) callback();
   };
 
-  if (showAuth && !currentUser) {
+  if (!currentUser) {
     return (
       <Login
         lang={lang}
         setLang={setLang}
         initialMode={authMode}
         onBack={() => {
-          setShowAuth(false);
-          setShowLanding(true);
+          setAuthMode('login');
         }}
-      />
-    );
-  }
-
-  if (showLanding && !currentUser) {
-    return (
-      <Landing
-        lang={lang}
-        setLang={setLang}
-        onGetStarted={(mode?: 'login' | 'signup') => {
-          setAuthMode(mode || 'signup');
-          setShowLanding(false);
-          setShowAuth(true);
-        }}
-        countries={countries}
-        markupPercent={markupPercent}
-        onBack={() => setShowLanding(false)}
       />
     );
   }
@@ -2202,25 +2466,7 @@ export default function App() {
                            setBinanceTransferAmount(null);
                            setTopupModal(false);
                            setBinanceOrderId("");
-                           
-                        try {
-                           await fetch("/api/notify", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                 to: currentUser?.email,
-                                 subject: "Deposit Successful",
-                                 type: "topup",
-                                 details: {
-                                    amount: enteredUSD.toFixed(2),
-                                    method: "Binance Auto",
-                                    status: "Paid"
-                                 }
-                              })
-                           });
-                        } catch (err) {}
-                        toast("Binance Verified Instantly! Balance updated.");
-                           setRefresher(r => r + 1);
+                           toast("Binance Verified Instantly! Balance updated.");
                            return;
                         }
 
@@ -2240,23 +2486,6 @@ export default function App() {
                         // remove referred logic
                         // no operation here
 
-                        
-                        try {
-                           await fetch("/api/notify", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                 to: currentUser?.email,
-                                 subject: "Deposit Request Received",
-                                 type: "topup",
-                                 details: {
-                                    amount: enteredUSD.toFixed(2),
-                                    method: "Binance Manual",
-                                    status: "Pending Review"
-                                 }
-                              })
-                           });
-                        } catch (err) {}
                         toast("Your Order is submitted for review! It could not be instantly verified, an admin will review.");
                         setBinanceTransferAmount(null);
                         setTopupModal(false);
@@ -2381,7 +2610,7 @@ export default function App() {
 
       <TopTicker />
       {/* Navbar */}
-      <header className="bg-white/60 backdrop-blur-lg backdrop-saturate-150 text-slate-800 shadow-sm sticky top-0 z-50 border-b border-white/40">
+      <header className="bg-white/90 backdrop-blur-xl text-slate-800 shadow-[0_2px_20px_-3px_rgba(0,0,0,0.05)] sticky top-0 z-50 border-b border-slate-100/80">
         <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex justify-between items-center w-full md:w-auto">
             <div className="flex items-center gap-2">
@@ -2400,10 +2629,9 @@ export default function App() {
             </div>
 
             <div className="flex md:hidden items-center gap-2">
-                
                 <div className="flex items-center gap-1 text-gray-700 bg-gray-100 px-1.5 py-1.5 rounded-lg shrink-0 border border-gray-200">
                   <Globe className="w-4 h-4 opacity-80" />
-                  <select value={lang} onChange={(e) => setLang(e.target.value as Language)} className="bg-transparent border-none text-gray-700 outline-none cursor-pointer text-xs font-bold max-w-[50px] no-scrollbar">
+                  <select value={lang} onChange={(e) => setLang(e.target.value as Language)} className="bg-transparent border-none text-gray-700 outline-none cursor-pointer text-xs font-bold max-w-[50px]">
                     <option value="en">English</option>
                     <option value="bn">Bengali</option>
                     <option value="hi">Hindi</option>
@@ -2425,7 +2653,6 @@ export default function App() {
                     <option value="vi">Vietnamese</option>
                     <option value="th">Thai</option>
                   </select>
-                  
                 </div>
                 <div 
                   className="flex items-center gap-1 bg-[#1cd435] hover:bg-green-600 text-white px-3 py-1.5 rounded-full cursor-pointer transition shadow-sm"
@@ -2475,8 +2702,6 @@ export default function App() {
                 )}
               </nav>
 
-              
-
               <div className="flex items-center gap-1 text-gray-700 bg-gray-100 px-2 py-1 rounded-lg shrink-0 border border-gray-200">
                 <Globe className="w-4 h-4 opacity-80" />
                 <select value={lang} onChange={(e) => setLang(e.target.value as Language)} className="bg-transparent border-none text-gray-700 outline-none cursor-pointer text-xs font-bold max-w-[80px]">
@@ -2501,8 +2726,6 @@ export default function App() {
                   <option value="vi">Vietnamese</option>
                   <option value="th">Thai</option>
                 </select>
-                
-                
               </div>
 
               <div 
@@ -2533,7 +2756,7 @@ export default function App() {
         </div>
       </header>
 
-      {currentView !== "admin" && <AdvertisementBanner onPostAdClick={() => requireAuth(() => setCurrentView("post-ad"))} />}
+      <AdvertisementBanner onPostAdClick={() => requireAuth(() => setCurrentView("post-ad"))} />
 
       {/* Main Content Area */}
       <main data-view={currentView} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 py-5 sm:py-8 pb-20 md:pb-8 relative">
@@ -2608,13 +2831,13 @@ export default function App() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {countries.map((c) => {
+                  {countries.map((c, idx) => {
                     const finalPrice =
                       c.basePrice + (c.basePrice * markupPercent) / 100;
 
                     return (
                       <div
-                        key={c.id}
+                        key={`${c.id || "c"}-${idx}`}
                         className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition flex flex-col justify-between"
                       >
                         <div>
@@ -3058,7 +3281,7 @@ export default function App() {
                     Hi, {currentUser?.displayName || currentUser?.email?.split('@')[0] || "User"}
                   </h3>
                   <div className="flex items-center justify-center gap-2 mb-6">
-                    <span className="text-gray-800 font-bold text-base">Available Balance: ${(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))}</span>
+                    <span className="text-gray-800 font-bold text-base">Available Balance : {(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))} USD</span>
                     <button onClick={() => window.location.reload()} className="p-1 hover:bg-gray-100 border border-gray-300 rounded-md transition shadow-sm">
                       <RefreshCw className="w-4 h-4 text-gray-700" />
                     </button>
@@ -3094,7 +3317,7 @@ export default function App() {
                   </div>
                   <div className="p-6">
                       <div className="bg-[#1cd435] text-white rounded-lg p-4 text-center mb-4">
-                        <div className="font-bold text-xl mb-1">${(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))}</div>
+                        <div className="font-bold text-xl mb-1">{(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))} USD</div>
                         <div className="text-sm font-bold tracking-wide">Available Balance</div>
                       </div>
                       <div className="border border-gray-200 rounded-lg p-6 text-center shadow-sm">
@@ -4538,28 +4761,6 @@ export default function App() {
                                         doc(db, "transactions", adminTx.id),
                                         { status: "paid" },
                                     );
-                                    
-                                    if (adminTx.userEmail) {
-                                      try {
-                                        await fetch("/api/notify", {
-                                          method: "POST",
-                                          headers: { "Content-Type": "application/json" },
-                                          body: JSON.stringify({
-                                            to: adminTx.userEmail,
-                                            subject: adminTx.type === "withdraw" ? "Withdrawal Processed" : "Deposit Verified",
-                                            type: adminTx.type === "withdraw" ? "withdraw_paid" : "topup_success",
-                                            details: {
-                                              amount: adminTx.amountUSD?.toFixed(2) || adminTx.amountUSD,
-                                              method: adminTx.details?.method || adminTx.method || "System",
-                                              account: adminTx.details?.account || adminTx.account || "N/A"
-                                            }
-                                          })
-                                        });
-                                      } catch (e) {
-                                        console.error("Email notification failed", e);
-                                      }
-                                    }
-
                                     toast("Marked as paid");
                                 } else {
                                     toast("Already paid");
@@ -4575,45 +4776,27 @@ export default function App() {
                           </button>
                           <button
                             onClick={async () => {
-                              if (window.confirm("Are you sure you want to reject this request?")) {
-                                try {
-                                  if (adminTx.type === "withdraw") {
-                                    // refund balance
-                                    await updateDoc(doc(db, "users", adminTx.userId), {
-                                      balanceUSD: increment(adminTx.amountUSD),
-                                      total_spent: increment(-adminTx.amountUSD)
-                                    });
-                                  }
-                                  await updateDoc(doc(db, "transactions", adminTx.id), {
-                                    status: "rejected"
-                                  });
-                                  
-                                  if (adminTx.userEmail) {
-                                    try {
-                                      await fetch("/api/notify", {
-                                        method: "POST",
-                                        headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({
-                                          to: adminTx.userEmail,
-                                          subject: adminTx.type === "withdraw" ? "Withdrawal Rejected" : "Deposit Rejected",
-                                          type: adminTx.type === "withdraw" ? "withdraw_rejected" : "topup_rejected",
-                                          details: {
-                                            amount: adminTx.amountUSD?.toFixed(2) || adminTx.amountUSD,
-                                            method: adminTx.details?.method || adminTx.method || "System"
-                                          }
-                                        })
+                              askConfirmation(
+                                "Are you sure you want to reject this request?",
+                                async () => {
+                                  try {
+                                    if (adminTx.type === "withdraw") {
+                                      // refund balance
+                                      await updateDoc(doc(db, "users", adminTx.userId), {
+                                        balanceUSD: increment(adminTx.amountUSD),
+                                        total_spent: increment(-adminTx.amountUSD)
                                       });
-                                    } catch (e) {
-                                      console.error("Email notification failed", e);
                                     }
+                                    await updateDoc(doc(db, "transactions", adminTx.id), {
+                                      status: "rejected"
+                                    });
+                                    toast("Transaction rejected successfully");
+                                  } catch (e) {
+                                    console.error(e);
+                                    toast("Error rejecting transaction");
                                   }
-
-                                  toast("Transaction rejected successfully");
-                                } catch (e) {
-                                  console.error(e);
-                                  toast("Error rejecting transaction");
                                 }
-                              }
+                              );
                             }}
                             className="bg-red-500 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-red-600 transition shadow-sm w-full sm:w-auto mt-2 sm:mt-0 sm:ml-2"
                           >
@@ -5012,8 +5195,8 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {countries.map((c) => (
-                      <tr key={c.id} className="hover:bg-gray-50 transition">
+                    {countries.map((c, idx) => (
+                      <tr key={`${c.id || "c"}-${idx}`} className="hover:bg-gray-50 transition">
                         <td className="px-4 py-3 font-medium text-gray-900">
                           {c.flag || getFlag(c.country, c.code)} {c.country}
                         </td>
@@ -5124,6 +5307,38 @@ export default function App() {
         {topupModal && renderTopupModal()}
         {withdrawModal && renderWithdrawModal()}
         {purchasedNumber && renderPurchasedModal()}
+        {confirmModal.show && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[9999] animate-in fade-in duration-200">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-slate-100 text-center"
+            >
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-amber-100 mb-4 animate-bounce">
+                <AlertTriangle className="h-6 w-6 text-amber-600 animate-pulse" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Confirmation</h3>
+              <p className="text-sm text-gray-600 mb-6 font-semibold whitespace-pre-wrap leading-relaxed">{confirmModal.message}</p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  id="confirm-modal-cancel"
+                  onClick={() => setConfirmModal((prev) => ({ ...prev, show: false }))}
+                  className="flex-1 bg-gray-100 text-gray-700 py-2.5 px-4 rounded-xl font-bold hover:bg-gray-200 transition text-sm cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  id="confirm-modal-submit"
+                  onClick={confirmModal.onConfirm}
+                  className="flex-1 bg-amber-500 text-white py-2.5 px-4 rounded-xl font-bold hover:bg-amber-600 transition text-sm shadow-sm cursor-pointer"
+                >
+                  Confirm
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
 
       {/* Hamburger / Side Menu */}

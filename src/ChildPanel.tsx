@@ -19,6 +19,7 @@ export default function ChildPanel({ currentUser, onNavigate, balanceUSD }: Chil
 
   // Form State
   const [domain, setDomain] = useState("");
+  const [currency, setCurrency] = useState("USD");
   const [adminUser, setAdminUser] = useState("");
   const [adminPass, setAdminPass] = useState("");
 
@@ -68,7 +69,7 @@ export default function ChildPanel({ currentUser, onNavigate, balanceUSD }: Chil
           userId: currentUser.uid,
           userEmail: currentUser.email,
           domain: domain.trim(),
-          currency: "USD",
+          currency: currency,
           adminUser: adminUser.trim(),
           adminPass: adminPass, // Password shown to admin for setup
           price: INITIAL_PRICE,
@@ -92,24 +93,6 @@ export default function ChildPanel({ currentUser, onNavigate, balanceUSD }: Chil
           createdAt: Date.now()
         })
       ]);
-      
-      try {
-        await fetch("/api/notify", {
-           method: "POST",
-           headers: { "Content-Type": "application/json" },
-           body: JSON.stringify({
-              to: currentUser.email,
-              subject: "Child Panel Activated - Telemarket",
-              type: "child_panel",
-              details: {
-                 domain: domain.trim(),
-                 price: INITIAL_PRICE
-              }
-           })
-        });
-      } catch(e) {
-        console.error("Failed to notify:", e);
-      }
       
       toast.success("Child panel successfully activated! Please update your nameservers.");
       setShowOrderModal(false);
@@ -196,7 +179,7 @@ export default function ChildPanel({ currentUser, onNavigate, balanceUSD }: Chil
                        <p className="text-xs text-blue-600 mt-1 font-medium">Nameservers: {p.nameservers}</p>
                     )}
                   </td>
-                  <td className="p-4 text-center font-medium">$p.price <span className="text-xs text-gray-500 font-normal">({p.billingCycle || "initially"})</span></td>
+                  <td className="p-4 text-center font-medium">${p.price} <span className="text-xs text-gray-500 font-normal">({p.billingCycle || "initially"})</span></td>
                   <td className="p-4 text-center">
                     {p.status === "pending" && <span className="bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full">Pending</span>}
                     {p.status === "active" && <span className="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full">Active</span>}
@@ -238,7 +221,17 @@ export default function ChildPanel({ currentUser, onNavigate, balanceUSD }: Chil
                          className="w-full outline-none border border-gray-300 rounded-lg px-4 py-2.5 focus:border-[#2AABEE]"
                        />
                     </div>
-                    
+                    <div>
+                       <label className="block text-sm font-semibold text-gray-700 mb-1">Desired Currency</label>
+                       <select 
+                         value={currency} onChange={e => setCurrency(e.target.value)}
+                         className="w-full outline-none border border-gray-300 rounded-lg px-4 py-2.5 focus:border-[#2AABEE]"
+                       >
+                          <option value="USD">USD ($)</option>
+                          <option value="BDT">BDT (৳)</option>
+                          <option value="INR">INR (₹)</option>
+                       </select>
+                    </div>
                     <div>
                        <label className="block text-sm font-semibold text-gray-700 mb-1">Admin Username</label>
                        <input 
@@ -263,7 +256,7 @@ export default function ChildPanel({ currentUser, onNavigate, balanceUSD }: Chil
                    className="w-full bg-[#2AABEE] text-white font-bold py-3.5 rounded-lg shadow-sm hover:bg-blue-500 transition mt-6 disabled:opacity-50 flex justify-center items-center gap-2"
                  >
                    {isOrdering ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                   Place Order - $5
+                   Place Order - $5.00
                  </button>
               </div>
            </div>

@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { doc, getDoc, setDoc, updateDoc, increment } from "firebase/firestore";
 import { db } from "./firebase";
 import { ArrowLeft, CheckCircle, ChevronRight, Image as ImageIcon, Link as LinkIcon, DollarSign } from "lucide-react";
+import toast from "react-hot-toast";
 
 interface PostAdProps {
   balanceUSD: number;
@@ -55,22 +56,22 @@ export default function PostAd({ balanceUSD, onNavigate, uid }: PostAdProps) {
 
   const handlePostAd = async () => {
     if (!imageUrl) {
-      alert("Please upload your ad image.");
+      toast.error("Please upload your ad image.");
       return;
     }
     if (!linkUrl) {
-      alert("Please provide a target link URL.");
+      toast.error("Please provide a target link URL.");
       return;
     }
     if (!is18PlusConfirmed) {
-      alert("Please confirm that your ad does not contain 18+ or explicit content.");
+      toast.error("Please confirm that your ad does not contain 18+ or explicit content.");
       return;
     }
     
     setIsPublishing(true);
     try {
       if (balanceUSD < plan.finalPrice) {
-        alert("Insufficient balance! Please top up your account to post this ad.");
+        toast.error("Insufficient balance! Please top up your account to post this ad.");
         onNavigate("profile");
         setIsPublishing(false);
         return;
@@ -111,10 +112,10 @@ export default function PostAd({ balanceUSD, onNavigate, uid }: PostAdProps) {
         isActive: true,
       });
 
-      alert("Ad posted successfully!");
+      toast.success("Ad posted successfully!");
       onNavigate("profile");
     } catch (e: any) {
-      alert("Error posting ad: " + e.message);
+      toast.error("Error posting ad: " + e.message);
     } finally {
       setIsPublishing(false);
     }
@@ -243,9 +244,9 @@ export default function PostAd({ balanceUSD, onNavigate, uid }: PostAdProps) {
                   
                   <div className="flex flex-col items-center justify-center gap-1 mt-3">
                     {p.discountText ? (
-                      <span className="text-gray-400 line-through text-sm font-medium">$p.price</span>
+                      <span className="text-gray-400 line-through text-sm font-medium">${p.price}</span>
                     ) : ( <span className="h-5"></span> )}
-                    <span className={`text-3xl font-black ${selectedPlan === p.months ? 'text-indigo-700' : 'text-indigo-600'}`}>$p.finalPrice</span>
+                    <span className={`text-3xl font-black ${selectedPlan === p.months ? 'text-indigo-700' : 'text-indigo-600'}`}>${p.finalPrice}</span>
                   </div>
                 </div>
               </motion.div>
@@ -264,7 +265,7 @@ export default function PostAd({ balanceUSD, onNavigate, uid }: PostAdProps) {
             </div>
             <div className="w-full sm:w-auto text-center sm:text-right p-4 bg-indigo-600 text-white rounded-xl shadow-md flex-1">
               <p className="text-indigo-100 text-sm font-semibold uppercase tracking-wider mb-1 opacity-90">Total Cost</p>
-              <p className="text-3xl font-black">$plan.finalPrice</p>
+              <p className="text-3xl font-black">${plan.finalPrice}</p>
             </div>
           </div>
           
