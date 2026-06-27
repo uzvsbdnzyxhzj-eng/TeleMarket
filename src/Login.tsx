@@ -4,7 +4,7 @@ import { signInWithGoogle, auth } from './firebase';
 import { Mail, Lock, User as UserIcon, CheckSquare, Square, ShoppingCart, Cloud, Users, Trophy, Facebook, Instagram, Twitter, Video, Send, TrendingUp, DollarSign, Clock, Eye, Youtube, MessageCircle, MessageSquare, Ghost, Pin, Linkedin, Gamepad2, Coffee, HelpCircle, Twitch, Tv, Music, Headphones, Radio, Disc, PlaySquare, Crosshair, Target, Swords, Play, Heart, ShoppingBag, MapPin, Globe, Search, Mic, Citrus, Speaker } from 'lucide-react';
 import { Language } from './i18n';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, sendPasswordResetEmail } from 'firebase/auth';
-import { TelemarketLogo } from './App';
+import { TelemarketLogo } from './TelemarketLogo';
 
 
 const paymentMethods = [

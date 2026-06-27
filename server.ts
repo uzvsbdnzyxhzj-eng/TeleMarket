@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
@@ -36,8 +39,7 @@ if (!admin.apps.length) {
 }
 const db = getFirestore(admin.app(), databaseId);
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+
 
 const TG_LION_API_KEY = process.env.TG_LION_API_KEY || "kg5yi86f4lzhje3bsa";
 const TG_LION_ID = process.env.TG_LION_ID || "6168111530";
@@ -341,6 +343,140 @@ async function startServer() {
       res.status(500).json({ error: "Failed to fetch order status." });
     }
   });
+
+  app.post("/api/admin/smm/generate-desc", async (req, res) => {
+    try {
+      const { serviceName, categoryName } = req.body;
+
+      if (!serviceName) {
+        return res.status(400).json({ error: "Service name is required." });
+      }
+
+      // 1. Try to use Gemini AI if the API Key is available
+      if (process.env.GEMINI_API_KEY) {
+        try {
+          const { GoogleGenAI } = await import("@google/genai");
+          const ai = new GoogleGenAI({ 
+            apiKey: process.env.GEMINI_API_KEY,
+            httpOptions: {
+              headers: {
+                'User-Agent': 'aistudio-build'
+              }
+            }
+          });
+
+          const prompt = `You are an expert SMM panel marketer and copywriter.
+Generate a highly professional, compelling, and concise marketing description for a social media marketing (SMM) service.
+Service Category: ${categoryName || "Social Media"}
+Service Name: ${serviceName}
+
+Guidelines:
+- Explain what this service does clearly and professionally (e.g., safe execution, speed, organic appearance, high retention, etc.).
+- Highlight key benefits or specifications using clean, readable bullet points or short paragraphs.
+- Format it nicely with simple HTML tags (like <b>, <ul>, <li>, <p>) so it renders beautifully in the app.
+- Keep it concise (2-4 bullet points or short paragraphs maximum).
+- Do not mention pricing, service IDs, or specific SMM provider names.
+- Output ONLY the description HTML. Do not include markdown code blocks like \`\`\`html or any intro/outro remarks.`;
+
+          const response = await ai.models.generateContent({
+            model: "gemini-3.5-flash",
+            contents: prompt,
+          });
+
+          let description = response.text || "";
+          description = description.replace(/```html/gi, "").replace(/```/g, "").trim();
+
+          if (description) {
+            return res.json({ description });
+          }
+        } catch (aiError) {
+          console.error("Gemini SMM API Error, using professional fallback generator:", aiError);
+        }
+      }
+
+      // 2. High-quality Dynamic Fallback Generator (Rule-based Copywriting)
+      console.log("Using professional fallback description generator for:", serviceName);
+      
+      const lowerService = serviceName.toLowerCase();
+      const lowerCategory = (categoryName || "").toLowerCase();
+      
+      let startText = "0-2 hours (Instant Start)";
+      let speedText = "3K-10K/Day stable delivery";
+      let qualityText = "High-Quality real-looking accounts";
+      let dropText = "Non-Drop / Lifetime Refill Guarantee";
+      let keyBenefits = [
+        "Increases your social proof and brand credibility instantly.",
+        "100% safe and compliant with platform terms of service.",
+        "Organic look with standard delivery speed to prevent flags."
+      ];
+
+      // Smart customization based on keywords
+      if (lowerService.includes("follower") || lowerCategory.includes("follower")) {
+        qualityText = "Real-looking active accounts with profile pictures and posts.";
+        dropText = "Low-drop with 30-day auto-refill protection.";
+        keyBenefits = [
+          "Improves organic reach and attracts real profile engagement.",
+          "Perfect for personal brands, influencers, and businesses.",
+          "Secure execution requiring only public profile link."
+        ];
+      } else if (lowerService.includes("like") || lowerCategory.includes("like")) {
+        qualityText = "High-quality fast-delivery likes from real profiles.";
+        dropText = "Permanent high-retention likes.";
+        keyBenefits = [
+          "Boosts post exposure on feed algorithm instantly.",
+          "Encourages natural engagement and organic interactions.",
+          "Quick and completely safe delivery."
+        ];
+      } else if (lowerService.includes("view") || lowerCategory.includes("view") || lowerService.includes("watch")) {
+        startText = "Instant start within 15 minutes";
+        speedText = "Super fast 50K-100K/Day speed";
+        qualityText = "High-retention video views with watch-time.";
+        keyBenefits = [
+          "Optimizes your video for the platform recommendation algorithm.",
+          "Safe for monetization and advertisement-enabled accounts.",
+          "Helps viral potential and trending placements."
+        ];
+      } else if (lowerService.includes("member") || lowerCategory.includes("member") || lowerService.includes("subscriber")) {
+        qualityText = "Premium safe members with natural join pattern.";
+        dropText = "Non-drop or stable high retention.";
+        keyBenefits = [
+          "Perfect for building strong community credibility.",
+          "Assures new visitors that your community is active and trusted.",
+          "No administrative details or special access needed."
+        ];
+      } else if (lowerService.includes("comment") || lowerCategory.includes("comment")) {
+        qualityText = "Realistic and contextually positive comments.";
+        keyBenefits = [
+          "Sparks user discussions and builds highly active threads.",
+          "Fully customizable or realistic general comments.",
+          "Improves community feedback and customer trust."
+        ];
+      }
+
+      // Formulate a beautiful HTML description
+      const generatedFallback = `
+<p><b>⚡ Premium ${categoryName || "Social Media"} Service</b></p>
+<p>Enhance your online presence with our top-tier, secure delivery system tailored specifically for <b>${serviceName}</b>.</p>
+<ul>
+  <li><b>Start Time:</b> ${startText}</li>
+  <li><b>Delivery Speed:</b> ${speedText}</li>
+  <li><b>Quality:</b> ${qualityText}</li>
+  <li><b>Stability:</b> ${dropText}</li>
+</ul>
+<p><b>Key Benefits:</b></p>
+<ul>
+  ${keyBenefits.map(benefit => `<li>${benefit}</li>`).join("\n  ")}
+</ul>
+<p><small>*No password required. Please ensure your account is public during delivery.</small></p>
+      `.trim();
+
+      res.json({ description: generatedFallback });
+
+    } catch (error: any) {
+      console.error("Description Generate Main Error:", error);
+      res.status(500).json({ error: "Failed to generate description." });
+    }
+  });
   // ----------------------------
 
   app.post("/api/proxy/chat", async (req, res) => {
@@ -351,7 +487,14 @@ async function startServer() {
       
       // We will lazy-initialize Gemini
       const { GoogleGenAI } = await import("@google/genai");
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ 
+        apiKey: process.env.GEMINI_API_KEY,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build'
+          }
+        }
+      });
       
       const { message, history } = req.body;
       
@@ -370,7 +513,7 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
       const prompt = `${systemInstruction}\n\nConversation history:\n${conversation}\n\nCustomer: ${message}\nBot:`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.5-flash',
         contents: prompt,
       });
 

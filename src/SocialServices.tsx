@@ -110,7 +110,8 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
             return {
                 ...s,
                 rate: finalRate.toFixed(4),
-                originalRate: s.rate
+                originalRate: s.rate,
+                desc: override?.description || s.desc || s.description || ""
             };
         });
         setServices(markupData);

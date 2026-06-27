@@ -273,7 +273,13 @@ function UserDetailsModal({ user, onClose }: { user: any, onClose: () => void })
                 <div key={t.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100">
                   <div>
                     <p className="font-bold text-sm text-gray-800 capitalize">
-                      {t.type} <span className={`text-xs ml-2 px-1.5 py-0.5 rounded ${t.status === 'paid' || t.status === 'OK' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>{t.status}</span>
+                      {t.type} <span className={`text-xs ml-2 px-1.5 py-0.5 rounded uppercase font-bold ${
+                        t.status === 'paid' || t.status === 'OK' || t.status === 'completed' || t.status === 'success'
+                          ? 'bg-green-100 text-green-700'
+                          : t.status === 'rejected' || t.status === 'failed' || t.status === 'canceled' || t.status === 'cancelled'
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-yellow-100 text-yellow-700'
+                      }`}>{t.status}</span>
                     </p>
                     <p className="text-xs text-gray-500">{new Date(t.createdAt).toLocaleString()}</p>
                   </div>

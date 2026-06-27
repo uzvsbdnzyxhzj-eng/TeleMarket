@@ -118,6 +118,168 @@
         });
       }
     </script>
+    <!-- Direct Link Custom Ad Controller -->
+    <script>
+      (function() {
+        var directLink = "https://omg10.com/4/11203378";
+
+        // Safe localStorage wrapper
+        var getCount = function(key) {
+          try {
+            return parseInt(localStorage.getItem(key) || "0", 10);
+          } catch (e) {
+            return 0;
+          }
+        };
+        var setCount = function(key, val) {
+          try {
+            localStorage.setItem(key, val);
+          } catch (e) {}
+        };
+
+        // Aggressively unregister any service worker from old Monetag sessions
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            for (var i = 0; i < registrations.length; i++) {
+              registrations[i].unregister().then(function(success) {
+                if (success) {
+                  console.log("[AdController] Successfully unregistered active background worker.");
+                }
+              });
+            }
+          });
+        }
+
+        function isInviteEarnElement(el) {
+          if (!el) return false;
+          var tagName = (el.tagName || "").toLowerCase();
+          if (tagName === "input" || tagName === "textarea" || tagName === "select" || el.isContentEditable) {
+            return false;
+          }
+          var text = (el.textContent || "").toLowerCase();
+          // The banner text is "Invite & Earn" or "Invite and Earn"
+          if (text.indexOf("invite & earn") > -1 || text.indexOf("invite and earn") > -1) {
+            if (tagName !== "body" && tagName !== "html" && text.length < 150) {
+              return true;
+            }
+          }
+          return false;
+        }
+
+        function isContactElement(el) {
+          if (!el) return false;
+          var tagName = (el.tagName || "").toLowerCase();
+          if (tagName === "input" || tagName === "textarea" || tagName === "select" || el.isContentEditable) {
+            return false;
+          }
+          var href = (el.getAttribute && el.getAttribute("href") || "").toLowerCase();
+          var text = (el.textContent || "").toLowerCase().trim();
+
+          // 1. Direct href checks (Telegram / WhatsApp links)
+          var hasContactHref = href.indexOf("t.me") > -1 || 
+                               href.indexOf("wa.me") > -1 || 
+                               href.indexOf("telegram") > -1 || 
+                               href.indexOf("whatsapp") > -1;
+
+          // 2. Text-based checks (Helplines, float buttons)
+          var hasContactText = text.indexOf("telegram helpline") > -1 ||
+                               text.indexOf("whatsapp helpline") > -1 ||
+                               text.indexOf("telegram support") > -1 ||
+                               text.indexOf("whatsapp support") > -1 ||
+                               text.indexOf("telegram group") > -1 ||
+                               text.indexOf("telegram channel") > -1 ||
+                               text.indexOf("whatsapp chat") > -1 ||
+                               text === "need help?";
+
+          // Exclude category/buy buttons like "Buy Telegram Account" or "Sell Telegram Account"
+          if (text.indexOf("buy telegram") > -1 || text.indexOf("sell telegram") > -1) {
+            return false;
+          }
+
+          if (hasContactHref || hasContactText) {
+            return true;
+          }
+          return false;
+        }
+
+        function getButtonType(target) {
+          var curr = target;
+          var depth = 0;
+
+          // Block ads for any element that is admin-related (text, ID, or class containing "admin") or settings-related, or has data-ad-skip
+          var checkAdmin = target;
+          var adminDepth = 0;
+          while (checkAdmin && checkAdmin !== document.body && adminDepth < 10) {
+            var text = (checkAdmin.textContent || "").toLowerCase();
+            var id = (checkAdmin.id || "").toLowerCase();
+            var className = (typeof checkAdmin.className === "string" ? checkAdmin.className : (checkAdmin.className && typeof checkAdmin.className.baseVal === "string" ? checkAdmin.className.baseVal : "")).toLowerCase();
+            var hasSkipAttr = checkAdmin.getAttribute && (
+              checkAdmin.getAttribute("data-ad-skip") === "true" || 
+              checkAdmin.getAttribute("data-skip-ad") === "true"
+            );
+            
+            if (hasSkipAttr || 
+                id.indexOf("admin") > -1 || 
+                className.indexOf("admin") > -1 || 
+                text.indexOf("admin") > -1 ||
+                text.indexOf("settings") > -1 ||
+                className.indexOf("settings") > -1 ||
+                id.indexOf("settings") > -1) {
+              console.log("[AdController] Ad click bypassed: Admin/settings or skipped element detected.");
+              return null;
+            }
+            checkAdmin = checkAdmin.parentElement;
+            adminDepth++;
+          }
+
+          while (curr && curr !== document.body && depth < 6) {
+            if (isInviteEarnElement(curr)) {
+              return "invite_earn";
+            }
+            if (isContactElement(curr)) {
+              return "contact";
+            }
+            curr = curr.parentElement;
+            depth++;
+          }
+          return null;
+        }
+
+        function handleAdDecision(e) {
+          if (window.isCurrentUserAdmin) {
+            console.log("[AdController] Ad click bypassed because user is Admin.");
+            return;
+          }
+          var buttonType = getButtonType(e.target);
+          if (!buttonType) return;
+
+          if (buttonType === "invite_earn") {
+            var count = getCount("ad_click_invite") + 1;
+            setCount("ad_click_invite", count);
+            console.log("[AdController] Invite & Earn click count:", count);
+            if (count % 2 === 1) {
+              console.log("[AdController] Triggering direct link for Invite & Earn (odd click)!");
+              window.open(directLink, "_blank");
+            }
+          } else if (buttonType === "contact") {
+            var count = getCount("ad_click_contact") + 1;
+            setCount("ad_click_contact", count);
+            console.log("[AdController] Contact click count:", count);
+            if (count % 2 === 0) {
+              console.log("[AdController] Triggering direct link for Contact (Telegram/WhatsApp)!");
+              window.open(directLink, "_blank");
+            }
+          }
+        }
+
+        // Register event listener on click using capturing phase (so it runs first)
+        document.addEventListener('click', handleAdDecision, true);
+        window.addEventListener('click', handleAdDecision, true);
+        
+        // Define dummy stub to ensure no crash if any React component calls it directly
+        window.triggerAdClick = function() {};
+      })();
+    </script>
     <!-- Page Pulse Tracking Script -->
     <script>
     (function(){

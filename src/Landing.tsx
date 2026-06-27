@@ -5,7 +5,7 @@ import { Language, t } from './i18n';
 import TopTicker from './TopTicker';
 import { Youtube, Facebook, Instagram, Twitter, Linkedin, Send } from 'lucide-react';
 import { getFlag } from './utils';
-import { TelemarketLogo } from './App';
+import { TelemarketLogo } from './TelemarketLogo';
 
 function TypewriterText({ text, delay = 0, totalDuration = 1.5 }: { text: string, delay?: number, totalDuration?: number }) {
   const characters = text.split("");

@@ -128,60 +128,7 @@ import {
   sendNotification,
 } from "./utils";
 
-export const TelemarketLogo = ({ className = "h-10" }: { className?: string }) => (
-  <svg
-    viewBox="0 0 260 60"
-    className={className}
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    {/* T Icon */}
-    <g transform="translate(30, 30)">
-      {/* Darker green shadow overlay for T */}
-      <path d="M-15 -15 H15 V-5 H5 V15 H-5 V-5 H-15 Z" fill="#84D12F" />
-      <path d="M-5 -5 H5 V15 H-5 Z" fill="#75bb29" />
-
-      {/* Left Top Arc */}
-      <path
-        d="M-15 -13 C-35 -15 -45 5 -20 18 C-35 8 -30 -10 -20 -13 Z"
-        fill="#84D12F"
-      />
-
-      {/* Right Bottom Arc */}
-      <path
-        d="M-20 18 C10 32 40 18 30 -5 C35 15 20 28 -20 18 Z"
-        fill="#4B9A50"
-      />
-    </g>
-
-    {/* Text */}
-    <text
-      x="70"
-      y="35"
-      textAnchor="start"
-      fill="currentColor"
-      fontSize="22"
-      fontWeight="900"
-      fontFamily="sans-serif"
-      letterSpacing="1"
-    >
-      TELEMARKET
-    </text>
-    <text
-      x="72"
-      y="48"
-      textAnchor="start"
-      fill="currentColor"
-      opacity="0.8"
-      fontSize="10"
-      fontWeight="700"
-      fontFamily="sans-serif"
-      letterSpacing="4"
-    >
-      SHOP SMART
-    </text>
-  </svg>
-);
+import { TelemarketLogo } from "./TelemarketLogo";
 
 const TOPIC_OPTIONS = [
   "General",
@@ -253,27 +200,6 @@ export default function App() {
     }, (error) => console.error("markup onSnapshot error", error));
     return () => unsub();
   }, []);
-
-  // Monetag 5-click direct link logic (only triggered by explicit top/main nav buttons)
-  useEffect(() => {
-    let clickCount = 0;
-    // We derive the direct link from the user's provided snippet: 
-    // <script src="https://quge5.com/88/tag.min.js" data-zone="236849" async data-cfasync="false"></script>
-    const monetagLink = "https://quge5.com/4/236849";
-    
-    (window as any).triggerAdClick = () => {
-      clickCount++;
-      if (clickCount >= 5) {
-        clickCount = 0;
-        window.open(monetagLink, "_blank");
-      }
-    };
-
-    return () => {
-      delete (window as any).triggerAdClick;
-    }
-  }, []);
-
 
   // User Dashboard State
   const [balanceUSD, setBalanceUSD] = useState(0);
@@ -547,29 +473,46 @@ export default function App() {
         // Compute referral award in transaction
         const referredBy = userSnap.data().referredBy;
         let referralCreated = null;
-        if (referredBy) {
-          const referrerDocRef = doc(db, "users", referredBy);
-          const referrerSnap = await trans.get(referrerDocRef);
-          if (referrerSnap.exists()) {
-            const bonusAmount = amountUSD * 0.01;
-            trans.update(referrerDocRef, {
-              balanceUSD: increment(bonusAmount),
-              total_deposited: increment(bonusAmount),
-              referralEarnings: increment(bonusAmount),
-              last_update: Date.now()
-            });
+        
+        // Determine if current logged-in user is an admin
+        const isCurrentUserAdmin = currentUser && (
+          currentUser.email === "admin@gmail.com" || 
+          currentUser.email === "uzvsbdnzyxhzj@gmail.com" || 
+          currentUser.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2"
+        );
 
-            const refTxRef = doc(collection(db, "transactions"));
-            trans.set(refTxRef, {
-              userId: referredBy,
-              type: "referral_bonus",
-              txType: "Credit",
-              amountUSD: bonusAmount,
-              status: "success",
-              createdAt: Date.now(),
-              details: { message: `1% Referral Bonus from ${userSnap.data().email || 'User'}'s topup` }
+        if (referredBy) {
+          if (isCurrentUserAdmin) {
+            const referrerDocRef = doc(db, "users", referredBy);
+            const referrerSnap = await trans.get(referrerDocRef);
+            if (referrerSnap.exists()) {
+              const bonusAmount = amountUSD * 0.01;
+              trans.update(referrerDocRef, {
+                balanceUSD: increment(bonusAmount),
+                total_deposited: increment(bonusAmount),
+                referralEarnings: increment(bonusAmount),
+                last_update: Date.now()
+              });
+
+              const refTxRef = doc(collection(db, "transactions"));
+              trans.set(refTxRef, {
+                userId: referredBy,
+                type: "referral_bonus",
+                txType: "Credit",
+                amountUSD: bonusAmount,
+                status: "success",
+                createdAt: Date.now(),
+                details: { message: `1% Referral Bonus from ${userSnap.data().email || 'User'}'s topup` }
+              });
+              referralCreated = { referredBy, bonusAmount };
+            }
+          } else {
+            // For normal users, we cannot write to the referrer's document or create a transaction for them.
+            // So we flag the referral bonus as pending, allowing the Admin's background loop to credit it securely.
+            trans.update(txDocRef, {
+              "details.referral_bonus_pending": true,
+              "details.referrerId": referredBy
             });
-            referralCreated = { referredBy, bonusAmount };
           }
         }
 
@@ -688,6 +631,61 @@ export default function App() {
              }
           } finally {
              runningVerificationsRef.current.delete(tx.id);
+          }
+       }
+
+       // 2. Pending referral bonuses synchronization (Admin loop executes this securely because Admin is logged in)
+       const pendingReferralTxs = adminTxs.filter((tx: any) => tx.status === 'paid' && tx.type === 'topup' && tx.details?.referral_bonus_pending === true);
+       for (const tx of pendingReferralTxs) {
+          const trackingKey = `ref_${tx.id}`;
+          if (runningVerificationsRef.current.has(trackingKey)) {
+             continue;
+          }
+          runningVerificationsRef.current.add(trackingKey);
+          try {
+             console.log(`[Admin Referral Sync] Syncing pending referral bonus for transaction ${tx.id}...`);
+             await runTransaction(db, async (trans) => {
+                const txRef = doc(db, "transactions", tx.id);
+                const txSnap = await trans.get(txRef);
+                if (!txSnap.exists()) return;
+                const txData = txSnap.data();
+                if (txData.details?.referral_bonus_pending !== true) return;
+
+                const referrerId = txData.details?.referrerId;
+                if (referrerId) {
+                   const referrerRef = doc(db, "users", referrerId);
+                   const referrerSnap = await trans.get(referrerRef);
+                   if (referrerSnap.exists()) {
+                      const bonusAmount = txData.amountUSD * 0.01;
+                      trans.update(referrerRef, {
+                         balanceUSD: increment(bonusAmount),
+                         total_deposited: increment(bonusAmount),
+                         referralEarnings: increment(bonusAmount),
+                         last_update: Date.now()
+                      });
+
+                      const refTxRef = doc(collection(db, "transactions"));
+                      trans.set(refTxRef, {
+                         userId: referrerId,
+                         type: "referral_bonus",
+                         txType: "Credit",
+                         amountUSD: bonusAmount,
+                         status: "success",
+                         createdAt: Date.now(),
+                         details: { message: `1% Referral Bonus from ${txData.userEmail || 'referred user'}'s topup` }
+                      });
+                   }
+                }
+                // Mark processed
+                trans.update(txRef, {
+                   "details.referral_bonus_pending": false
+                });
+             });
+             console.log(`[Admin Referral Sync] Successfully credited referral bonus for transaction ${tx.id}!`);
+          } catch (err) {
+             console.error(`[Admin Referral Sync] Failed for transaction ${tx.id}:`, err);
+          } finally {
+             runningVerificationsRef.current.delete(trackingKey);
           }
        }
     }, 7000);
@@ -959,6 +957,11 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setCurrentUser(user);
+        (window as any).isCurrentUserAdmin = (
+          user.email === "admin@gmail.com" || 
+          user.email === "uzvsbdnzyxhzj@gmail.com" || 
+          user.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2"
+        );
         // Check if user exists in Firestore
         const userRef = doc(db, "users", user.uid);
         try {
@@ -1057,6 +1060,7 @@ export default function App() {
         setAuthLoading(false);
       } else {
         setCurrentUser(null);
+        (window as any).isCurrentUserAdmin = false;
         setAuthLoading(false);
       }
     });
@@ -2185,9 +2189,13 @@ export default function App() {
                         </p>
                       </div>
                       <div>
-                        {tx.status === "paid" ? (
+                        {tx.status === "paid" || tx.status === "completed" || tx.status === "success" || tx.status === "OK" ? (
                           <span className="text-xs font-bold bg-green-100 text-green-700 px-2 py-1 rounded uppercase">
                             Paid
+                          </span>
+                        ) : tx.status === "rejected" || tx.status === "failed" || tx.status === "canceled" || tx.status === "cancelled" ? (
+                          <span className="text-xs font-bold bg-red-100 text-red-700 px-2 py-1 rounded uppercase">
+                            Rejected
                           </span>
                         ) : (
                           <span className="text-xs font-bold bg-yellow-100 text-yellow-700 px-2 py-1 rounded uppercase">
@@ -2624,7 +2632,7 @@ export default function App() {
                 className="flex items-center space-x-2 cursor-pointer"
                 onClick={() => { setCurrentView("dashboard"); }}
               >
-                <TelemarketLogo className="h-10 md:h-12" />
+                <TelemarketLogo className="h-10 md:h-12" hideTextOnMobile={true} />
               </div>
             </div>
 
@@ -2696,7 +2704,7 @@ export default function App() {
                   <User className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.profileNav || "Profile"}</span>
                 </button>
                 {((currentUser?.email && (currentUser.email === "admin@gmail.com" || currentUser.email === "uzvsbdnzyxhzj@gmail.com")) || currentUser?.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2") && (
-                  <button onClick={() => { setCurrentView("admin"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm bg-red-100 text-red-600 hover:bg-red-200 font-bold`}>
+                  <button data-ad-skip="true" onClick={() => { setCurrentView("admin"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm bg-red-100 text-red-600 hover:bg-red-200 font-bold`}>
                     <Settings className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.adminNav}</span>
                   </button>
                 )}
@@ -2984,9 +2992,13 @@ export default function App() {
                               : tx.type === "referral_bonus"
                                 ? "Referral Bonus"
                                 : "Top-up"}
-                            {tx.status === "OK" || tx.status === "paid" ? (
-                              <span className="text-green-500 ml-1 text-sm">
-                                ✓
+                            {tx.status === "OK" || tx.status === "paid" || tx.status === "completed" || tx.status === "success" ? (
+                              <span className="text-green-500 ml-1 text-sm font-bold">
+                                (Paid)
+                              </span>
+                            ) : tx.status === "rejected" || tx.status === "failed" || tx.status === "canceled" || tx.status === "cancelled" ? (
+                              <span className="text-red-500 ml-1 text-sm font-bold">
+                                (Rejected)
                               </span>
                             ) : (
                               <span className="text-yellow-500 ml-1 text-sm font-normal">
@@ -3201,9 +3213,9 @@ export default function App() {
                           </td>
                           <td className="px-6 py-4">
                             <span className={`font-bold uppercase ${
-                              tx.status === "Completed" ? "text-green-500" :
-                              tx.status === "Canceled" ? "text-red-500" :
-                              tx.status === "Pending" ? "text-yellow-500" :
+                              (tx.status || "").toLowerCase() === "completed" || (tx.status || "").toLowerCase() === "success" ? "text-green-500" :
+                              ["canceled", "cancelled", "failed", "error", "rejected", "refunded"].includes((tx.status || "").toLowerCase()) ? "text-red-500" :
+                              ["pending", "wait", "awaiting"].includes((tx.status || "").toLowerCase()) ? "text-yellow-500" :
                               "text-blue-500"
                             }`}>
                               {tx.status}
@@ -3244,7 +3256,7 @@ export default function App() {
               </h2>
               <div className="flex items-center gap-2">
                 {((currentUser?.email && (currentUser.email === "admin@gmail.com" || currentUser.email === "uzvsbdnzyxhzj@gmail.com")) || currentUser?.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2") && (
-                  <button onClick={() => { setCurrentView("admin"); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg transition text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 font-bold hidden md:flex">
+                  <button data-ad-skip="true" onClick={() => { setCurrentView("admin"); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg transition text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 font-bold hidden md:flex">
                     <Settings className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">Admin Settings</span>
                   </button>
                 )}
@@ -3264,7 +3276,7 @@ export default function App() {
               <div className="space-y-6">
                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden text-center p-6">
                    {((currentUser?.email && (currentUser.email === "admin@gmail.com" || currentUser.email === "uzvsbdnzyxhzj@gmail.com")) || currentUser?.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2") && (
-                     <button onClick={() => { setCurrentView("admin"); }} className="mb-4 mx-auto md:hidden flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl transition text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 font-bold w-full">
+                     <button data-ad-skip="true" onClick={() => { setCurrentView("admin"); }} className="mb-4 mx-auto md:hidden flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl transition text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 font-bold w-full">
                        <Settings className="w-5 h-5 shrink-0" /> <span>Admin Settings Dashboard</span>
                      </button>
                    )}
@@ -3589,10 +3601,16 @@ export default function App() {
                             : tx.type === "referral_bonus"
                               ? "Referral Bonus"
                               : "Top-up"}
-                          {tx.status === "OK" || tx.status === "paid" ? (
-                            <span className="text-green-500 ml-1">✓</span>
+                          {tx.status === "OK" || tx.status === "paid" || tx.status === "completed" || tx.status === "success" ? (
+                            <span className="text-green-500 ml-1 text-xs font-bold">
+                              ✓ Paid
+                            </span>
+                          ) : tx.status === "rejected" || tx.status === "failed" || tx.status === "canceled" || tx.status === "cancelled" ? (
+                            <span className="text-red-500 ml-1 text-xs font-bold">
+                              ✗ Rejected
+                            </span>
                           ) : (
-                            <span className="text-yellow-500 ml-1 text-xs">
+                            <span className="text-yellow-500 ml-1 text-xs font-medium">
                               Pending
                             </span>
                           )}
@@ -5250,25 +5268,25 @@ export default function App() {
       <div className="md:hidden fixed bottom-4 left-4 right-4 bg-white/90 backdrop-blur-xl border border-slate-200/60 z-[60] flex justify-around items-center px-2 py-2 shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-2xl">
         <button onClick={() => { setCurrentView("dashboard"); }} className={`flex flex-col items-center flex-1 py-1 transition-all duration-300 ${currentView === "dashboard" ? "text-blue-600 scale-110" : "text-slate-400 hover:text-slate-600"}`}>
           <Home className={`w-[22px] h-[22px] mb-0.5 ${currentView === "dashboard" ? "stroke-[2.5px]" : "stroke-2"}`} />
-          <span className={`text-[10px] ${currentView === "dashboard" ? "font-bold" : "font-medium"}`}>Home</span>
+          <span className={`text-[10px] ${currentView === "dashboard" ? "font-bold" : "font-medium"}`}>{i18n.dashboardNav || "Home"}</span>
         </button>
         <button onClick={() => { requireAuth(() => { setTopupModal(true); setIsMobileMenuOpen(false); }); }} className={`flex flex-col items-center flex-1 py-1 transition-all duration-300 text-slate-400 hover:text-slate-600`}>
           <div className="w-[22px] h-[22px] mb-0.5 rounded-full border-2 border-current flex items-center justify-center">
             <Plus className="w-3.5 h-3.5" strokeWidth={3} />
           </div>
-          <span className="text-[10px] font-medium">Add Money</span>
+          <span className="text-[10px] font-medium">{i18n.addFundsTitle || "Add Money"}</span>
         </button>
         <button onClick={() => requireAuth(() => { setCurrentView("records"); })} className={`flex flex-col items-center flex-1 py-1 transition-all duration-300 ${currentView === "records" ? "text-blue-600 scale-110" : "text-slate-400 hover:text-slate-600"}`}>
           <Bookmark className={`w-[22px] h-[22px] mb-0.5 ${currentView === "records" ? "stroke-[2.5px]" : "stroke-2"}`} />
-          <span className={`text-[10px] ${currentView === "records" ? "font-bold" : "font-medium"}`}>My Orders</span>
+          <span className={`text-[10px] ${currentView === "records" ? "font-bold" : "font-medium"}`}>{i18n.recordsNav || "My Orders"}</span>
         </button>
         <button onClick={() => { setCurrentView("buy"); }} className={`flex flex-col items-center flex-1 py-1 transition-all duration-300 ${currentView === "buy" ? "text-blue-600 scale-110" : "text-slate-400 hover:text-slate-600"}`}>
           <LayoutGrid className={`w-[22px] h-[22px] mb-0.5 ${currentView === "buy" ? "stroke-[2.5px]" : "stroke-2"}`} />
-          <span className={`text-[10px] ${currentView === "buy" ? "font-bold" : "font-medium"}`}>My Codes</span>
+          <span className={`text-[10px] ${currentView === "buy" ? "font-bold" : "font-medium"}`}>{i18n.buyNav || "Buy Account"}</span>
         </button>
         <button onClick={() => requireAuth(() => { setCurrentView("profile"); })} className={`flex flex-col items-center flex-1 py-1 transition-all duration-300 ${currentView === "profile" ? "text-blue-600 scale-110" : "text-slate-400 hover:text-slate-600"}`}>
           <User className={`w-[22px] h-[22px] mb-0.5 ${currentView === "profile" ? "stroke-[2.5px]" : "stroke-2"}`} />
-          <span className={`text-[10px] ${currentView === "profile" ? "font-bold" : "font-medium"}`}>Account</span>
+          <span className={`text-[10px] ${currentView === "profile" ? "font-bold" : "font-medium"}`}>{i18n.profileNav || "Account"}</span>
         </button>
       </div>
 
@@ -5374,31 +5392,31 @@ export default function App() {
                   onClick={() => { (window as any).triggerAdClick?.(); setIsMobileMenuOpen(false); setCurrentView("dashboard"); }}
                   className={`flex items-center gap-3 p-3 rounded-xl transition font-medium w-full text-left ${currentView === "dashboard" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
                 >
-                  <Home className={`w-5 h-5 ${currentView === "dashboard" ? "text-blue-600" : "text-gray-400"}`} /> Home
+                  <Home className={`w-5 h-5 ${currentView === "dashboard" ? "text-blue-600" : "text-gray-400"}`} /> {i18n.dashboardNav || "Home"}
                 </button>
                 <button
                   onClick={() => { requireAuth(() => { setTopupModal(true); setIsMobileMenuOpen(false); }); }}
                   className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 text-gray-700 transition font-medium w-full text-left"
                 >
-                  <Plus className="w-5 h-5 text-gray-400" /> Add Money
+                  <Plus className="w-5 h-5 text-gray-400" /> {i18n.addFundsTitle || "Add Money"}
                 </button>
                 <button
                   onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setIsMobileMenuOpen(false); setCurrentView("records"); })}
                   className={`flex items-center gap-3 p-3 rounded-xl transition font-medium w-full text-left ${currentView === "records" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
                 >
-                  <Bookmark className={`w-5 h-5 ${currentView === "records" ? "text-blue-600" : "text-gray-400"}`} /> My Orders
+                  <Bookmark className={`w-5 h-5 ${currentView === "records" ? "text-blue-600" : "text-gray-400"}`} /> {i18n.recordsNav || "My Orders"}
                 </button>
                 <button
                   onClick={() => { (window as any).triggerAdClick?.(); setIsMobileMenuOpen(false); setCurrentView("buy"); }}
                   className={`flex items-center gap-3 p-3 rounded-xl transition font-medium w-full text-left ${currentView === "buy" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
                 >
-                  <LayoutGrid className={`w-5 h-5 ${currentView === "buy" ? "text-blue-600" : "text-gray-400"}`} /> My Codes
+                  <LayoutGrid className={`w-5 h-5 ${currentView === "buy" ? "text-blue-600" : "text-gray-400"}`} /> {i18n.buyNav || "Buy Account"}
                 </button>
                 <button
                   onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setIsMobileMenuOpen(false); setCurrentView("profile"); })}
                   className={`flex items-center gap-3 p-3 rounded-xl transition font-medium w-full text-left ${currentView === "profile" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
                 >
-                  <User className={`w-5 h-5 ${currentView === "profile" ? "text-blue-600" : "text-gray-400"}`} /> My Account
+                  <User className={`w-5 h-5 ${currentView === "profile" ? "text-blue-600" : "text-gray-400"}`} /> {i18n.profileNav || "My Account"}
                 </button>
                 
                 <div className="my-2 border-t border-gray-100"></div>
