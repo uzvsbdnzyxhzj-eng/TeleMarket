@@ -17,7 +17,7 @@ service cloud.firestore {
     }
 
     function isSignedIn() { return request.auth != null; }
-    function isAdmin() { return isSignedIn() && (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) || request.auth.uid == 'rLDBAtiXmOcXGLU2d5GYFonwJkr2' || request.auth.token.email == 'uzvsbdnzyxhzj@gmail.com' || request.auth.token.email == 'admin@gmail.com'); }
+    function isAdmin() { return isSignedIn() && (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) || request.auth.uid == 'rLDBAtiXmOcXGLU2d5GYFonwJkr2' || request.auth.token.email == 'uzvsbdnzyxhzj@gmail.com'); }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
@@ -122,6 +122,23 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    function isValidCourse(data) {
+      return data.category is string &&
+             data.title is string &&
+             data.oldPrice is number &&
+             data.price is number &&
+             data.rating is number &&
+             (data.keys().hasAll(['badge']) == false || data.badge is string) &&
+             (data.keys().hasAll(['features']) == false || data.features is list) &&
+             (data.keys().hasAll(['imageUrl']) == false || data.imageUrl is string);
+    }
+
+    match /courses/{courseId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidCourse(incoming());
+      allow delete: if isAdmin();
+    }
+
     function isValidTicket(data) {
       return data.userId is string &&
              data.subject is string &&
@@ -170,6 +187,33 @@ service cloud.firestore {
                     incoming().userId == request.auth.uid;
 
       allow update: if isSignedIn() && (isAdmin() || (existing().userId == request.auth.uid && isValidChildPanel(incoming()))); 
+      allow delete: if isAdmin();
+    }
+
+    function isValidSubscription(data) {
+      return data.userId is string &&
+             data.userName is string &&
+             data.userEmail is string &&
+             data.geminiEmail is string &&
+             data.geminiPassword is string &&
+             data.plan in ['1month', '3month', '6month', '12month'] &&
+             data.priceUSD is number &&
+             data.country is string &&
+             data.createdAt is number &&
+             data.expiresAt is number &&
+             data.status in ['active', 'expired', 'pending'] &&
+             data.familyManagerEmail is string;
+    }
+
+    match /gemini_subscriptions/{subscriptionId} {
+      allow read: if isSignedIn() && (resource == null || resource.data == null || resource.data.userId == request.auth.uid || isAdmin());
+      
+      allow create: if isSignedIn() && 
+                    isValidId(subscriptionId) && 
+                    isValidSubscription(incoming()) && 
+                    incoming().userId == request.auth.uid;
+
+      allow update: if isSignedIn() && (isAdmin() || (existing().userId == request.auth.uid && isValidSubscription(incoming()))); 
       allow delete: if isAdmin();
     }
   }

@@ -103,9 +103,54 @@
         "isActive": { "type": "boolean" },
         "banners": { "type": "array" }
       }
+    },
+    "Course": {
+      "title": "Course",
+      "description": "Premium courses and digital products offered in the store",
+      "type": "object",
+      "properties": {
+        "category": { "type": "string" },
+        "title": { "type": "string" },
+        "oldPrice": { "type": "number" },
+        "price": { "type": "number" },
+        "rating": { "type": "number" },
+        "badge": { "type": "string" },
+        "features": { "type": "array" },
+        "imageUrl": { "type": "string" }
+      },
+      "required": ["category", "title", "price"]
+    },
+    "GeminiSubscription": {
+      "title": "GeminiSubscription",
+      "description": "Premium Google Gemini Pro subscriptions with user and admin fields",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "geminiEmail": { "type": "string" },
+        "geminiPassword": { "type": "string" },
+        "plan": { "type": "string", "enum": ["1month", "3month", "6month", "12month"] },
+        "priceUSD": { "type": "number" },
+        "country": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "expiresAt": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "expired", "pending"] },
+        "familyManagerEmail": { "type": "string" }
+      },
+      "required": ["userId", "geminiEmail", "plan", "priceUSD", "country", "createdAt", "expiresAt", "status", "familyManagerEmail"]
     }
   },
   "firestore": {
+    "gemini_subscriptions/{subscriptionId}": {
+      "schema": { "$ref": "#/entities/GeminiSubscription" },
+      "description": "Google Gemini Pro subscriptions mapping with Family Manager email"
+    },
+    "courses/{courseId}": {
+      "schema": { "$ref": "#/entities/Course" },
+      "description": "Available products and courses"
+    },
     "counters/{counterId}": {
       "schema": { "$ref": "#/entities/Counter" },
       "description": "Stores sequence counters"

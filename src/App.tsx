@@ -53,7 +53,9 @@ import {
   Copy,
   MessageSquare,
   Ticket,
-  Code
+  Code,
+  BookOpen,
+  Wrench
 } from "lucide-react";
 import { auth, db } from "./firebase";
 
@@ -65,6 +67,48 @@ function getTimeElapsedString(timestamp: number) {
   if (diffHours < 24) return `${diffHours} hr ${diffMins % 60}m run`;
   const diffDays = Math.floor(diffHours / 24);
   return `${diffDays} days run`;
+}
+
+function getSubscriptionDaysAgo(timestamp: number) {
+  const diffMs = Math.max(0, Date.now() - timestamp);
+  const days = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+  if (days <= 0) {
+    const hours = Math.floor(diffMs / (60 * 60 * 1000));
+    if (hours <= 0) {
+      const mins = Math.floor(diffMs / (60 * 1000));
+      return mins <= 1 ? "Just now" : `${mins} minutes ago`;
+    }
+    return `${hours} hr${hours > 1 ? 's' : ''} ago`;
+  }
+  return `${days} day${days > 1 ? 's' : ''} ago`;
+}
+
+function getSubscriptionRemainingText(expiresAt: number) {
+  const diffMs = expiresAt - Date.now();
+  if (diffMs <= 0) {
+    return { text: "Expired", isExpired: true, isCritical: false };
+  }
+  const days = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+  if (days <= 0) {
+    const hours = Math.floor(diffMs / (60 * 60 * 1000));
+    if (hours <= 0) {
+      const mins = Math.floor(diffMs / (60 * 1000));
+      return { text: `${mins}m remaining`, isExpired: false, isCritical: true };
+    }
+    return { text: `${hours}h remaining`, isExpired: false, isCritical: true };
+  }
+  return { 
+    text: `${days} day${days > 1 ? 's' : ''} remaining`, 
+    isExpired: false, 
+    isCritical: days <= 1 
+  };
+}
+
+function isSubscriptionExpiringSoon(expiresAt: number) {
+  const diffMs = expiresAt - Date.now();
+  if (diffMs <= 0) return false;
+  const hours = diffMs / (60 * 60 * 1000);
+  return hours <= 24;
 }
 import {
   onAuthStateChanged,
@@ -120,7 +164,9 @@ export type View =
   | "tickets"
   | "post-ad"
   | "child-panel"
-  | "api";
+  | "api"
+  | "courses"
+  | "tools";
 
 import {
   getFlag,
@@ -145,6 +191,461 @@ const TOPIC_OPTIONS = [
   "Movies",
 ];
 
+const geminiCountriesList = [
+  "United States", "Canada", "United Kingdom", "Australia", "New Zealand", 
+  "Germany", "France", "Italy", "Spain", "Netherlands", "Belgium", "Sweden", 
+  "Norway", "Denmark", "Finland", "Switzerland", "Austria", "Ireland", 
+  "Luxembourg", "Iceland", "Poland", "Czech Republic", "Slovakia", "Hungary", 
+  "Romania", "Bulgaria", "Croatia", "Slovenia", "Serbia", "Bosnia and Herzegovina", 
+  "Albania", "Montenegro", "North Macedonia", "Greece", "Portugal", "Estonia", 
+  "Latvia", "Lithuania", "Malta", "Cyprus", "India", "Bangladesh", "Pakistan", 
+  "Nepal", "Sri Lanka", "Maldives", "Bhutan", "Indonesia", "Philippines", 
+  "Vietnam", "Thailand", "Malaysia", "Singapore", "Cambodia", "Laos", "Myanmar", 
+  "Mongolia", "South Korea", "Japan", "Hong Kong", "United Arab Emirates", 
+  "Saudi Arabia", "Qatar", "Kuwait", "Bahrain", "Oman", "Israel", "Jordan", 
+  "Lebanon", "Iraq", "Turkey", "Egypt", "Morocco", "Algeria", "Tunisia", 
+  "Brazil", "Argentina", "Chile", "Colombia", "Peru", "Venezuela", "Uruguay", 
+  "Paraguay", "Bolivia", "Ecuador", "Mexico", "Costa Rica", "Panama", "Guatemala", 
+  "Honduras", "El Salvador", "Nicaragua", "South Africa", "Nigeria", "Kenya", 
+  "Ghana", "Ethiopia", "Tanzania", "Uganda", "Rwanda", "Zambia", "Zimbabwe", 
+  "Botswana", "Namibia", "Senegal", "Ivory Coast", "Cameroon", "Angola", "Sudan", 
+  "Somalia", "Georgia", "Armenia", "Azerbaijan", "Kazakhstan", "Uzbekistan", 
+  "Kyrgyzstan", "Tajikistan", "Turkmenistan", "Moldova", "Ukraine"
+];
+
+const geminiCountryFlags: Record<string, string> = {
+  "United States": "🇺🇸",
+  "Canada": "🇨🇦",
+  "United Kingdom": "🇬🇧",
+  "Australia": "🇦🇺",
+  "New Zealand": "🇳🇿",
+  "Germany": "🇩🇪",
+  "France": "🇫🇷",
+  "Italy": "🇮🇹",
+  "Spain": "🇪🇸",
+  "Netherlands": "🇳🇱",
+  "Belgium": "🇧🇪",
+  "Sweden": "🇸🇪",
+  "Norway": "🇳🇴",
+  "Denmark": "🇩🇰",
+  "Finland": "🇫🇮",
+  "Switzerland": "🇨🇭",
+  "Austria": "🇦🇹",
+  "Ireland": "🇮🇪",
+  "Luxembourg": "🇱🇺",
+  "Iceland": "🇮🇸",
+  "Poland": "🇵🇱",
+  "Czech Republic": "🇨🇿",
+  "Slovakia": "🇸🇰",
+  "Hungary": "🇭🇺",
+  "Romania": "🇷🇴",
+  "Bulgaria": "🇧🇬",
+  "Croatia": "🇭🇷",
+  "Slovenia": "🇸🇮",
+  "Serbia": "🇷🇸",
+  "Bosnia and Herzegovina": "🇧🇦",
+  "Albania": "🇦🇱",
+  "Montenegro": "🇲🇪",
+  "North Macedonia": "🇲🇰",
+  "Greece": "🇬🇷",
+  "Portugal": "🇵🇹",
+  "Estonia": "🇪🇪",
+  "Latvia": "🇱🇻",
+  "Lithuania": "🇱🇹",
+  "Malta": "🇲🇹",
+  "Cyprus": "🇨🇾",
+  "India": "🇮🇳",
+  "Bangladesh": "🇧🇩",
+  "Pakistan": "🇵🇰",
+  "Nepal": "🇳🇵",
+  "Sri Lanka": "🇱🇰",
+  "Maldives": "🇲🇻",
+  "Bhutan": "🇧🇹",
+  "Indonesia": "🇮🇩",
+  "Philippines": "🇵🇭",
+  "Vietnam": "🇻🇳",
+  "Thailand": "🇹🇭",
+  "Malaysia": "🇲🇾",
+  "Singapore": "🇸🇬",
+  "Cambodia": "🇰🇭",
+  "Laos": "🇱🇦",
+  "Myanmar": "🇲🇲",
+  "Mongolia": "🇲🇳",
+  "South Korea": "🇰🇷",
+  "Japan": "🇯🇵",
+  "Hong Kong": "🇭🇰",
+  "United Arab Emirates": "🇦🇪",
+  "Saudi Arabia": "🇸🇦",
+  "Qatar": "🇶🇦",
+  "Kuwait": "🇰🇼",
+  "Bahrain": "🇧🇭",
+  "Oman": "🇴🇲",
+  "Israel": "🇮🇱",
+  "Jordan": "🇯🇴",
+  "Lebanon": "🇱🇧",
+  "Iraq": "🇮🇶",
+  "Turkey": "🇹🇷",
+  "Egypt": "🇪🇬",
+  "Morocco": "🇲🇦",
+  "Algeria": "🇩🇿",
+  "Tunisia": "🇹🇳",
+  "Brazil": "🇧🇷",
+  "Argentina": "🇦🇷",
+  "Chile": "🇨🇱",
+  "Colombia": "🇨🇴",
+  "Peru": "🇵🇪",
+  "Venezuela": "🇻🇪",
+  "Uruguay": "🇺🇾",
+  "Paraguay": "🇵🇾",
+  "Bolivia": "🇧🇴",
+  "Ecuador": "🇪🇨",
+  "Mexico": "🇲🇽",
+  "Costa Rica": "🇨🇷",
+  "Panama": "🇵🇦",
+  "Guatemala": "🇬🇹",
+  "Honduras": "🇭🇳",
+  "El Salvador": "🇸🇻",
+  "Nicaragua": "🇳🇮",
+  "South Africa": "🇿🇦",
+  "Nigeria": "🇳🇬",
+  "Kenya": "🇰🇪",
+  "Ghana": "🇬🇭",
+  "Ethiopia": "🇪🇹",
+  "Tanzania": "🇹🇿",
+  "Uganda": "🇺🇬",
+  "Rwanda": "🇷🇼",
+  "Zambia": "🇿🇲",
+  "Zimbabwe": "🇿🇼",
+  "Botswana": "🇧🇼",
+  "Namibia": "🇳🇦",
+  "Senegal": "🇸🇳",
+  "Ivory Coast": "🇨🇮",
+  "Cameroon": "🇨🇲",
+  "Angola": "🇦🇴",
+  "Sudan": "🇸🇩",
+  "Somalia": "🇸🇴",
+  "Georgia": "🇬🇪",
+  "Armenia": "🇦🇲",
+  "Azerbaijan": "🇦🇿",
+  "Kazakhstan": "🇰🇿",
+  "Uzbekistan": "🇺🇿",
+  "Kyrgyzstan": "🇰🇬",
+  "Tajikistan": "🇹🇯",
+  "Turkmenistan": "🇹🇲",
+  "Moldova": "🇲🇩",
+  "Ukraine": "🇺🇦"
+};
+
+const geminiCountryPrices12M: Record<string, number> = {
+  "United States": 12.99,
+  "Canada": 12.99,
+  "United Kingdom": 12.99,
+  "Australia": 12.99,
+  "New Zealand": 12.99,
+  "Germany": 12.99,
+  "France": 12.99,
+  "Italy": 11.99,
+  "Spain": 11.99,
+  "Netherlands": 12.99,
+  "Belgium": 11.99,
+  "Sweden": 12.99,
+  "Norway": 13.99,
+  "Denmark": 13.99,
+  "Finland": 12.99,
+  "Switzerland": 14.99,
+  "Austria": 11.99,
+  "Ireland": 12.99,
+  "Luxembourg": 13.99,
+  "Iceland": 13.99,
+  "Poland": 9.99,
+  "Czech Republic": 9.99,
+  "Slovakia": 9.99,
+  "Hungary": 9.99,
+  "Romania": 8.99,
+  "Bulgaria": 7.99,
+  "Croatia": 9.99,
+  "Slovenia": 9.99,
+  "Serbia": 8.99,
+  "Bosnia and Herzegovina": 8.99,
+  "Albania": 7.99,
+  "Montenegro": 8.99,
+  "North Macedonia": 7.99,
+  "Greece": 9.99,
+  "Portugal": 9.99,
+  "Estonia": 9.99,
+  "Latvia": 8.99,
+  "Lithuania": 8.99,
+  "Malta": 9.99,
+  "Cyprus": 9.99,
+  "India": 5.99,
+  "Bangladesh": 4.99,
+  "Pakistan": 4.99,
+  "Nepal": 4.99,
+  "Sri Lanka": 5.99,
+  "Maldives": 5.99,
+  "Bhutan": 4.99,
+  "Indonesia": 5.99,
+  "Philippines": 5.99,
+  "Vietnam": 5.99,
+  "Thailand": 6.99,
+  "Malaysia": 7.99,
+  "Singapore": 9.99,
+  "Cambodia": 4.99,
+  "Laos": 4.99,
+  "Myanmar": 4.99,
+  "Mongolia": 5.99,
+  "South Korea": 12.99,
+  "Japan": 12.99,
+  "Hong Kong": 9.99,
+  "United Arab Emirates": 9.99,
+  "Saudi Arabia": 9.99,
+  "Qatar": 9.99,
+  "Kuwait": 9.99,
+  "Bahrain": 9.99,
+  "Oman": 9.99,
+  "Israel": 9.99,
+  "Jordan": 8.99,
+  "Lebanon": 8.99,
+  "Iraq": 8.99,
+  "Turkey": 7.99,
+  "Egypt": 7.99,
+  "Morocco": 7.99,
+  "Algeria": 7.99,
+  "Tunisia": 7.99,
+  "Brazil": 9.99,
+  "Argentina": 9.99,
+  "Chile": 9.99,
+  "Colombia": 9.99,
+  "Peru": 8.99,
+  "Venezuela": 8.99,
+  "Uruguay": 9.99,
+  "Paraguay": 8.99,
+  "Bolivia": 8.99,
+  "Ecuador": 8.99,
+  "Mexico": 9.99,
+  "Costa Rica": 8.99,
+  "Panama": 9.99,
+  "Guatemala": 8.99,
+  "Honduras": 8.99,
+  "El Salvador": 8.99,
+  "Nicaragua": 8.99,
+  "South Africa": 9.99,
+  "Nigeria": 7.99,
+  "Kenya": 7.99,
+  "Ghana": 7.99,
+  "Ethiopia": 7.99,
+  "Tanzania": 7.99,
+  "Uganda": 7.99,
+  "Rwanda": 7.99,
+  "Zambia": 7.99,
+  "Zimbabwe": 7.99,
+  "Botswana": 8.99,
+  "Namibia": 8.99,
+  "Senegal": 7.99,
+  "Ivory Coast": 7.99,
+  "Cameroon": 7.99,
+  "Angola": 7.99,
+  "Sudan": 6.99,
+  "Somalia": 6.99,
+  "Georgia": 8.99,
+  "Armenia": 8.99,
+  "Azerbaijan": 8.99,
+  "Kazakhstan": 8.99,
+  "Uzbekistan": 8.99,
+  "Kyrgyzstan": 7.99,
+  "Tajikistan": 7.99,
+  "Turkmenistan": 7.99,
+  "Moldova": 8.99,
+  "Ukraine": 8.99
+};
+
+const premiumProducts = [
+  {
+    id: 1,
+    category: "Language & Skills",
+    title: "সহজে ইংরেজি শিখার জনপ্রিয় ৬০টি+ PDF BOOK এবং ১৭০+ ভিডিও ক্লাস পাচ্ছেন মাত্র ৯৯ টাকায়",
+    oldPrice: 700,
+    price: 99,
+    rating: 5,
+    features: ["৬০+ প্রিমিয়াম PDF বই", "১৭০+ ভিডিও টিউটোরিয়াল", "আজীবন এক্সেস", "মোবাইল ও পিসি ফ্রেন্ডলি"],
+    badge: "Best Seller"
+  },
+  {
+    id: 2,
+    category: "AI & Reels",
+    title: "50000+ রেডিমেইড AI REELS ভিডিও",
+    oldPrice: 1000,
+    price: 199,
+    rating: 5,
+    features: ["৫০,০০০+ রেডি রিলস", "উচ্চ মানের ভিডিও (HD)", "কপিরাইট ফ্রি কন্টেন্ট", "ইনস্ট্যান্ট ডাউনলোড লিঙ্ক"],
+    badge: "Trending"
+  },
+  {
+    id: 3,
+    category: "AI & Reels",
+    title: "৫০ হাজারের বেশী ট্রেন্ডি AI কপিরাইট ফ্রি রিল্স ভিডিও!",
+    oldPrice: 400,
+    price: 120,
+    rating: 5,
+    features: ["ট্রেন্ডি এআই ভিডিওস", "১০০% কপিরাইট মুক্ত", "ভাইরাল হওয়ার গ্যারান্টি", "গুগল ড্রাইভ এক্সেস"],
+    badge: "Hot Offer"
+  },
+  {
+    id: 4,
+    category: "Entertainment & Video",
+    title: "৫০,০০০+ কপিরাইট ফ্রি রেডি টু আপলোড মুভি ক্লিপ বান্ডেল!",
+    oldPrice: 1000,
+    price: 250,
+    rating: 5,
+    features: ["মুভি ক্লিপস কালেকশন", "কপিরাইট ছাড়াই আপলোড", "ফেসবুক ও ইউটিউবের জন্য", "লাইফটাইম ডাউনলোড সুবিধা"],
+    badge: "Popular"
+  },
+  {
+    id: 5,
+    category: "E-Commerce Course",
+    title: "শহিদ আনোয়ার এর 297 ডলারের AMAZON FBA ফুল কোর্স",
+    oldPrice: 3500,
+    price: 190,
+    rating: 5,
+    features: ["২৯৭ ডলারের কোর্স মাত্র ১৯০৳", "ধাপ-বাই-ধাপ গাইডলাইন", "অ্যামাজন সেলার অ্যাকাউন্ট সেটআপ", "বাংলা সাবটাইটেল/ভাষা"],
+    badge: "Premium"
+  },
+  {
+    id: 6,
+    category: "Animation Course",
+    title: "2D, 3D, WHITEBOARD, MOBILE এনিমেশন ফুল কোর্স!",
+    oldPrice: 1000,
+    price: 155,
+    rating: 5,
+    features: ["2D & 3D এনিমেশন শিক্ষা", "হোয়াইটবোর্ড ও মোবাইল এনিমেশন", "সহজ বাংলা টিউটোরিয়াল", "প্রয়োজনীয় সকল সফটওয়্যার"],
+    badge: "Super Course"
+  },
+  {
+    id: 7,
+    category: "ASMR & Reels",
+    title: "১ হাজার+ ট্রেন্ডিং AI গ্লাস কাটিং রিল্স ভিডিও বান্ডেল",
+    oldPrice: 300,
+    price: 145,
+    rating: 5,
+    features: ["১০০০+ এআই গ্লাস কাটিং ভিডিও", "ভাইরাল ASMR সাউন্ড", "কপিরাইট ফ্রি কালেকশন", "গুগল ড্রাইভ লিঙ্ক"],
+    badge: "Viral"
+  },
+  {
+    id: 8,
+    category: "Premium Bundle",
+    title: "ধ্রুব রাঠির প্রিমিয়াম কোর্স বান্ডেল $550 মূল্যের সব কোর্স এখন মাত্র ২৯৯ টাকায় লাইফটাইম এক্সেস সহ।",
+    oldPrice: 7000,
+    price: 299,
+    rating: 5,
+    features: ["$550 মূল্যের প্রিমিয়াম কোর্স", "ধ্রুব রাঠির সিক্রেট মেথড", "লাইফটাইম এক্সেস পাবেন", "সম্পূর্ণ ফাইল কালেকশন"],
+    badge: "VIP Choice"
+  },
+  {
+    id: 9,
+    category: "Software Bundle",
+    title: "পিসির সব প্রয়োজনীয় সফটওয়্যার একসাথে! | PC SOFTWARE COMBO PACK (লাইফটাইম মেয়াদ)",
+    oldPrice: 999,
+    price: 290,
+    rating: 5,
+    features: ["পিসির সকল জরুরি সফটওয়্যার", "এক ক্লিকে ইনস্টলেশন গাইড", "লাইফটাইম মেয়াদ ও ফ্রি আপডেট", "অ্যাক্টিভেশন ফাইল সহ"],
+    badge: "Must Have"
+  },
+  {
+    id: 10,
+    category: "Maps & Assets",
+    title: "সারা বাংলাদেশ এর অরিজিনাল মৌজা ম্যাপ মাত্র ১৯৫ টাকা",
+    oldPrice: 900,
+    price: 195,
+    rating: 5,
+    features: ["৬৪ জেলার মৌজা ম্যাপ", "অরিজিনাল ও হাই-কোয়ালিটি ফাইল", "সহজে সার্চযোগ্য তালিকা", "ভূমির পরিমাপের জন্য প্রয়োজনীয়"],
+    badge: "Rare Asset"
+  },
+  {
+    id: 11,
+    category: "Government Tendering",
+    title: "ই-জিপি টেন্ডার ড্রপিং প্রফেশনাল ভিডিও রেকর্ডেড কোর্স",
+    oldPrice: 1000,
+    price: 300,
+    rating: 5,
+    features: ["e-GP টেন্ডার ড্রপিং গাইড", "লাইভ প্রজেক্ট ভিডিও ক্লাস", "ট্যাক্স ও ভ্যাট হিসাব কিতাব", "লাইফটাইম সাপোর্ট"],
+    badge: "Expert Level"
+  },
+  {
+    id: 12,
+    category: "YouTube Course",
+    title: "মায়াজাল এর ইউটিউব সিক্রেট কোর্স",
+    oldPrice: 1500,
+    price: 199,
+    rating: 5,
+    features: ["মায়াজাল এর কন্টেন্ট মেকিং সিক্রেট", "ইউটিউব এলগরিদম হ্যাকস", "ভিডিও এডিটিং ও ভয়েস ট্রিকস", "ইউটিউব গ্রোথ স্ট্র্যাটেজি"],
+    badge: "Recommended"
+  }
+];
+
+const renderProductCoverMockup = (prod: any) => {
+  if (prod?.imageUrl) {
+    return (
+      <img 
+        src={prod.imageUrl} 
+        alt="Product Cover" 
+        className="w-full h-full object-cover"
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
+  let imgUrl = "";
+  switch (Number(prod?.id)) {
+    case 1:
+      imgUrl = "https://digitalproduct4.shop/wp-content/uploads/2025/12/1500x1500_resized.png";
+      break;
+    case 2:
+      imgUrl = "https://digitalproduct4.shop/wp-content/uploads/2025/12/Creative-Design-1500x1500-1.png";
+      break;
+    case 3:
+      imgUrl = "https://digitalproduct4.shop/wp-content/uploads/2025/12/1771754322702.png";
+      break;
+    case 4:
+      imgUrl = "https://digitalproduct4.shop/wp-content/uploads/2025/12/1771754455157.png";
+      break;
+    case 5:
+      imgUrl = "https://digitalproduct4.shop/wp-content/uploads/2025/12/Modern-Style-Design-1500x1500-1.png";
+      break;
+    case 6:
+      imgUrl = "https://digitalproduct4.shop/wp-content/uploads/2025/12/1771755150725.png";
+      break;
+    case 7:
+      imgUrl = "https://digitalproduct4.shop/wp-content/uploads/2025/12/1771755370340.png";
+      break;
+    case 8:
+      imgUrl = "https://digitalproduct4.shop/wp-content/uploads/2025/12/1771755568064.png";
+      break;
+    case 9:
+      imgUrl = "https://digitalproduct4.shop/wp-content/uploads/2025/12/1771755967871.png";
+      break;
+    case 10:
+      imgUrl = "https://digitalproduct4.shop/wp-content/uploads/2025/12/1771755998473.png";
+      break;
+    case 11:
+      imgUrl = "https://digitalproduct4.shop/wp-content/uploads/2025/12/1771756140421.png";
+      break;
+    case 12:
+      imgUrl = "https://digitalproduct4.shop/wp-content/uploads/2025/12/1771756453624.png";
+      break;
+    default:
+      imgUrl = "https://digitalproduct4.shop/wp-content/uploads/2026/01/cropped-Gemini_Generated_Image_7f75z77f75z77f75-270x270.png";
+      break;
+  }
+
+  return (
+    <img 
+      src={imgUrl} 
+      alt="Product Cover" 
+      className="w-full h-full object-cover"
+      referrerPolicy="no-referrer"
+    />
+  );
+};
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -154,6 +655,35 @@ export default function App() {
   const [smmCategory, setSmmCategory] = useState("social");
   const [recordsTab, setRecordsTab] = useState<"buy" | "smm">("buy");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Custom premium modals state
+  const [selectedCourseCat, setSelectedCourseCat] = useState("all");
+  const [showSpecialOfferAd, setShowSpecialOfferAd] = useState(false);
+
+  // Google Gemini Pro Premium purchase form states
+  const [geminiCountry, setGeminiCountry] = useState("Bangladesh");
+  const [geminiPlan, setGeminiPlan] = useState<"1month" | "3month" | "6month" | "12month">("12month");
+  const [geminiEmail, setGeminiEmail] = useState("");
+  const [geminiPassword, setGeminiPassword] = useState("");
+  const [selectedToolDetail, setSelectedToolDetail] = useState<string | null>(null);
+  const [geminiCountrySearch, setGeminiCountrySearch] = useState("");
+
+  // Subscriptions states
+  const [userSubscriptions, setUserSubscriptions] = useState<any[]>([]);
+  const [allSubscriptions, setAllSubscriptions] = useState<any[]>([]);
+  const [editingFamilyEmails, setEditingFamilyEmails] = useState<Record<string, string>>({});
+  const [adminSubSearch, setAdminSubSearch] = useState("");
+  const [adminSubFilter, setAdminSubFilter] = useState<"all" | "expiring" | "active" | "expired">("all");
+
+  // Bind triggerAdClick to show the Special Offer ad
+  useEffect(() => {
+    (window as any).triggerAdClick = () => {
+      setShowSpecialOfferAd(true);
+    };
+    return () => {
+      delete (window as any).triggerAdClick;
+    };
+  }, []);
 
   // Dynamic Monetag loading (only when logged in)
   useEffect(() => {
@@ -185,7 +715,7 @@ export default function App() {
       if (docSnap.exists()) {
         setSmmMarkupData(docSnap.data());
       }
-    });
+    }, (error) => console.error("smm_markup onSnapshot error", error));
     return () => unsub();
   }, []);
 
@@ -259,6 +789,245 @@ export default function App() {
     });
   };
 
+  const handleSaveCourse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminCourseForm.title) {
+      toast("Please enter a title");
+      return;
+    }
+    const courseId = adminCourseForm.id || String(Date.now());
+    const features = adminCourseForm.featuresString
+      ? adminCourseForm.featuresString.split(",").map(f => f.trim()).filter(Boolean)
+      : [];
+
+    const courseData = {
+      category: adminCourseForm.category,
+      title: adminCourseForm.title,
+      oldPrice: Number(adminCourseForm.oldPrice) || 0,
+      price: Number(adminCourseForm.price) || 0,
+      rating: Number(adminCourseForm.rating) || 5,
+      badge: adminCourseForm.badge || "Trending",
+      features: features,
+      imageUrl: adminCourseForm.imageUrl || ""
+    };
+
+    try {
+      await setDoc(doc(db, "courses", courseId), courseData);
+      toast("Course saved successfully!");
+      setAdminEditingCourse(null);
+      setAdminCourseForm({
+        id: "",
+        category: "Language & Skills",
+        title: "",
+        oldPrice: 0,
+        price: 0,
+        rating: 5,
+        badge: "Trending",
+        featuresString: "",
+        imageUrl: ""
+      });
+    } catch (error) {
+      console.error("Error saving course", error);
+      toast("Error saving course");
+    }
+  };
+
+  const handleDeleteCourse = async (courseId: string) => {
+    askConfirmation("Are you sure you want to delete this course/product?", async () => {
+      try {
+        await deleteDoc(doc(db, "courses", courseId));
+        toast("Course deleted successfully!");
+      } catch (error) {
+        console.error("Error deleting course", error);
+        toast("Error deleting course");
+      }
+    });
+  };
+
+  const handleBuyCourse = async (prod: any) => {
+    if (!currentUser) return requireAuth();
+    const priceUSD = Number((prod.price / TOPUP_RATE).toFixed(2));
+    if (balanceUSD < priceUSD) {
+      toast(`Insufficient balance. You need $${priceUSD.toFixed(2)} USD to purchase this course.`);
+      return;
+    }
+
+    askConfirmation(
+      `Confirm purchase of "${prod.title}" for $${priceUSD.toFixed(2)} USD?`,
+      async () => {
+        try {
+          await updateDoc(doc(db, "users", currentUser.uid), {
+            balanceUSD: increment(-priceUSD),
+            total_spent: increment(priceUSD),
+            last_update: Date.now()
+          });
+
+          const txRef = doc(collection(db, "transactions"));
+          await setDoc(txRef, {
+            userId: currentUser.uid,
+            type: "purchase_course",
+            txType: "Debit",
+            amountUSD: priceUSD,
+            status: "success",
+            details: { title: prod.title, category: prod.category, url: "Instant delivery requested" },
+            createdAt: Date.now(),
+          });
+
+          toast("Purchase successful! Contact support with your Transaction ID to get instant course access.");
+
+          // Auto-trigger prefilled WhatsApp link with purchase details for manual/instant delivery
+          const msg = `আসসালামু আলাইকুম, আমি এই মাত্র আপনার ওয়েবসাইট থেকে আমার ব্যালেন্স দিয়ে এই কোর্সটি কিনেছি:\n\n📂 কোর্স/প্রোডাক্ট: ${prod.title}\n💰 মূল্য: $${priceUSD.toFixed(2)} USD\n🆔 ইউজার আইডি: ${currentUser.uid}\n🧾 ট্রানজেকশন আইডি: ${txRef.id}\n\nদয়া করে আমাকে ডিরেক্ট গুগল ড্রাইভ ডাউনলোড লিংকটি দিন। ধন্যবাদ!`;
+          window.open(`https://wa.me/8801644627304?text=${encodeURIComponent(msg)}`, "_blank");
+        } catch (error) {
+          console.error("Error completing purchase", error);
+          toast("Error completing purchase");
+        }
+      }
+    );
+  };
+
+  const handleBuyTool = async (tool: any) => {
+    if (!currentUser) return requireAuth();
+    const priceUSD = tool.price;
+    if (balanceUSD < priceUSD) {
+      toast(`Insufficient balance. You need $${priceUSD.toFixed(2)} USD to purchase this.`);
+      return;
+    }
+
+    askConfirmation(
+      `Confirm purchase of "${tool.title}" for $${priceUSD.toFixed(2)} USD?`,
+      async () => {
+        try {
+          await updateDoc(doc(db, "users", currentUser.uid), {
+            balanceUSD: increment(-priceUSD),
+            total_spent: increment(priceUSD),
+            last_update: Date.now()
+          });
+
+          const txRef = doc(collection(db, "transactions"));
+          await setDoc(txRef, {
+            userId: currentUser.uid,
+            type: "purchase_tool",
+            txType: "Debit",
+            amountUSD: priceUSD,
+            status: "success",
+            details: { title: tool.title, category: tool.category, url: "Instant tool setup requested" },
+            createdAt: Date.now(),
+          });
+
+          toast("Purchase successful! Contact support with your Transaction ID to get instant tool setup details.");
+
+          const msg = `আসসালামু আলাইকুম, আমি এই মাত্র আপনার ওয়েবসাইট থেকে আমার ব্যালেন্স দিয়ে এই প্রোডাক্ট/টুলটি কিনেছি:\n\n📂 প্রোডাক্ট: ${tool.title}\n💰 মূল্য: $${priceUSD.toFixed(2)} USD\n🆔 ইউজার আইডি: ${currentUser.uid}\n🧾 ট্রানজেকশন আইডি: ${txRef.id}\n\nদয়া করে আমার অ্যাক্টিভেশন ও ডাউনলোড ডিটেইলস দিন। ধন্যবাদ!`;
+          window.open(`https://wa.me/8801644627304?text=${encodeURIComponent(msg)}`, "_blank");
+        } catch (error) {
+          console.error("Error completing purchase", error);
+          toast("Error completing purchase");
+        }
+      }
+    );
+  };
+
+  const handleBuyGemini = async () => {
+    if (!currentUser) return requireAuth();
+    
+    // Calculate country and plan price dynamically based on 12-Month base prices
+    const base12MonthPrice = geminiCountryPrices12M[geminiCountry] || 9.99;
+    let priceUSD = base12MonthPrice;
+    if (geminiPlan === "1month") {
+      priceUSD = Math.max(0.99, Math.round((base12MonthPrice * 0.25) * 100) / 100);
+    } else if (geminiPlan === "3month") {
+      priceUSD = Math.max(1.99, Math.round((base12MonthPrice * 0.45) * 100) / 100);
+    } else if (geminiPlan === "6month") {
+      priceUSD = Math.max(2.99, Math.round((base12MonthPrice * 0.70) * 100) / 100);
+    }
+
+    if (!geminiEmail) {
+      toast("Please enter your Gmail address.");
+      return;
+    }
+
+    if (geminiPlan === "12month" && !geminiPassword) {
+      toast("Please enter your Gmail password for the 12-Month Personal Plan.");
+      return;
+    }
+
+    if (balanceUSD < priceUSD) {
+      toast(`Insufficient balance. You need $${priceUSD.toFixed(2)} USD to purchase this subscription.`);
+      return;
+    }
+
+    const planTitle = `Google Gemini Pro Premium (${
+      geminiPlan === "1month" ? "1-Month Member" :
+      geminiPlan === "3month" ? "3-Month Member" :
+      geminiPlan === "6month" ? "6-Month Member" :
+      "12-Month Personal"
+    }) - ${geminiCountry}`;
+
+    askConfirmation(
+      `Confirm purchase of "${planTitle}" for $${priceUSD.toFixed(2)} USD?`,
+      async () => {
+        try {
+          await updateDoc(doc(db, "users", currentUser.uid), {
+            balanceUSD: increment(-priceUSD),
+            total_spent: increment(priceUSD),
+            last_update: Date.now()
+          });
+
+          const txRef = doc(collection(db, "transactions"));
+          await setDoc(txRef, {
+            userId: currentUser.uid,
+            type: "purchase_gemini",
+            txType: "Debit",
+            amountUSD: priceUSD,
+            status: "success",
+            details: { 
+              title: planTitle, 
+              category: "Premium AI Subscription", 
+              country: geminiCountry, 
+              plan: geminiPlan, 
+              email: geminiEmail,
+              password: geminiPlan === "12month" ? geminiPassword : "Not Required",
+              url: "Gemini activation requested"
+            },
+            createdAt: Date.now(),
+          });
+
+          // Write subscription document
+          const durationDays = geminiPlan === "1month" ? 30 :
+                               geminiPlan === "3month" ? 90 :
+                               geminiPlan === "6month" ? 180 : 365;
+          const createdAt = Date.now();
+          const expiresAt = createdAt + durationDays * 24 * 60 * 60 * 1000;
+          const subRef = doc(collection(db, "gemini_subscriptions"));
+          
+          await setDoc(subRef, {
+            id: subRef.id,
+            userId: currentUser.uid,
+            userName: currentUser.displayName || currentUser.email?.split("@")[0] || "No Name",
+            userEmail: currentUser.email || "No Email",
+            geminiEmail: geminiEmail,
+            geminiPassword: geminiPlan === "12month" ? geminiPassword : "Not Required",
+            plan: geminiPlan,
+            priceUSD: priceUSD,
+            country: geminiCountry,
+            createdAt: createdAt,
+            expiresAt: expiresAt,
+            status: "active",
+            familyManagerEmail: "Not Assigned"
+          });
+
+          toast("Purchase successful! We are activating your subscription. You can track this in your Account section.");
+          
+          setGeminiEmail("");
+          setGeminiPassword("");
+        } catch (error) {
+          console.error("Error completing purchase", error);
+          toast("Error completing purchase");
+        }
+      }
+    );
+  };
+
   const [purchasedNumber, setPurchasedNumber] = useState<{
     number: string;
     code?: string;
@@ -271,7 +1040,7 @@ export default function App() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [adminTxs, setAdminTxs] = useState<any[]>([]);
   const [adminSearchTxId, setAdminSearchTxId] = useState("");
-  const [adminTab, setAdminTab] = useState<"overview" | "topups" | "withdrawals" | "failed" | "users" | "services" | "settings">("overview");
+  const [adminTab, setAdminTab] = useState<"overview" | "topups" | "withdrawals" | "failed" | "users" | "services" | "settings" | "courses" | "subscriptions">("overview");
   const [adminSubTab, setAdminSubTab] = useState<"pending" | "paid">("pending");
 
   const [adminAddBalanceUid, setAdminAddBalanceUid] = useState("");
@@ -288,6 +1057,21 @@ export default function App() {
     monthly: 0,
   });
   const [referredUsers, setReferredUsers] = useState<any[]>([]);
+
+  // Courses list and admin states
+  const [coursesList, setCoursesList] = useState<any[]>([]);
+  const [adminEditingCourse, setAdminEditingCourse] = useState<any | null>(null);
+  const [adminCourseForm, setAdminCourseForm] = useState({
+    id: "",
+    category: "Language & Skills",
+    title: "",
+    oldPrice: 0,
+    price: 0,
+    rating: 5,
+    badge: "Trending",
+    featuresString: "",
+    imageUrl: ""
+  });
 
   // local error states
   const [buyErrorId, setBuyErrorId] = useState<string | null>(null);
@@ -308,7 +1092,7 @@ export default function App() {
         setBinanceConfig(conf);
         setAdminBinanceConfig(conf);
       }
-    });
+    }, (error) => console.error("binance onSnapshot error", error));
     return () => unsub();
   }, []);
 
@@ -318,7 +1102,7 @@ export default function App() {
       if (docSnap.exists()) {
         setDashboardButtons(docSnap.data());
       }
-    });
+    }, (error) => console.error("dashboard_buttons onSnapshot error", error));
     return () => unsub();
   }, []);
 
@@ -357,6 +1141,181 @@ export default function App() {
     );
     return () => unsub();
   }, [currentView, currentUser]);
+
+  // Load courses / premium products
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "courses"), (snapshot) => {
+      if (!snapshot.empty) {
+        const list: any[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        list.sort((a, b) => {
+          const numA = Number(a.id);
+          const numB = Number(b.id);
+          if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+          return String(a.id).localeCompare(String(b.id));
+        });
+        setCoursesList(list);
+      } else {
+        const initialProducts = [
+          {
+            id: "1",
+            category: "Language & Skills",
+            title: "সহজে ইংরেজি শিখার জনপ্রিয় ৬০টি+ PDF BOOK এবং ১৭০+ ভিডিও ক্লাস পাচ্ছেন মাত্র ৯৯ টাকায়",
+            oldPrice: 700,
+            price: 99,
+            rating: 5,
+            features: ["৬০+ প্রিমিয়াম PDF বই", "১৭০+ ভিডিও টিউটোরিয়াল", "আজীবন এক্সেস", "মোবাইল ও পিসি ফ্রেন্ডলি"],
+            badge: "Best Seller",
+            imageUrl: ""
+          },
+          {
+            id: "2",
+            category: "AI & Reels",
+            title: "50000+ রেডিমেইড AI REELS ভিডিও",
+            oldPrice: 1000,
+            price: 199,
+            rating: 5,
+            features: ["৫০,০০০+ রেডি রিলস", "উচ্চ মানের ভিডিও (HD)", "কপিরাইট ফ্রি কন্টেন্ট", "ইনস্ট্যান্ট ডাউনলোড লিঙ্ক"],
+            badge: "Trending",
+            imageUrl: ""
+          },
+          {
+            id: "3",
+            category: "AI & Reels",
+            title: "৫০ হাজারের বেশী ট্রেন্ডি AI কপিরাইট ফ্রি রিল্স ভিডিও!",
+            oldPrice: 400,
+            price: 120,
+            rating: 5,
+            features: ["ট্রেন্ডি এআই ভিডিওস", "১০০% কপিরাইট মুক্ত", "ভাইরাল হওয়ার গ্যারান্টি", "গুগল ড্রাইভ এক্সেস"],
+            badge: "Hot Offer",
+            imageUrl: ""
+          },
+          {
+            id: "4",
+            category: "Entertainment & Video",
+            title: "৫০,০০০+ কপিরাইট ফ্রি রেডি টু আপলোড মুভি ক্লিপ বান্ডেল!",
+            oldPrice: 1000,
+            price: 250,
+            rating: 5,
+            features: ["মুভি ক্লিপস কালেকশন", "কপিরাইট ছাড়াই আপলোড", "ফেসবুক ও ইউটিউবের জন্য", "লাইফটাইম ডাউনলোড সুবিধা"],
+            badge: "Popular",
+            imageUrl: ""
+          },
+          {
+            id: "5",
+            category: "E-Commerce Course",
+            title: "শহিদ আনোয়ার এর 297 ডলারের AMAZON FBA ফুল কোর্স",
+            oldPrice: 3500,
+            price: 190,
+            rating: 5,
+            features: ["২৯৭ ডলারের কোর্স মাত্র ১৯০৳", "ধাপ-বাই-ধাপ গাইডলাইন", "অ্যামাজন সেলার অ্যাকাউন্ট সেটআপ", "বাংলা সাবটাইটেল/ভাষা"],
+            badge: "Premium",
+            imageUrl: ""
+          },
+          {
+            id: "6",
+            category: "Animation Course",
+            title: "2D, 3D, Whiteboard, Mobile এনিমেশন ফুল কোর্স!",
+            oldPrice: 1000,
+            price: 155,
+            rating: 5,
+            features: ["৩ডি ও ২ডি এনিমেশন শিক্ষা", "হোয়াইটবোর্ড ও মোবাইল এনিমেশন", "সহজ বাংলা টিউটোরিয়াল", "প্রয়োজনীয় সকল সফটওয়্যার"],
+            badge: "Super Course",
+            imageUrl: ""
+          },
+          {
+            id: "7",
+            category: "ASMR & Reels",
+            title: "১ হাজার+ ট্রেন্ডিং AI গ্লাস কাটিং রিল্স ভিডিও বান্ডেল",
+            oldPrice: 300,
+            price: 145,
+            rating: 5,
+            features: ["১০০০+ এআই গ্লাস কাটিং ভিডিও", "ভাইরাল ASMR সাউন্ড", "কপিরাইট ফ্রি কালেকশন", "গুগল ড্রাইভ লিঙ্ক"],
+            badge: "Viral",
+            imageUrl: ""
+          },
+          {
+            id: "8",
+            category: "Premium Bundle",
+            title: "ধ্রুব রাঠির প্রিমিয়াম কোর্স বান্ডেল $550 মূল্যের সব কোর্স এখন মাত্র ২৯৯ টাকায় লাইফটাইম এক্সেস সহ।",
+            oldPrice: 7000,
+            price: 299,
+            rating: 5,
+            features: ["$550 মূল্যের প্রিমিয়াম কোর্স", "ধ্রুব রাঠির সিক্রেট মেথড", "লাইফটাইম এক্সেস পাবেন", "সম্পূর্ণ ফাইল কালেকশন"],
+            badge: "VIP Choice",
+            imageUrl: ""
+          },
+          {
+            id: "9",
+            category: "Software Bundle",
+            title: "পিসির সব প্রয়োজনীয় সফটওয়্যার একসাথে! | PC SOFTWARE COMBO PACK (লাইফটাইম মেয়াদ)",
+            oldPrice: 999,
+            price: 290,
+            rating: 5,
+            features: ["পিসির সকল জরুরি সফটওয়্যার", "এক ক্লিকে ইনস্টলেশন গাইড", "লাইফটাইম মেয়াদ ও ফ্রি আপডেট", "অ্যাক্টিভেশন ফাইল সহ"],
+            badge: "Must Have",
+            imageUrl: ""
+          },
+          {
+            id: "10",
+            category: "Maps & Assets",
+            title: "সারা বাংলাদেশ এর অরিজিনাল মৌজা ম্যাপ মাত্র ১৯৫ টাকা",
+            oldPrice: 900,
+            price: 195,
+            rating: 5,
+            features: ["৬৪ জেলার মৌজা ম্যাপ", "অরিজিনাল ও হাই-কোয়ালিটি ফাইল", "সহজে সার্চযোগ্য তালিকা", "ভূমির পরিমাপের জন্য প্রয়োজনীয়"],
+            badge: "Rare Asset",
+            imageUrl: ""
+          },
+          {
+            id: "11",
+            category: "Government Tendering",
+            title: "ই-জিপি টেন্ডার ড্রপিং প্রফেশনাল ভিডিও রেকর্ডেড কোর্স",
+            oldPrice: 1000,
+            price: 300,
+            rating: 5,
+            features: ["e-GP টেন্ডার ড্রপিং গাইড", "লাইভ প্রজেক্ট ভিডিও ক্লাস", "ট্যাক্স ও ভ্যাট হিসাব কিতাব", "লাইফটাইম সাপোর্ট"],
+            badge: "Expert Level",
+            imageUrl: ""
+          },
+          {
+            id: "12",
+            category: "YouTube Course",
+            title: "মায়াজাল এর ইউটিউব সিক্রেট কোর্স",
+            oldPrice: 1500,
+            price: 199,
+            rating: 5,
+            features: ["মায়াজাল এর কন্টেন্ট মেকিং সিক্রেট", "ইউটিউব এলগরিদম হ্যাকস", "ভিডিও এডিটিং ও ভয়েস ট্রিকস", "ইউটিউব গ্রোথ স্ট্র্যাটেজি"],
+            badge: "Recommended",
+            imageUrl: ""
+          }
+        ];
+        // Only seed courses in Firestore if the logged-in user is an admin!
+        const isUserAdmin = currentUser && (
+          currentUser.email === "uzvsbdnzyxhzj@gmail.com" || 
+          currentUser.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2"
+        );
+        if (isUserAdmin) {
+          initialProducts.forEach((p) => {
+            setDoc(doc(db, "courses", p.id), {
+              category: p.category,
+              title: p.title,
+              oldPrice: p.oldPrice,
+              price: p.price,
+              rating: p.rating,
+              features: p.features,
+              badge: p.badge,
+              imageUrl: p.imageUrl
+            }).catch(err => console.error("Error seeding initial course", p.id, err));
+          });
+        }
+        setCoursesList(initialProducts);
+      }
+    }, (error) => console.error("courses snapshot error", error));
+    return () => unsub();
+  }, [currentUser]);
 
   // Global click event for requesting notifications
   useEffect(() => {
@@ -418,9 +1377,21 @@ export default function App() {
       setActiveUsersStats({ live, daily, weekly, monthly });
     }, (error) => console.error("users stats query error", error));
 
+    // Admin fetch all gemini subscriptions
+    const qAdminSubs = query(
+      collection(db, "gemini_subscriptions"),
+      orderBy("createdAt", "desc")
+    );
+    const unsubAdminSubs = onSnapshot(qAdminSubs, (snapshot) => {
+      setAllSubscriptions(
+        snapshot.docs.map((d) => ({ id: d.id, ...d.data() }))
+      );
+    }, (error) => console.error("admin subscriptions snapshot error", error));
+
     return () => {
       unsubAdminTxs();
       unsubUsers();
+      unsubAdminSubs();
     };
   }, [currentView]);
 
@@ -476,7 +1447,6 @@ export default function App() {
         
         // Determine if current logged-in user is an admin
         const isCurrentUserAdmin = currentUser && (
-          currentUser.email === "admin@gmail.com" || 
           currentUser.email === "uzvsbdnzyxhzj@gmail.com" || 
           currentUser.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2"
         );
@@ -581,7 +1551,7 @@ export default function App() {
   // Admin auto-verification loop for all pending automatic top-up transactions (bKash, Nagad, Cryptomus)
   useEffect(() => {
     if (!currentUser || !db) return;
-    const isUserAdmin = (currentUser.email === "admin@gmail.com" || currentUser.email === "uzvsbdnzyxhzj@gmail.com" || currentUser.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2");
+    const isUserAdmin = (currentUser.email === "uzvsbdnzyxhzj@gmail.com" || currentUser.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2");
     if (!isUserAdmin) return;
 
     const interval = setInterval(async () => {
@@ -765,6 +1735,28 @@ export default function App() {
         isInitialLoad = false;
       },
       (error) => console.error("current user transactions query error", error)
+    );
+    return () => unsub();
+  }, [currentUser]);
+
+  // Fetch user subscriptions
+  useEffect(() => {
+    if (!currentUser) {
+      setUserSubscriptions([]);
+      return;
+    }
+    const q = query(
+      collection(db, "gemini_subscriptions"),
+      where("userId", "==", currentUser.uid),
+    );
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const subs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() as any }));
+        subs.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        setUserSubscriptions(subs);
+      },
+      (error) => console.error("current user subscriptions query error", error)
     );
     return () => unsub();
   }, [currentUser]);
@@ -958,7 +1950,6 @@ export default function App() {
       if (user) {
         setCurrentUser(user);
         (window as any).isCurrentUserAdmin = (
-          user.email === "admin@gmail.com" || 
           user.email === "uzvsbdnzyxhzj@gmail.com" || 
           user.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2"
         );
@@ -2564,6 +3555,10 @@ export default function App() {
         <div className="absolute bottom-[-20%] left-[20%] w-[55vw] h-[55vw] max-w-[600px] max-h-[600px] rounded-full bg-[#34d399]/20 blur-[80px] md:blur-[120px] animate-blob animation-delay-4000 mix-blend-multiply"></div>
       </div>
       <AnimatePresence>
+
+
+
+
         {showWelcome && (
           <motion.div
             initial={{ y: 50, opacity: 0 }}
@@ -2691,6 +3686,12 @@ export default function App() {
                 <button onClick={() => { setCurrentView("buy"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "buy" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
                   <ShoppingCart className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.buyNav}</span>
                 </button>
+                <button onClick={() => { setCurrentView("courses"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "courses" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
+                  <BookOpen className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{lang === "bn" ? "কোর্স ও রিল" : "Courses & Reels"}</span>
+                </button>
+                <button onClick={() => { setCurrentView("tools"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "tools" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
+                  <Wrench className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{lang === "bn" ? "টুলস ও ভিআইপি" : "Tools & VIP"}</span>
+                </button>
                 <button onClick={() => requireAuth(() => { setCurrentView("sell"); })} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "sell" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
                   <PlusCircle className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.sellNav}</span>
                 </button>
@@ -2703,7 +3704,7 @@ export default function App() {
                 <button onClick={() => requireAuth(() => { setCurrentView("profile"); })} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "profile" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
                   <User className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.profileNav || "Profile"}</span>
                 </button>
-                {((currentUser?.email && (currentUser.email === "admin@gmail.com" || currentUser.email === "uzvsbdnzyxhzj@gmail.com")) || currentUser?.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2") && (
+                {((currentUser?.email && (currentUser.email === "uzvsbdnzyxhzj@gmail.com")) || currentUser?.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2") && (
                   <button data-ad-skip="true" onClick={() => { setCurrentView("admin"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm bg-red-100 text-red-600 hover:bg-red-200 font-bold`}>
                     <Settings className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.adminNav}</span>
                   </button>
@@ -2808,6 +3809,696 @@ export default function App() {
             <ApiView onNavigate={(v) => setCurrentView(v as View)} />
           </div>
         )}
+        {currentView === "courses" && (
+          <div className="space-y-6 bg-gradient-to-br from-sky-100 to-indigo-200 p-4 sm:p-6 rounded-2xl border border-blue-200/50 shadow-md">
+            <button
+              onClick={() => { setCurrentView("dashboard"); }}
+              className="md:hidden flex items-center text-gray-600 hover:text-gray-900 mb-2 font-medium bg-white px-4 py-2 rounded-full shadow-sm"
+            >
+              <ArrowLeft className="w-5 h-5 mr-2" /> Back to Dashboard
+            </button>
+
+            {/* Header style matching Buy view */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="text-left">
+                <h2 className="text-xl md:text-2xl font-bold text-gray-800">
+                  📚 {lang === "bn" ? "প্রয়োজনীয় কোর্স ও রিল বান্ডেল" : "Courses & Reel Bundles"}
+                </h2>
+                <p className="text-gray-500 mt-1 text-sm md:text-base">
+                  {lang === "bn" ? "আপনাকে ১০০% অথেন্টিক প্রোডাক্ট দেওয়া হবে। অর্ডার করুন নির্ভয়ে!" : "100% authentic digital products. Order with absolute confidence!"}
+                </p>
+              </div>
+              <div className="hidden md:flex bg-blue-50 text-blue-700 px-4 py-2 rounded-lg items-center gap-2 font-medium border border-blue-100">
+                <CheckCircle className="w-5 h-5" />
+                <span>{lang === "bn" ? "ইনস্ট্যান্ট ডেলিভারি" : "Instant Access"}</span>
+              </div>
+            </div>
+
+            {/* Clean Category Filter buttons */}
+            <div className="flex gap-2 mb-4 bg-white p-1.5 rounded-xl border border-gray-100 shadow-sm max-w-md">
+              <button
+                onClick={() => setSelectedCourseCat("all")}
+                className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${selectedCourseCat === "all" ? "bg-[#2AABEE] text-white shadow-sm" : "text-gray-600 hover:bg-gray-50"}`}
+              >
+                {lang === "bn" ? "সব প্রোডাক্ট" : "All Products"}
+              </button>
+              <button
+                onClick={() => setSelectedCourseCat("reels")}
+                className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${selectedCourseCat === "reels" ? "bg-[#2AABEE] text-white shadow-sm" : "text-gray-600 hover:bg-gray-50"}`}
+              >
+                {lang === "bn" ? "রিল বান্ডেল" : "Reel Bundles"}
+              </button>
+              <button
+                onClick={() => setSelectedCourseCat("courses")}
+                className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${selectedCourseCat === "courses" ? "bg-[#2AABEE] text-white shadow-sm" : "text-gray-600 hover:bg-gray-50"}`}
+              >
+                {lang === "bn" ? "কোর্স" : "Courses"}
+              </button>
+            </div>
+
+            {/* Courses / Reel Bundles List */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {(coursesList.length > 0 ? coursesList : premiumProducts)
+                .filter((prod) => {
+                  if (selectedCourseCat === "all") return true;
+                  if (selectedCourseCat === "reels") {
+                    return prod.category.includes("Reels");
+                  }
+                  if (selectedCourseCat === "courses") {
+                    return prod.category.includes("Course") || prod.category.includes("Skills") || prod.category.includes("Tendering");
+                  }
+                  return true;
+                })
+                .map((prod) => {
+                  const discountPercent = prod.oldPrice > 0 ? Math.round(((prod.oldPrice - prod.price) / prod.oldPrice) * 100) : 0;
+                  
+                  return (
+                    <div 
+                      key={prod.id} 
+                      className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden group"
+                    >
+                      {/* Product Visual Mockup Container */}
+                      <div className="relative h-44 border-b border-gray-100 overflow-hidden">
+                        {renderProductCoverMockup(prod)}
+                      </div>
+
+                      {/* Info & Content Body */}
+                      <div className="p-4 flex-1 flex flex-col justify-between">
+                        <div className="text-left">
+                          <h4 className="text-xs sm:text-sm font-black text-slate-950 leading-snug mb-2 hover:text-[#2AABEE] transition duration-200 line-clamp-2">
+                            {prod.title}
+                          </h4>
+
+                          <div className="flex items-center gap-0.5 mb-3">
+                            {[...Array(prod.rating || 5)].map((_, i) => (
+                              <span key={i} className="text-amber-400 text-xs">★</span>
+                            ))}
+                            <span className="text-[10px] text-gray-400 font-extrabold ml-1.5">(৫/৫ রিভিউ)</span>
+                          </div>
+
+                          <div className="space-y-1.5 mb-4">
+                            {prod.features && prod.features.slice(0, 3).map((feat: string, index: number) => (
+                              <div key={index} className="flex items-center gap-1.5 text-[11px] text-gray-600 font-medium">
+                                <span className="text-emerald-500 font-bold shrink-0">✓</span>
+                                <span className="truncate">{feat}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-slate-100 mt-auto">
+                          <div className="flex items-center justify-between gap-1.5 mb-3">
+                            <div className="leading-tight text-left">
+                              <span className="text-[11px] text-slate-400 font-bold line-through block">${Number((prod.oldPrice / TOPUP_RATE).toFixed(2)).toFixed(2)} USD</span>
+                              <span className="text-lg font-black text-red-600 block">${Number((prod.price / TOPUP_RATE).toFixed(2)).toFixed(2)} USD</span>
+                            </div>
+                            <span className="text-[10px] font-black text-green-700 bg-green-50 px-2 py-1 rounded-md border border-green-100">
+                              {discountPercent}% ছাড়
+                            </span>
+                          </div>
+
+                          <button
+                            onClick={() => handleBuyCourse(prod)}
+                            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 font-black text-xs sm:text-sm shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center text-center cursor-pointer border-b-2 border-amber-600 gap-1.5"
+                          >
+                            <span>⚡ ব্যালেন্স দিয়ে কিনুন</span>
+                          </button>
+
+                          <a
+                            href={`https://wa.me/8801644627304?text=${encodeURIComponent(
+                              `আসসালামু আলাইকুম, আমি এই প্রোডাক্টটি নিতে চাই:\n\n📂 প্রোডাক্ট: ${prod.title}\n💰 মূল্য: $${Number((prod.price / TOPUP_RATE).toFixed(2)).toFixed(2)} USD (${prod.price}৳)\n\nদয়া করে আমাকে লিংক ও পেমেন্ট ডিটেইলস পাঠান।`
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-2 text-center text-[10px] font-bold text-gray-500 hover:text-blue-600 flex items-center justify-center gap-1 transition"
+                          >
+                            <span>💬 WhatsApp এ অর্ডার করতে এখানে ক্লিক করুন</span>
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+        {currentView === "tools" && (
+          <div className="space-y-6 bg-gradient-to-br from-indigo-100 via-purple-100 to-sky-100 p-4 sm:p-6 rounded-2xl border border-indigo-200/50 shadow-md">
+            <button
+              onClick={() => { setCurrentView("dashboard"); }}
+              className="md:hidden flex items-center text-gray-600 hover:text-gray-900 mb-2 font-medium bg-white px-4 py-2 rounded-full shadow-sm"
+            >
+              <ArrowLeft className="w-5 h-5 mr-2" /> Back to Dashboard
+            </button>
+
+            {/* Header style matching Buy view */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="text-left">
+                <h2 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2">
+                  ⚡ {lang === "bn" ? "প্রিমিয়াম টুলস ও ভিআইপি সাবস্ক্রিপশন" : "Premium Tools & VIP Subscription"}
+                </h2>
+                <p className="text-gray-500 mt-1 text-sm md:text-base">
+                  {lang === "bn" ? "হাইপার-অটোমেশন সফটওয়্যার ও লাইফটাইম প্রাইভেট প্রিভিলেজ পান।" : "Unlock hyper-automation and high-tier platform privileges."}
+                </p>
+              </div>
+              <div className="hidden md:flex bg-indigo-50 text-indigo-700 px-4 py-2 rounded-lg items-center gap-2 font-medium border border-indigo-100">
+                <Wrench className="w-5 h-5 animate-pulse" />
+                <span>{lang === "bn" ? "ইনস্ট্যান্ট সেটআপ" : "Instant VIP Access"}</span>
+              </div>
+            </div>
+
+            {/* Premium Tools & Subscriptions Content Area */}
+            {selectedToolDetail === "gemini" ? (
+              <div className="space-y-4">
+                <div className="flex justify-start">
+                  <button
+                    onClick={() => setSelectedToolDetail(null)}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 hover:text-blue-600 font-extrabold text-xs rounded-xl shadow-sm hover:shadow transition-all duration-200 cursor-pointer"
+                  >
+                    <ArrowLeft className="w-4 h-4 text-gray-500" />
+                    <span>{lang === "bn" ? "সব প্রিমিয়াম টুলস দেখুন" : "Back to All Premium Tools"}</span>
+                  </button>
+                </div>
+
+                <div className="flex justify-center">
+                  <div className="bg-white rounded-3xl border border-blue-100 shadow-xl overflow-hidden w-full max-w-4xl">
+                    
+                    {/* Visual Header with Gemini PNG */}
+                    <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-6 md:p-8 text-white flex justify-between items-center relative overflow-hidden">
+                      <div className="flex flex-col justify-between h-full z-10 text-left max-w-[70%]">
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black uppercase bg-white/20 text-white backdrop-blur-sm self-start mb-3">
+                          {lang === "bn" ? "অফিসিয়াল এআই সাবস্ক্রিপশন" : "Official AI Subscription"}
+                        </span>
+                        <div>
+                          <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight drop-shadow-sm">
+                            Google Gemini Pro Premium
+                          </h2>
+                          <p className="text-sm text-blue-100 mt-1.5 font-medium">
+                            {lang === "bn" 
+                              ? "গুগলের সর্বাধুনিক নেক্সট-জেনারেশন এআই পাওয়ারহাউস সাবস্ক্রিপশন" 
+                              : "Google's most advanced next-generation AI powerhouse subscription"}
+                          </p>
+                        </div>
+                      </div>
+                      <img 
+                        src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/1d/Google_Gemini_icon_2025.svg/960px-Google_Gemini_icon_2025.svg.png" 
+                        alt="Google Gemini" 
+                        className="w-24 h-24 md:w-28 md:h-28 object-contain drop-shadow-2xl z-10 animate-pulse shrink-0"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="absolute right-[-20px] bottom-[-20px] w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+                    </div>
+
+                    {/* 2-Column Responsive Layout */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 p-6 md:p-8">
+                      
+                      {/* Left Column: Interactive Order Form */}
+                      <div id="gemini-order-form" className="lg:col-span-5 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 p-6 rounded-2xl border border-blue-100/80 shadow-sm flex flex-col justify-between h-full">
+                        <div className="space-y-4 text-left">
+                          <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 border-b border-gray-100 pb-3">
+                            🛒 {lang === "bn" ? "অর্ডার ফর্ম ও পেমেন্ট" : "Order Form & Checkout"}
+                          </h3>
+
+                          {/* Country Select */}
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                              📍 {lang === "bn" ? "দেশ / রিজিয়ন" : "Select Country/Region"}
+                            </label>
+                            <select
+                              value={geminiCountry}
+                              onChange={(e) => setGeminiCountry(e.target.value)}
+                              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition cursor-pointer"
+                            >
+                              {geminiCountriesList.map((country) => (
+                                <option key={country} value={country}>
+                                  {country} {geminiCountryFlags[country] || "🌍"}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Plan Toggle */}
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                              📦 {lang === "bn" ? "সাবস্ক্রিপশন প্ল্যান" : "Choose Subscription Plan"}
+                            </label>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                              {(["1month", "3month", "6month", "12month"] as const).map((planOption) => {
+                                const isSelected = geminiPlan === planOption;
+                                return (
+                                  <button
+                                    key={planOption}
+                                    type="button"
+                                    onClick={() => setGeminiPlan(planOption)}
+                                    className={`px-2 py-2.5 rounded-xl border text-[11px] font-bold transition-all ${
+                                      isSelected
+                                        ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-600/10"
+                                        : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                                    }`}
+                                  >
+                                    {planOption === "1month" ? "1 Month" :
+                                     planOption === "3month" ? "3 Month" :
+                                     planOption === "6month" ? "6 Month" :
+                                     "12 Month"}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Gmail Input */}
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                              📧 {lang === "bn" ? "জিমেইল এড্রেস" : "Your Gmail Address"}
+                            </label>
+                            <input
+                              type="email"
+                              value={geminiEmail}
+                              onChange={(e) => setGeminiEmail(e.target.value)}
+                              placeholder="example@gmail.com"
+                              className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                            />
+                          </div>
+
+                          {/* Password Input (conditional) */}
+                          {geminiPlan === "12month" && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="space-y-1.5 text-left"
+                            >
+                              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                🔒 {lang === "bn" ? "জিমেইল পাসওয়ার্ড" : "Gmail Password"}
+                              </label>
+                              <input
+                                type="password"
+                                value={geminiPassword}
+                                onChange={(e) => setGeminiPassword(e.target.value)}
+                                placeholder={lang === "bn" ? "আপনার জিমেইল পাসওয়ার্ড" : "Your Gmail Password"}
+                                className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                              />
+                              <p className="text-[10px] text-amber-600 leading-tight">
+                                ⚠️ {lang === "bn" 
+                                  ? "১-বছরের পার্সোনাল প্ল্যানটি আপনার নিজস্ব একাউন্টে সেটআপ করার জন্য পাসওয়ার্ড প্রয়োজন। কাজ শেষে পাসওয়ার্ড পরিবর্তন করে নিবেন।"
+                                  : "Password is required for the 1-Year Personal Plan setup on your account. You can change your password immediately after setup."}
+                              </p>
+                            </motion.div>
+                          )}
+
+                          {/* Price Display */}
+                          <div className="bg-white/80 p-4 rounded-xl border border-blue-100/50 mt-4">
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs font-bold text-gray-500">
+                                💰 {lang === "bn" ? "নির্ধারিত মূল্য:" : "Total Price:"}
+                              </span>
+                              <span className="text-2xl font-black text-blue-600">
+                                ${(() => {
+                                  const base12MonthPrice = geminiCountryPrices12M[geminiCountry] || 9.99;
+                                  let priceUSD = base12MonthPrice;
+                                  if (geminiPlan === "1month") {
+                                    priceUSD = Math.max(0.99, Math.round((base12MonthPrice * 0.25) * 100) / 100);
+                                  } else if (geminiPlan === "3month") {
+                                    priceUSD = Math.max(1.99, Math.round((base12MonthPrice * 0.45) * 100) / 100);
+                                  } else if (geminiPlan === "6month") {
+                                    priceUSD = Math.max(2.99, Math.round((base12MonthPrice * 0.70) * 100) / 100);
+                                  }
+                                  return priceUSD.toFixed(2);
+                                })()} USD
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-gray-400 text-right mt-1">
+                              {lang === "bn" ? "*ব্যালেন্স থেকে ইনস্ট্যান্ট কেটে নেয়া হবে" : "*Instantly deducted from your wallet balance"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-6">
+                          <button
+                            onClick={handleBuyGemini}
+                            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold text-sm shadow-md hover:shadow-lg hover:shadow-blue-600/10 transition-all duration-200 flex items-center justify-center cursor-pointer border-b-4 border-blue-800 gap-1.5"
+                          >
+                            <span>⚡ {lang === "bn" ? "এখনই কিনুন" : "Buy Now"}</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Right Column: Rich Detailed Features & Information */}
+                      <div className="lg:col-span-7 space-y-6 text-left overflow-y-auto max-h-[650px] pr-2 scrollbar-thin scrollbar-thumb-gray-200">
+                        <div>
+                          <h3 className="text-xl font-extrabold text-gray-900 leading-snug">
+                            Google Gemini Pro Premium Official Subscription
+                          </h3>
+                          <p className="text-gray-600 text-sm mt-2 leading-relaxed">
+                            Unlock the ultimate power of Google's next-generation AI with Gemini Pro Premium. Whether you are a content creator, programmer, researcher, or digital marketer, this all-in-one AI powerhouse is designed to turbocharge your productivity and bring your ideas to life.
+                          </p>
+                          <p className="text-indigo-600 font-semibold text-xs mt-3 bg-indigo-50 px-3 py-2 rounded-lg border border-indigo-100">
+                            ✨ Buy 100% genuine, official, and legitimate Gemini Pro Premium subscriptions from SoftzoneBD at the most affordable prices, featuring instant delivery and a full-period warranty!
+                          </p>
+                        </div>
+
+                        {/* Features List */}
+                        <div className="space-y-3">
+                          <h4 className="font-extrabold text-gray-800 text-sm flex items-center gap-1.5 border-b border-gray-100 pb-2">
+                            💎 Exclusive Features & Benefits
+                          </h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs text-gray-600">
+                            <div className="space-y-1 bg-gray-50/50 p-3 rounded-xl border border-gray-100">
+                              <span className="font-bold text-gray-800 block">☁️ Massive Cloud Storage:</span>
+                              <span>Get 5TB of secure Cloud Storage to save all your large files, documents, and high-res media.</span>
+                            </div>
+                            <div className="space-y-1 bg-gray-50/50 p-3 rounded-xl border border-gray-100">
+                              <span className="font-bold text-gray-800 block">⚡ Flow AI & Monthly Credits:</span>
+                              <span>Enjoy 1000 AI Credits every month for seamless, high-volume access to Flow AI, ChatGPT, and advanced AI tasks.</span>
+                            </div>
+                            <div className="space-y-1 bg-gray-50/50 p-3 rounded-xl border border-gray-100">
+                              <span className="font-bold text-gray-800 block">👥 Family Sharing Allowed:</span>
+                              <span>Share the power of AI! This plan allows you to invite and share premium access with up to 5 additional family members.</span>
+                            </div>
+                            <div className="space-y-1 bg-gray-50/50 p-3 rounded-xl border border-gray-100">
+                              <span className="font-bold text-gray-800 block">⭐ Gemini Advanced:</span>
+                              <span>Gain priority access to Google’s most capable and cutting-edge AI models for highly complex workflows.</span>
+                            </div>
+                            <div className="space-y-1 bg-gray-50/50 p-3 rounded-xl border border-gray-100">
+                              <span className="font-bold text-gray-800 block">🔍 Deep Research Capabilities:</span>
+                              <span>Conduct deep-dive web research, high-level data analysis, and comprehensive summaries effortlessly.</span>
+                            </div>
+                            <div className="space-y-1 bg-gray-50/50 p-3 rounded-xl border border-gray-100">
+                              <span className="font-bold text-gray-800 block">💼 Workspace Integration:</span>
+                              <span>Use AI assistance directly inside your everyday Google apps, including Gmail, Docs, Drive, and Slides.</span>
+                            </div>
+                            <div className="space-y-1 bg-gray-50/50 p-3 rounded-xl border border-gray-100 col-span-1 md:col-span-2">
+                              <span className="font-bold text-gray-800 block">💻 Advanced Coding & Creative Tools:</span>
+                              <span>Write, debug, and optimize complex code in seconds. Plus, transform text prompts into photorealistic next-gen images and interact with your PDFs via NotebookLM Premium Access!</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Plans section */}
+                        <div className="space-y-3 bg-gray-50/60 p-4 rounded-2xl border border-gray-100">
+                          <h4 className="font-extrabold text-gray-800 text-sm flex items-center gap-1.5 border-b border-gray-100 pb-2">
+                            📦 Our Subscription Plans & Requirements
+                          </h4>
+                          <p className="text-xs text-gray-500 leading-relaxed">
+                            We activate the premium subscription directly on your personal Gmail account, and it can be easily renewed upon expiration. Choose the plan that best fits your needs:
+                          </p>
+                          <div className="space-y-3 text-xs">
+                            <div className="p-3 bg-white rounded-xl border border-gray-100">
+                              <span className="font-bold text-blue-600 block mb-1">1. Personal Plan (1-Year Validity)</span>
+                              <span className="text-gray-600">The perfect choice for long-term users. This requires a one-time purchase for a 1-Year subscription. You hold the master access and can add 5 family members.</span>
+                              <span className="block mt-1.5 text-amber-600 font-medium">⚠️ Requirement: Gmail login access (Email & Password) is required for setup. 🔒 100% Safe & Secure.</span>
+                            </div>
+                            <div className="p-3 bg-white rounded-xl border border-gray-100">
+                              <span className="font-bold text-blue-600 block mb-1">2. Member Plan (Monthly Validity)</span>
+                              <span className="text-gray-600">A budget-friendly option if you prefer to pay on a Monthly basis.</span>
+                              <span className="block mt-1.5 text-emerald-600 font-medium">📧 Requirement: No passwords or login access required! Simply provide your Gmail address.</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Tracking, Warranty, Step-by-Step */}
+                        <div className="space-y-4 text-xs text-gray-600 border-t border-gray-100 pt-4">
+                          <div>
+                            <span className="font-bold text-gray-800 flex items-center gap-1 mb-1.5">📊 How to Track Your Order & Expiry</span>
+                            <p className="leading-relaxed">
+                              You can track your active plans and check how many days are left on your subscription directly from our website. Simply log into your Account Dashboard, go to "My Plan and Subscription" section, and view all details in one click.
+                            </p>
+                          </div>
+
+                          <div>
+                            <span className="font-bold text-gray-800 flex items-center gap-1 mb-1.5">🛡️ Full-Period Warranty & Priority Support</span>
+                            <p className="leading-relaxed">
+                              Enjoy 100% peace of mind with our official full-period warranty. If you face any issues, contact our support team on WhatsApp or Telegram for ultra-fast, priority issue resolution and fast-track processing (takes 1 minute to 2 hours).
+                            </p>
+                          </div>
+
+                          <div>
+                            <span className="font-bold text-gray-800 flex items-center gap-1 mb-1.5">🌍 Global Service & Regional Pricing Notice</span>
+                            <p className="leading-relaxed">
+                              We proudly serve customers globally. Please note that pricing may vary depending on your country due to regional taxes and localized Google billing policies. Use our dropdown to view the exact rate for your country!
+                            </p>
+                          </div>
+
+                          <div className="bg-blue-50/40 p-4 rounded-xl border border-blue-100/50">
+                            <span className="font-bold text-blue-800 flex items-center gap-1 mb-1.5">🛒 Step-by-Step Ordering Process</span>
+                            <ol className="list-decimal list-inside space-y-1.5 leading-relaxed text-blue-900/80">
+                              <li>Before placing an order, make sure to Top Up your website wallet with sufficient funds.</li>
+                              <li>Select your Country/Region and choose your preferred plan (Personal 1-Year or Monthly Member).</li>
+                              <li>Provide the required information (either just your Email or Email & Password based on the chosen plan) and confirm the order. The amount will be instantly deducted from your wallet balance.</li>
+                            </ol>
+                          </div>
+                        </div>
+
+                        {/* Bottom Buy Now button scrolling back up to the form */}
+                        <div className="pt-4 border-t border-gray-100 flex justify-end">
+                          <button
+                            onClick={() => {
+                              document.getElementById("gemini-order-form")?.scrollIntoView({ behavior: "smooth" });
+                              const emailInput = document.querySelector('input[type="email"]') as HTMLInputElement;
+                              if (emailInput) {
+                                emailInput.focus();
+                                emailInput.classList.add("ring-4", "ring-blue-500/20");
+                                setTimeout(() => {
+                                  emailInput.classList.remove("ring-4", "ring-blue-500/20");
+                                }, 1500);
+                              }
+                            }}
+                            className="py-3 px-8 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-sm shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <span>⚡ {lang === "bn" ? "এখনই কিনুন" : "Buy Now"}</span>
+                          </button>
+                        </div>
+
+                      </div>
+
+                    </div>
+
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                
+                {/* Product 1: Member Adder Bot */}
+                <div className="bg-white rounded-3xl border border-indigo-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden group">
+                  {/* Visual Header */}
+                  <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-6 text-white flex flex-col justify-between h-44 text-left">
+                    <div className="flex justify-between items-start">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-white/20 text-white backdrop-blur-sm">
+                        {lang === "bn" ? "অটোমেশন সফটওয়্যার" : "Automation Software"}
+                      </span>
+                      <span className="text-xs font-black text-amber-300 bg-black/20 px-2 py-1 rounded-md">
+                        {lang === "bn" ? "৫০% ছাড়" : "50% OFF"}
+                      </span>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-extrabold tracking-tight drop-shadow-sm">
+                        {lang === "bn" ? "টেলিগ্রাম মেম্বার অ্যাডার বট" : "Telegram Member Adder Bot"}
+                      </h3>
+                      <p className="text-xs text-indigo-100 mt-1 line-clamp-1">
+                        {lang === "bn" ? "হাই-স্পিড গ্রুপ মেম্বার স্ক্র্যাপার এবং ইনভাইটার" : "High-speed scraper and active group inviter"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Content Body */}
+                  <div className="p-6 flex-1 flex flex-col justify-between">
+                    <div className="text-left">
+                      <p className="text-gray-600 text-sm leading-relaxed mb-4">
+                        {lang === "bn" 
+                          ? "যেকোনো পাবলিক বা টার্গেটেড গ্রুপ থেকে একটিভ মেম্বারদের স্ক্র্যাপ করে সম্পূর্ণ নিরাপদে অটোমেটিক থ্রোটলিং-সহ আপনার নিজের চ্যানেল বা গ্রুপে এড করুন।"
+                          : "High-speed scraper and inviter bot. Extract active members from niche groups and add them directly into your channel/group safely with auto-throttling."}
+                      </p>
+
+                      <div className="space-y-2 mb-6 text-xs text-gray-600 border-t border-gray-50 pt-4">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span>{lang === "bn" ? "একাধিক অ্যাকাউন্ট রোটেশন (এন্টি-ব্যান)" : "Multiple account rotation (anti-ban)"}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span>{lang === "bn" ? "একটিভ ইউজার ফিল্টারিং (অনলাইন ফিল্টার)" : "Active user filtering (online filters)"}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span>{lang === "bn" ? "উইন্ডোজ / ভিপিএস রেডি সফটওয়্যার বান্ডেল" : "Windows / VPS ready software bundle"}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span>{lang === "bn" ? "স্টেপ-বাই-স্টেপ ভিডিও সেটআপ গাইড" : "Step-by-step video setup guides"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="leading-tight text-left">
+                          <span className="text-xs text-slate-400 font-bold line-through block">$59.99 USD</span>
+                          <span className="text-2xl font-black text-indigo-600 block">$29.99 USD</span>
+                        </div>
+                        <span className="text-xs font-black text-green-700 bg-green-50 px-2.5 py-1 rounded-md border border-green-100">
+                          {lang === "bn" ? "ইনস্ট্যান্ট ডেলিভারি" : "Instant Delivery"}
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() => handleBuyTool({ title: "Telegram Member Adder Bot", price: 29.99, category: "Automation Software" })}
+                        className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-black text-sm shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center cursor-pointer border-b-2 border-indigo-700 gap-1.5"
+                      >
+                        <span>⚡ {lang === "bn" ? "ব্যালেন্স দিয়ে অ্যাক্টিভেট করুন" : "Activate with Balance"}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Product 2: VIP Membership */}
+                <div className="bg-white rounded-3xl border border-purple-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden group">
+                  {/* Visual Header */}
+                  <div className="bg-gradient-to-r from-purple-500 to-indigo-600 p-6 text-white flex flex-col justify-between h-44 text-left">
+                    <div className="flex justify-between items-start">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-white/20 text-white backdrop-blur-sm">
+                        {lang === "bn" ? "মাসিক পাস / প্রিমিয়াম র‍্যাঙ্ক" : "Monthly Pass / Premium Rank"}
+                      </span>
+                      <span className="text-xs font-black text-amber-300 bg-black/20 px-2 py-1 rounded-md">
+                        VIP Privileges
+                      </span>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-extrabold tracking-tight drop-shadow-sm">
+                        {lang === "bn" ? "ভিআইপি মেম্বারশিপ সাবস্ক্রিপশন" : "VIP Membership Subscription"}
+                      </h3>
+                      <p className="text-xs text-purple-100 mt-1 line-clamp-1">
+                        {lang === "bn" ? "প্ল্যাটফর্মের সর্বনিম্ম হোলসেল মূল্যে ক্রয়ের সুবিধা" : "Unlock wholesale prices and custom tools"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Content Body */}
+                  <div className="p-6 flex-1 flex flex-col justify-between">
+                    <div className="text-left">
+                      <p className="text-gray-600 text-sm leading-relaxed mb-4">
+                        {lang === "bn" 
+                          ? "আমাদের পুরো প্ল্যাটফর্ম জুড়ে পাইকারি মূল্যে অর্ডার করার অ্যাক্সেস, ফাস্ট প্রায়োরিটি সাপোর্ট এবং ডেডিকেটেড রিকভারি হেল্পলাইন পান।"
+                          : "Unlock wholesale prices across the entire platform, priority customer service, instant stock restock alerts, and exclusive seller tools."}
+                      </p>
+
+                      <div className="space-y-2 mb-6 text-xs text-gray-600 border-t border-gray-50 pt-4">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span>{lang === "bn" ? "টেলিগ্রাম অ্যাকাউন্টে ০% পারচেস মার্কআপ (হোলসেল রেট)" : "0% Purchase markup on Telegram Accounts"}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span>{lang === "bn" ? "২৪/৭ ডেডিকেটেড ভিআইপি কাস্টমার কেয়ার হেল্প" : "24/7 dedicated account recovery help"}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span>{lang === "bn" ? "নতুন হাই-কোয়ালিটি কান্ট্রি স্টকের দ্রুত অ্যাক্সেস" : "Early access to fresh country stocks"}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span>{lang === "bn" ? "প্রোফাইল ড্যাশবোর্ডে প্রাইড ভিআইপি মেম্বার ব্যাজ" : "VIP badge on dashboard profile page"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="leading-tight text-left">
+                          <span className="text-xs text-slate-400 font-bold block">{lang === "bn" ? "প্রতি মাসে চার্জ" : "Subscription Fee"}</span>
+                          <span className="text-2xl font-black text-purple-600 block">$15.00 <span className="text-sm font-normal text-slate-400">/ mo</span></span>
+                        </div>
+                        <span className="text-xs font-black text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-100">
+                          {lang === "bn" ? "মাসিক সাবস্ক্রিপশন" : "Monthly Pass"}
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() => handleBuyTool({ title: "VIP Membership Subscription", price: 15.00, category: "Monthly Pass" })}
+                        className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-black text-sm shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center cursor-pointer border-b-2 border-purple-700 gap-1.5"
+                      >
+                        <span>⚡ {lang === "bn" ? "ব্যালেন্স দিয়ে জয়েন করুন" : "Join VIP with Balance"}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Product 3: Google Gemini Pro Premium */}
+                <div className="bg-white rounded-3xl border border-blue-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden group">
+                  {/* Visual Header with Gemini PNG */}
+                  <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-6 text-white flex justify-between items-center h-44 relative overflow-hidden">
+                    <div className="flex flex-col justify-between h-full z-10 text-left">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-white/20 text-white backdrop-blur-sm self-start">
+                        {lang === "bn" ? "প্রিমিয়াম এআই সাবস্ক্রিপশন" : "Premium AI Subscription"}
+                      </span>
+                      <div>
+                        <h3 className="text-xl font-extrabold tracking-tight drop-shadow-sm">
+                          Google Gemini Pro Premium
+                        </h3>
+                        <p className="text-xs text-blue-100 mt-1 line-clamp-1">
+                          {lang === "bn" ? "অফিসিয়াল জেমিনি প্রো প্রিমিয়াম" : "Official Gemini Pro Premium"}
+                        </p>
+                      </div>
+                    </div>
+                    <img 
+                      src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/1d/Google_Gemini_icon_2025.svg/960px-Google_Gemini_icon_2025.svg.png" 
+                      alt="Google Gemini" 
+                      className="w-16 h-16 object-contain drop-shadow-lg z-10 animate-pulse shrink-0"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute right-[-10px] bottom-[-10px] w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+                  </div>
+
+                  {/* Content Body */}
+                  <div className="p-6 flex-1 flex flex-col justify-between">
+                    <div className="text-left">
+                      <p className="text-gray-600 text-sm leading-relaxed mb-4">
+                        {lang === "bn" 
+                          ? "গুগলের সর্বাধুনিক নেক্সট-জেনারেশন এআই সাবস্ক্রিপশন। ৫টিবি ক্লাউড স্টোরেজ, জেমিনি এডভান্সড, ডিপ রিসার্চ এবং আনলিমিটেড কোডিং অ্যাসিস্ট্যান্স সুবিধা পান।"
+                          : "Unlock the ultimate power of Google's next-generation AI with Gemini Pro Premium. Features 5TB secure Cloud Storage, Gemini Advanced, Deep Research, Workspace Integration & more."}
+                      </p>
+
+                      <div className="space-y-2 mb-6 text-xs text-gray-600 border-t border-gray-50 pt-4">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span>{lang === "bn" ? "৫টিবি ক্লাউড স্টোরেজ এবং জেমিনি এডভান্সড" : "5TB Secure Cloud Storage & Gemini Advanced"}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span>{lang === "bn" ? "পরিবারের ৫ জন মেম্বার শেয়ারিং সুবিধা" : "Invite & share with up to 5 family members"}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span>{lang === "bn" ? "ডিপ রিসার্চ ও ওয়ার্কস্পেস জিমেইল এআই ইন্টিগ্রেশন" : "Deep research & Smart Workspace integration"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="leading-tight text-left">
+                          <span className="text-xs text-slate-400 font-bold block">{lang === "bn" ? "সাবস্ক্রিপশন ফি" : "Subscription Fee"}</span>
+                          <span className="text-lg font-black text-blue-600 block">{lang === "bn" ? "দেশভেদে পরিবর্তনশীল" : "Varies by Country"}</span>
+                        </div>
+                        <span className="text-xs font-black text-green-700 bg-green-50 px-2.5 py-1 rounded-md border border-green-100">
+                          {lang === "bn" ? "ইনস্ট্যান্ট সেটআপ" : "Instant Setup"}
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() => setSelectedToolDetail("gemini")}
+                        className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 hover:from-blue-600 hover:to-indigo-600 text-white font-black text-sm shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center cursor-pointer border-b-2 border-indigo-700 gap-1.5"
+                      >
+                        <span>⚡ {lang === "bn" ? "কিনতে ক্লিক করুন" : "Buy Now"}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            )}
+          </div>
+        )}
         {/* BUY VIEW */}
         {currentView === "buy" && (
           <div className="space-y-6 bg-gradient-to-br from-sky-100 to-indigo-200 p-4 sm:p-6 rounded-2xl border border-blue-200/50 shadow-md">
@@ -2817,6 +4508,8 @@ export default function App() {
             >
               <ArrowLeft className="w-5 h-5 mr-2" /> Back to Dashboard
             </button>
+
+
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl md:text-2xl font-bold text-gray-800">
@@ -2831,6 +4524,55 @@ export default function App() {
                 {i18n.autoSystem}
               </div>
             </div>
+
+            {/* Special Offer Ad inside Buy view */}
+            <AnimatePresence>
+              {showSpecialOfferAd && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0, y: 30 }}
+                  animate={{ opacity: 1, height: "auto", y: 0 }}
+                  exit={{ opacity: 0, height: 0, y: 30 }}
+                  transition={{ type: "spring", stiffness: 100, damping: 15 }}
+                  className="overflow-hidden"
+                >
+                  <div className="bg-gradient-to-r from-red-600 via-orange-500 to-yellow-500 rounded-3xl p-6 text-white text-center shadow-2xl relative overflow-hidden border-2 border-yellow-300 group">
+                    <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.15)_50%,rgba(255,255,255,0.15)_75%,transparent_75%,transparent)] bg-[length:40px_40px] animate-[shimmer_2s_linear_infinite] opacity-20 pointer-events-none" />
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setShowSpecialOfferAd(false); }}
+                      className="absolute top-4 right-4 bg-black/30 hover:bg-black/50 text-white rounded-full p-1.5 transition cursor-pointer z-10"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                    <div className="relative z-10 max-w-xl mx-auto space-y-4">
+                      <motion.div 
+                        animate={{ scale: [1, 1.05, 1] }}
+                        transition={{ duration: 1.5, repeat: Infinity }}
+                        className="inline-block bg-yellow-300 text-red-700 text-xs sm:text-sm font-black uppercase tracking-widest px-4 py-1.5 rounded-full shadow-lg border border-yellow-400"
+                      >
+                        🔥 SPECIAL OFFER 🔥
+                      </motion.div>
+                      <h3 className="text-3xl sm:text-4xl font-black tracking-tight text-white drop-shadow-md">
+                        UP TO 79% OFF! 🎉
+                      </h3>
+                      <p className="text-sm sm:text-base font-extrabold text-white leading-relaxed drop-shadow-sm">
+                        Boost your business & get insane discounts on Advertising! 🚀 Hurry up, this is a LIMITED TIME EVENT! ⏰
+                      </p>
+                      <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="pt-2">
+                        <button
+                          onClick={() => {
+                            setCurrentView("courses");
+                            setSelectedCourseCat("all");
+                          }}
+                          className="w-full sm:w-auto px-8 py-4 bg-white text-red-600 font-black text-sm sm:text-base rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer border-b-4 border-gray-200 uppercase tracking-wider"
+                        >
+                          <span>👉 CLICK HERE TO CLAIM 👈</span>
+                        </button>
+                      </motion.div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {
               loading ? (
@@ -3255,7 +4997,7 @@ export default function App() {
                 {i18n.profileTitle || "My Profile"}
               </h2>
               <div className="flex items-center gap-2">
-                {((currentUser?.email && (currentUser.email === "admin@gmail.com" || currentUser.email === "uzvsbdnzyxhzj@gmail.com")) || currentUser?.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2") && (
+                {((currentUser?.email && (currentUser.email === "uzvsbdnzyxhzj@gmail.com")) || currentUser?.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2") && (
                   <button data-ad-skip="true" onClick={() => { setCurrentView("admin"); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg transition text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 font-bold hidden md:flex">
                     <Settings className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">Admin Settings</span>
                   </button>
@@ -3275,7 +5017,7 @@ export default function App() {
               
               <div className="space-y-6">
                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden text-center p-6">
-                   {((currentUser?.email && (currentUser.email === "admin@gmail.com" || currentUser.email === "uzvsbdnzyxhzj@gmail.com")) || currentUser?.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2") && (
+                   {((currentUser?.email && (currentUser.email === "uzvsbdnzyxhzj@gmail.com")) || currentUser?.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2") && (
                      <button data-ad-skip="true" onClick={() => { setCurrentView("admin"); }} className="mb-4 mx-auto md:hidden flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl transition text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 font-bold w-full">
                        <Settings className="w-5 h-5 shrink-0" /> <span>Admin Settings Dashboard</span>
                      </button>
@@ -3509,6 +5251,153 @@ export default function App() {
               )}
             </div>
 
+            {/* My AI Tools & Subscription Plans */}
+            <div className="bg-white rounded-2xl shadow-sm border border-indigo-100 overflow-hidden">
+              <div className="p-4 border-b border-indigo-50 bg-indigo-50/30 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-indigo-100 text-indigo-600 rounded-lg">
+                    <Wrench className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-800 text-sm sm:text-base">
+                      {lang === "bn" ? "আমার এআই টুলস ও সাবস্ক্রিপশন প্ল্যান" : "My AI Tools & Subscription Plans"}
+                    </h3>
+                    <p className="text-[10px] sm:text-xs text-gray-500">
+                      {lang === "bn" ? "আপনার সক্রিয় এবং মেয়াদোত্তীর্ণ সাবস্ক্রিপশন তালিকা" : "List of your active & expired subscription plans"}
+                    </p>
+                  </div>
+                </div>
+                <span className="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded text-xs">
+                  {userSubscriptions.length} Plans
+                </span>
+              </div>
+
+              {userSubscriptions.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Bot className="w-12 h-12 text-indigo-300 mx-auto mb-3" />
+                  <p className="text-gray-500 font-medium text-sm">
+                    {lang === "bn" ? "কোন সক্রিয় সাবস্ক্রিপশন পাওয়া যায়নি" : "No active subscriptions found"}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto">
+                    {lang === "bn" ? "কম দামে গুগল জেমিনি প্রো প্রিমিয়াম কিনতে আমাদের সার্ভিস পেজ ভিজিট করুন।" : "Get Gemini Pro Premium at cheap prices from our Tools section."}
+                  </p>
+                  <button
+                    onClick={() => setCurrentView("tools")}
+                    className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-sm shadow-indigo-600/10"
+                  >
+                    {lang === "bn" ? "সাবস্ক্রিপশন কিনুন" : "Buy Subscription"}
+                  </button>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100 max-h-[380px] overflow-y-auto custom-scrollbar">
+                  {userSubscriptions.map((sub) => {
+                    const ago = getSubscriptionDaysAgo(sub.createdAt);
+                    const remaining = getSubscriptionRemainingText(sub.expiresAt);
+                    const countryFlag = geminiCountryFlags[sub.country] || "🌍";
+                    
+                    return (
+                      <div key={sub.id} className="p-4 hover:bg-indigo-50/10 transition-colors">
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-bold text-gray-800">
+                              Google Gemini Pro Premium
+                            </span>
+                            <span className="bg-gray-100 text-gray-700 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                              {sub.plan === "1month" ? "1-Month" :
+                               sub.plan === "3month" ? "3-Month" :
+                               sub.plan === "6month" ? "6-Month" : "12-Month"}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center gap-1.5">
+                            {remaining.isExpired ? (
+                              <span className="bg-red-50 text-red-600 text-[10px] font-bold px-2 py-0.5 rounded-full border border-red-100">
+                                {lang === "bn" ? "মেয়াদোত্তীর্ণ" : "Expired"}
+                              </span>
+                            ) : remaining.isCritical ? (
+                              <span className="bg-amber-50 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-100 animate-pulse">
+                                ⚠️ {remaining.text}
+                              </span>
+                            ) : (
+                              <span className="bg-green-50 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-green-100">
+                                {remaining.text}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-y-2.5 gap-x-4 text-xs mb-3">
+                          <div className="flex items-center gap-1.5 text-gray-600">
+                            <Globe className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <div>
+                              <p className="text-[10px] text-gray-400 font-medium">Country</p>
+                              <p className="font-semibold text-gray-700 flex items-center gap-1">
+                                {sub.country} {countryFlag}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 text-gray-600">
+                            <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <div>
+                              <p className="text-[10px] text-gray-400 font-medium">Purchased</p>
+                              <p className="font-semibold text-gray-700">
+                                {new Date(sub.createdAt).toLocaleDateString()} <span className="text-[10px] font-normal text-gray-400">({ago})</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 text-gray-600 col-span-2">
+                            <Mail className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[10px] text-gray-400 font-medium">Linked Gmail</p>
+                              <p className="font-semibold text-gray-700 truncate select-all">
+                                {sub.geminiEmail}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 text-gray-600 col-span-2 bg-indigo-50/40 p-2 rounded-xl border border-indigo-50/50">
+                            <Users className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Family Manager Gmail</p>
+                              <p className="font-bold text-indigo-900 truncate">
+                                {sub.familyManagerEmail && sub.familyManagerEmail !== "Not Assigned" ? (
+                                  <span className="select-all">{sub.familyManagerEmail}</span>
+                                ) : (
+                                  <span className="text-gray-400 font-normal italic">
+                                    {lang === "bn" ? "অ্যাক্টিভেশন প্রক্রিয়াধীন..." : "Activation in progress..."}
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between border-t border-gray-50 pt-2.5 mt-2">
+                          <span className="text-[10px] text-gray-400">
+                            ID: <span className="font-mono text-gray-500 select-all">{sub.id}</span>
+                          </span>
+                          <button
+                            onClick={() => {
+                              setGeminiCountry(sub.country);
+                              setGeminiPlan(sub.plan);
+                              setGeminiEmail(sub.geminiEmail);
+                              setCurrentView("tools");
+                              toast(`Form pre-filled! You can now renew your plan.`);
+                            }}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg transition shadow-sm"
+                          >
+                            {lang === "bn" ? "রিনিউ করুন 🔄" : "Renew Plan 🔄"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             {/* My Advertisements Component */}
             <MyAdsProfile currentUser={currentUser} onNavigate={(v) => setCurrentView(v as typeof currentView)} />
 
@@ -3721,13 +5610,86 @@ export default function App() {
               )}
             </motion.div>
 
+            {/* Custom Premium Offer Buttons placed above Buy Telegram Accounts */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-4">
+              {/* Course & Reel Bundles Card/Button */}
+              <motion.div
+                variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("courses"); }}
+                className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group"
+              >
+                <div className="relative bg-gradient-to-br from-amber-500 to-orange-600 h-28 flex flex-col items-center justify-center px-4 pt-4 pb-2 bg-cover bg-center">
+                  <div className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    Premium
+                  </div>
+                  <BookOpen className="w-12 h-12 text-white drop-shadow-sm" />
+                  <div className="text-white font-bold text-xs sm:text-sm tracking-tight mt-1 uppercase">REELS & COURSE</div>
+                </div>
+                <div className="p-3 flex-1 flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-1 text-sm sm:text-base leading-tight">
+                      Course & Reel Bundles
+                    </h3>
+                    <div className="flex items-center gap-0.5 mb-2">
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center text-xs text-gray-500 gap-1.5 mt-auto">
+                    <BookOpen className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                    <span className="truncate">10k+ reels & marketing guides</span>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Tools & Subscription Card/Button */}
+              <motion.div
+                variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setCurrentView("tools")}
+                className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group"
+              >
+                <div className="relative bg-gradient-to-br from-indigo-500 to-purple-600 h-28 flex flex-col items-center justify-center px-4 pt-4 pb-2 bg-cover bg-center">
+                  <div className="absolute top-2 left-2 bg-indigo-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    VIP Tools
+                  </div>
+                  <Wrench className="w-12 h-12 text-white drop-shadow-sm" />
+                  <div className="text-white font-bold text-xs sm:text-sm tracking-tight mt-1 uppercase">AUTOMATION & VIP</div>
+                </div>
+                <div className="p-3 flex-1 flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-1 text-sm sm:text-base leading-tight">
+                      Tools & Subscription
+                    </h3>
+                    <div className="flex items-center gap-0.5 mb-2">
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                      <span className="text-amber-400 text-xs sm:text-sm">★</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center text-xs text-gray-500 gap-1.5 mt-auto">
+                    <Wrench className="w-3.5 h-3.5 shrink-0 text-indigo-500" />
+                    <span className="truncate">Premium tools & VIP privileges</span>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+
             {/* Quick Actions (Buy / Sell / Topup / Withdraw inside dashboard) */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-3 sm:mb-4">
               <motion.div
                 variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => { setCurrentView("buy"); }}
+                onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("buy"); }}
                 className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group"
               >
                 <div 
@@ -4060,6 +6022,71 @@ export default function App() {
               </motion.div>
             </div>
 
+            {/* Animated Special Offer Ad Section */}
+            <AnimatePresence>
+              {showSpecialOfferAd && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0, y: 30 }}
+                  animate={{ opacity: 1, height: "auto", y: 0 }}
+                  exit={{ opacity: 0, height: 0, y: 30 }}
+                  transition={{ type: "spring", stiffness: 100, damping: 15 }}
+                  className="overflow-hidden mb-6"
+                >
+                  <div className="bg-gradient-to-r from-red-600 via-orange-500 to-yellow-500 rounded-3xl p-6 text-white text-center shadow-2xl relative overflow-hidden border-2 border-yellow-300 group">
+                    {/* Floating elements & light effects */}
+                    <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.15)_50%,rgba(255,255,255,0.15)_75%,transparent_75%,transparent)] bg-[length:40px_40px] animate-[shimmer_2s_linear_infinite] opacity-20 pointer-events-none" />
+                    <div className="absolute -right-12 -top-12 w-32 h-32 bg-white/20 rounded-full blur-2xl pointer-events-none" />
+                    <div className="absolute -left-12 -bottom-12 w-32 h-32 bg-yellow-400/30 rounded-full blur-2xl pointer-events-none" />
+
+                    {/* Close Button */}
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setShowSpecialOfferAd(false); }}
+                      className="absolute top-4 right-4 bg-black/30 hover:bg-black/50 text-white rounded-full p-1.5 transition cursor-pointer z-10"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+
+                    <div className="relative z-10 max-w-xl mx-auto space-y-4">
+                      {/* Flashing Title Badge */}
+                      <motion.div 
+                        animate={{ scale: [1, 1.05, 1] }}
+                        transition={{ duration: 1.5, repeat: Infinity }}
+                        className="inline-block bg-yellow-300 text-red-700 text-xs sm:text-sm font-black uppercase tracking-widest px-4 py-1.5 rounded-full shadow-lg border border-yellow-400"
+                      >
+                        🔥 SPECIAL OFFER 🔥
+                      </motion.div>
+
+                      {/* Main Heading */}
+                      <h3 className="text-3xl sm:text-4xl font-black tracking-tight text-white drop-shadow-md">
+                        UP TO 79% OFF! 🎉
+                      </h3>
+
+                      {/* Supporting copy */}
+                      <p className="text-sm sm:text-base font-extrabold text-white leading-relaxed drop-shadow-sm">
+                        Boost your business & get insane discounts on Advertising! 🚀 Hurry up, this is a LIMITED TIME EVENT! ⏰
+                      </p>
+
+                      {/* Animated CTA Button */}
+                      <motion.div 
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className="pt-2"
+                      >
+                        <button
+                          onClick={() => {
+                            setCurrentView("courses");
+                            setSelectedCourseCat("all");
+                          }}
+                          className="w-full sm:w-auto px-8 py-4 bg-white text-red-600 font-black text-sm sm:text-base rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer border-b-4 border-gray-200 uppercase tracking-wider"
+                        >
+                          <span>👉 CLICK HERE TO CLAIM 👈</span>
+                        </button>
+                      </motion.div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
 
             {/* Invite & Earn Banner */}
@@ -4251,6 +6278,8 @@ export default function App() {
                 { id: "failed", label: "Failed" },
                 { id: "users", label: "Users" },
                 { id: "services", label: "Services" },
+                { id: "courses", label: "Manage Courses" },
+                { id: "subscriptions", label: "Gemini Subscriptions" },
                 { id: "settings", label: "Settings" },
               ].map((tab) => (
                 <button
@@ -5258,6 +7287,534 @@ export default function App() {
             </div>
             </>
             )}
+
+            {adminTab === "courses" && (
+              <div className="space-y-6">
+                {/* Header & Add Button */}
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                      📚 Course & Product Management
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Add, edit, delete courses or update pricing, old price, discounts, features, and cover images.
+                    </p>
+                  </div>
+                  {!adminEditingCourse && (
+                    <button
+                      onClick={() => {
+                        setAdminEditingCourse("new");
+                        setAdminCourseForm({
+                          id: "",
+                          category: "Language & Skills",
+                          title: "",
+                          oldPrice: 1000,
+                          price: 150,
+                          rating: 5,
+                          badge: "Hot Offer",
+                          featuresString: "",
+                          imageUrl: ""
+                        });
+                      }}
+                      className="bg-blue-600 text-white font-bold py-2.5 px-5 rounded-xl hover:bg-blue-700 transition flex items-center gap-2 shadow-sm text-sm"
+                    >
+                      <span>➕ Add New Product</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Create or Edit Form */}
+                {adminEditingCourse && (
+                  <div className="bg-white p-6 rounded-xl border-2 border-blue-400 shadow-md">
+                    <h4 className="text-lg font-bold text-gray-900 mb-4 pb-2 border-b">
+                      {adminEditingCourse === "new" ? "Add New Course/Product" : `Edit Course/Product (ID: ${adminEditingCourse.id})`}
+                    </h4>
+                    <form onSubmit={handleSaveCourse} className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {adminEditingCourse === "new" && (
+                          <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">Product ID (Unique, e.g. 13)</label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="e.g. 13"
+                              value={adminCourseForm.id}
+                              onChange={(e) => setAdminCourseForm({ ...adminCourseForm, id: e.target.value })}
+                              className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                            />
+                          </div>
+                        )}
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">Category</label>
+                          <select
+                            value={adminCourseForm.category}
+                            onChange={(e) => setAdminCourseForm({ ...adminCourseForm, category: e.target.value })}
+                            className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                          >
+                            <option value="Language & Skills">Language & Skills</option>
+                            <option value="AI & Reels">AI & Reels</option>
+                            <option value="Entertainment & Video">Entertainment & Video</option>
+                            <option value="E-Commerce Course">E-Commerce Course</option>
+                            <option value="Animation Course">Animation Course</option>
+                            <option value="ASMR & Reels">ASMR & Reels</option>
+                            <option value="Premium Bundle">Premium Bundle</option>
+                            <option value="Software Bundle">Software Bundle</option>
+                            <option value="Maps & Assets">Maps & Assets</option>
+                            <option value="Government Tendering">Government Tendering</option>
+                            <option value="YouTube Course">YouTube Course</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">Badge Title (e.g. Best Seller)</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Trending"
+                            value={adminCourseForm.badge}
+                            onChange={(e) => setAdminCourseForm({ ...adminCourseForm, badge: e.target.value })}
+                            className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">Original Price (oldPrice in ৳)</label>
+                          <input
+                            type="number"
+                            required
+                            min="0"
+                            value={adminCourseForm.oldPrice}
+                            onChange={(e) => setAdminCourseForm({ ...adminCourseForm, oldPrice: Number(e.target.value) })}
+                            className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">Discount Price (price in ৳)</label>
+                          <input
+                            type="number"
+                            required
+                            min="0"
+                            value={adminCourseForm.price}
+                            onChange={(e) => setAdminCourseForm({ ...adminCourseForm, price: Number(e.target.value) })}
+                            className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">Rating (1 - 5 Stars)</label>
+                          <input
+                            type="number"
+                            required
+                            min="1"
+                            max="5"
+                            value={adminCourseForm.rating}
+                            onChange={(e) => setAdminCourseForm({ ...adminCourseForm, rating: Number(e.target.value) })}
+                            className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">Product Title</label>
+                        <textarea
+                          required
+                          rows={2}
+                          placeholder="Enter course title in Bengali/English"
+                          value={adminCourseForm.title}
+                          onChange={(e) => setAdminCourseForm({ ...adminCourseForm, title: e.target.value })}
+                          className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">Features (comma separated)</label>
+                        <textarea
+                          rows={2}
+                          placeholder="Feature 1, Feature 2, Feature 3, Feature 4"
+                          value={adminCourseForm.featuresString}
+                          onChange={(e) => setAdminCourseForm({ ...adminCourseForm, featuresString: e.target.value })}
+                          className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">Custom Image Cover (Option 1: Upload Image file)</label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              if (file.size > 500000) {
+                                toast("Image is too large. Keep it under 500KB.");
+                                return;
+                              }
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                setAdminCourseForm({ ...adminCourseForm, imageUrl: reader.result as string });
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 bg-white text-sm"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">Option 2: Image URL (Or keep blank to use default template covers)</label>
+                        <input
+                          type="text"
+                          placeholder="https://example.com/image.png"
+                          value={adminCourseForm.imageUrl.startsWith("data:") ? "" : adminCourseForm.imageUrl}
+                          onChange={(e) => setAdminCourseForm({ ...adminCourseForm, imageUrl: e.target.value })}
+                          className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                        />
+                      </div>
+
+                      {adminCourseForm.imageUrl && (
+                        <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                          <p className="text-xs font-bold text-gray-500 mb-2">Image Cover Preview:</p>
+                          <img src={adminCourseForm.imageUrl} alt="Cover Preview" className="max-h-32 object-cover rounded border" />
+                        </div>
+                      )}
+
+                      <div className="flex justify-end gap-3 pt-4 border-t">
+                        <button
+                          type="button"
+                          onClick={() => setAdminEditingCourse(null)}
+                          className="bg-gray-100 text-gray-700 py-2.5 px-5 rounded-xl font-bold hover:bg-gray-200 transition text-sm cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="bg-blue-600 text-white py-2.5 px-6 rounded-xl font-bold hover:bg-blue-700 transition text-sm cursor-pointer shadow-md"
+                        >
+                          Save Product
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
+                {/* Courses Listing grid/table */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                    <h4 className="font-extrabold text-gray-800">Products & Courses List ({coursesList.length > 0 ? coursesList.length : premiumProducts.length})</h4>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm whitespace-nowrap">
+                      <thead className="bg-white border-b">
+                        <tr>
+                          <th className="px-4 py-3 font-bold text-gray-600">ID</th>
+                          <th className="px-4 py-3 font-bold text-gray-600">Cover</th>
+                          <th className="px-4 py-3 font-bold text-gray-600">Product Title</th>
+                          <th className="px-4 py-3 font-bold text-gray-600">Category</th>
+                          <th className="px-4 py-3 font-bold text-gray-600">Badge</th>
+                          <th className="px-4 py-3 font-bold text-gray-600">Pricing</th>
+                          <th className="px-4 py-3 font-bold text-gray-600 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {(coursesList.length > 0 ? coursesList : premiumProducts).map((prod) => {
+                          const discountPercent = prod.oldPrice > 0 ? Math.round(((prod.oldPrice - prod.price) / prod.oldPrice) * 100) : 0;
+                          return (
+                            <tr key={prod.id} className="hover:bg-gray-50/50 transition">
+                              <td className="px-4 py-3 text-xs font-bold text-gray-400">{prod.id}</td>
+                              <td className="px-4 py-3">
+                                <div className="w-12 h-10 rounded border border-gray-150 overflow-hidden bg-gray-100 flex items-center justify-center">
+                                  {renderProductCoverMockup(prod)}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 max-w-xs truncate font-semibold text-gray-900" title={prod.title}>
+                                {prod.title}
+                              </td>
+                              <td className="px-4 py-3 text-xs font-bold text-slate-500">
+                                {prod.category}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
+                                  {prod.badge}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 leading-tight">
+                                <div className="text-xs text-gray-400 line-through">{prod.oldPrice}৳ (${Number((prod.oldPrice / TOPUP_RATE).toFixed(2)).toFixed(2)} USD)</div>
+                                <div className="font-extrabold text-red-600">{prod.price}৳ (${Number((prod.price / TOPUP_RATE).toFixed(2)).toFixed(2)} USD)</div>
+                                <div className="text-[10px] font-bold text-green-700 bg-green-50 px-1 py-0.2 rounded inline-block mt-1">{discountPercent}% OFF</div>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <div className="flex justify-end gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setAdminEditingCourse(prod);
+                                      setAdminCourseForm({
+                                        id: String(prod.id),
+                                        category: prod.category || "Language & Skills",
+                                        title: prod.title || "",
+                                        oldPrice: prod.oldPrice || 0,
+                                        price: prod.price || 0,
+                                        rating: prod.rating || 5,
+                                        badge: prod.badge || "Trending",
+                                        featuresString: Array.isArray(prod.features) ? prod.features.join(", ") : "",
+                                        imageUrl: prod.imageUrl || ""
+                                      });
+                                    }}
+                                    className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 border border-blue-200 rounded-md transition"
+                                    title="Edit Course"
+                                  >
+                                    ✏️
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteCourse(String(prod.id))}
+                                    className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 border border-red-200 rounded-md transition"
+                                    title="Delete Course"
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {adminTab === "subscriptions" && (() => {
+              const expiringSoonCount = allSubscriptions.filter(s => isSubscriptionExpiringSoon(s.expiresAt)).length;
+              const activeCount = allSubscriptions.filter(s => s.expiresAt > Date.now()).length;
+              const expiredCount = allSubscriptions.filter(s => s.expiresAt <= Date.now()).length;
+
+              const filteredSubs = allSubscriptions.filter((sub) => {
+                // Search term match
+                const searchLower = adminSubSearch.toLowerCase();
+                const matchesSearch = 
+                  sub.userName?.toLowerCase().includes(searchLower) ||
+                  sub.userEmail?.toLowerCase().includes(searchLower) ||
+                  sub.geminiEmail?.toLowerCase().includes(searchLower) ||
+                  sub.id?.toLowerCase().includes(searchLower);
+
+                if (!matchesSearch) return false;
+
+                // Filter status match
+                if (adminSubFilter === "active") return sub.expiresAt > Date.now();
+                if (adminSubFilter === "expired") return sub.expiresAt <= Date.now();
+                if (adminSubFilter === "expiring") return isSubscriptionExpiringSoon(sub.expiresAt);
+                return true;
+              });
+
+              return (
+                <div className="space-y-6">
+                  {/* Warning Notification Banner for Expiring Subscriptions */}
+                  {expiringSoonCount > 0 && (
+                    <div className="bg-gradient-to-r from-red-600 to-amber-600 text-white p-4 rounded-xl shadow-md flex flex-col sm:flex-row items-center justify-between gap-4 animate-pulse">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl shrink-0">⚠️</span>
+                        <div>
+                          <h4 className="font-extrabold text-sm sm:text-base">EXPIRING SUBSCRIPTIONS NOTIFICATION!</h4>
+                          <p className="text-xs text-red-100">
+                            {expiringSoonCount} subscription{expiringSoonCount > 1 ? "s are" : " is"} expiring in less than 24 hours. Check and ask them to renew soon!
+                          </p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => { setAdminSubFilter("expiring"); }} 
+                        className="bg-white text-red-700 font-extrabold text-xs px-4 py-2 rounded-xl hover:bg-red-50 transition shadow-sm self-stretch sm:self-auto text-center cursor-pointer"
+                      >
+                        Filter Expiring Soon
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                      <p className="text-xs font-bold text-gray-400 uppercase">Total Purchased</p>
+                      <p className="text-2xl font-extrabold text-gray-800 mt-1">{allSubscriptions.length}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                      <p className="text-xs font-bold text-green-500 uppercase">Active Plans</p>
+                      <p className="text-2xl font-extrabold text-green-600 mt-1">{activeCount}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                      <p className="text-xs font-bold text-amber-500 uppercase">Expiring (24h)</p>
+                      <p className="text-2xl font-extrabold text-amber-600 mt-1">{expiringSoonCount}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                      <p className="text-xs font-bold text-red-400 uppercase">Expired Plans</p>
+                      <p className="text-2xl font-extrabold text-red-600 mt-1">{expiredCount}</p>
+                    </div>
+                  </div>
+
+                  {/* Controls Banner */}
+                  <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
+                    <div className="relative w-full md:w-96">
+                      <input
+                        type="text"
+                        placeholder="Search by User Name, Email, or Gemini Gmail..."
+                        value={adminSubSearch}
+                        onChange={(e) => setAdminSubSearch(e.target.value)}
+                        className="w-full pl-3 pr-10 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 bg-white text-sm"
+                      />
+                      {adminSubSearch && (
+                        <button onClick={() => setAdminSubSearch("")} className="absolute right-3 top-3 text-gray-400 hover:text-gray-600">
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 self-start md:self-auto">
+                      {(["all", "active", "expiring", "expired"] as const).map((filterVal) => (
+                        <button
+                          key={filterVal}
+                          onClick={() => setAdminSubFilter(filterVal)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition capitalize ${
+                            adminSubFilter === filterVal
+                              ? "bg-blue-600 text-white shadow-sm"
+                              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                          }`}
+                        >
+                          {filterVal === "expiring" ? "Expiring Soon" : filterVal}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Grid Layout of subscriptions */}
+                  {filteredSubs.length === 0 ? (
+                    <div className="bg-white p-12 text-center rounded-xl border border-gray-200 shadow-sm">
+                      <Bot className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500 font-bold">No subscriptions matched your filters</p>
+                      <p className="text-xs text-gray-400 mt-1">Try changing your filters or searching another keyword.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {filteredSubs.map((sub) => {
+                        const isExpSoon = isSubscriptionExpiringSoon(sub.expiresAt);
+                        const isOver = sub.expiresAt <= Date.now();
+                        const countryFlag = geminiCountryFlags[sub.country] || "🌍";
+
+                        const editableEmail = editingFamilyEmails[sub.id] !== undefined 
+                          ? editingFamilyEmails[sub.id] 
+                          : (sub.familyManagerEmail === "Not Assigned" ? "" : sub.familyManagerEmail || "");
+
+                        const handleSave = async () => {
+                          try {
+                            await updateDoc(doc(db, "gemini_subscriptions", sub.id), {
+                              familyManagerEmail: editableEmail.trim() || "Not Assigned"
+                            });
+                            toast.success("Family Manager Gmail updated!");
+                          } catch (err) {
+                            console.error("Error setting manager:", err);
+                            toast.error("Failed to save email.");
+                          }
+                        };
+
+                        return (
+                          <div 
+                            key={sub.id} 
+                            className={`bg-white rounded-xl shadow-sm border p-5 flex flex-col justify-between transition-all ${
+                              isExpSoon 
+                                ? "border-amber-300 ring-2 ring-amber-100" 
+                                : isOver 
+                                ? "border-red-200 bg-red-50/10" 
+                                : "border-gray-200"
+                            }`}
+                          >
+                            <div>
+                              {/* Header details */}
+                              <div className="flex justify-between items-start gap-4 mb-3 pb-3 border-b border-gray-100">
+                                <div>
+                                  <span className="text-xs font-bold text-gray-400 block mb-0.5">SUBSCRIPTION ID: {sub.id}</span>
+                                  <h4 className="font-extrabold text-gray-800 text-sm sm:text-base">
+                                    Google Gemini Pro Premium
+                                  </h4>
+                                </div>
+                                <div className="text-right">
+                                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                    isOver 
+                                      ? "bg-red-100 text-red-800" 
+                                      : isExpSoon 
+                                      ? "bg-amber-100 text-amber-800 animate-pulse" 
+                                      : "bg-green-100 text-green-800"
+                                  }`}>
+                                    {isOver ? "Expired" : isExpSoon ? "Expiring Soon ⚠️" : "Active"}
+                                  </span>
+                                  <span className="block text-xs font-bold text-blue-600 mt-1">
+                                    {sub.plan === "1month" ? "1-Month Plan" :
+                                     sub.plan === "3month" ? "3-Month Plan" :
+                                     sub.plan === "6month" ? "6-Month Plan" : "12-Month Plan"}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Inner stats columns */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-4 text-xs mb-4">
+                                <div className="space-y-1 bg-gray-50/50 p-2 rounded-lg">
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Member Details</p>
+                                  <p className="font-bold text-gray-700">{sub.userName}</p>
+                                  <p className="text-gray-500 truncate">{sub.userEmail}</p>
+                                  <p className="text-[10px] text-gray-400 font-mono">{sub.userId}</p>
+                                </div>
+
+                                <div className="space-y-1 bg-gray-50/50 p-2 rounded-lg">
+                                  <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Linked AI Account</p>
+                                  <p className="font-bold text-indigo-900 truncate select-all">{sub.geminiEmail}</p>
+                                  <p className="text-gray-500 select-all font-mono">Pass: {sub.geminiPassword}</p>
+                                  <p className="text-gray-700 font-semibold flex items-center gap-1">
+                                    {countryFlag} {sub.country} <span className="text-gray-400 font-normal">(${sub.priceUSD} USD)</span>
+                                  </p>
+                                </div>
+
+                                <div className="sm:col-span-2 space-y-1 bg-blue-50/30 p-2 rounded-lg border border-blue-100/30">
+                                  <div className="flex justify-between items-center text-[10px] font-bold text-blue-500 uppercase">
+                                    <span>Timeframe Duration</span>
+                                    {!isOver && (
+                                      <span className={isExpSoon ? "text-amber-600 font-extrabold" : "text-green-600 font-bold"}>
+                                        {getSubscriptionRemainingText(sub.expiresAt).text}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex justify-between font-medium text-gray-700">
+                                    <span>Bought: {new Date(sub.createdAt).toLocaleString()}</span>
+                                    <span>Expires: {new Date(sub.expiresAt).toLocaleDateString()}</span>
+                                  </div>
+                                  <p className="text-[10px] text-gray-400 italic">Purchased {getSubscriptionDaysAgo(sub.createdAt)}</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Family Manager inputs & settings */}
+                            <div className="bg-indigo-50/40 p-3 rounded-xl border border-indigo-100/50 mt-1">
+                              <label className="block text-[11px] font-extrabold text-indigo-700 uppercase mb-1 flex items-center gap-1">
+                                <Users className="w-3.5 h-3.5" /> Family Manager Gmail (add/edit)
+                              </label>
+                              <div className="flex gap-2">
+                                <input
+                                  type="email"
+                                  placeholder="e.g. manager@gmail.com"
+                                  value={editableEmail}
+                                  onChange={(e) => setEditingFamilyEmails({ ...editingFamilyEmails, [sub.id]: e.target.value })}
+                                  className="flex-1 px-3 py-1.5 bg-white border border-indigo-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-indigo-400 font-medium text-gray-800"
+                                />
+                                <button
+                                  onClick={handleSave}
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm cursor-pointer"
+                                >
+                                  Save
+                                </button>
+                              </div>
+                              <p className="text-[10px] text-indigo-400 mt-1 font-medium">
+                                This will show immediately in the member's Account panel.
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
         </motion.div>
@@ -5411,6 +7968,18 @@ export default function App() {
                   className={`flex items-center gap-3 p-3 rounded-xl transition font-medium w-full text-left ${currentView === "buy" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
                 >
                   <LayoutGrid className={`w-5 h-5 ${currentView === "buy" ? "text-blue-600" : "text-gray-400"}`} /> {i18n.buyNav || "Buy Account"}
+                </button>
+                <button
+                  onClick={() => { (window as any).triggerAdClick?.(); setIsMobileMenuOpen(false); setCurrentView("courses"); }}
+                  className={`flex items-center gap-3 p-3 rounded-xl transition font-medium w-full text-left ${currentView === "courses" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
+                >
+                  <BookOpen className={`w-5 h-5 ${currentView === "courses" ? "text-blue-600" : "text-gray-400"}`} /> {lang === "bn" ? "কোর্স ও রিল বান্ডেল" : "Courses & Reel Bundles"}
+                </button>
+                <button
+                  onClick={() => { (window as any).triggerAdClick?.(); setIsMobileMenuOpen(false); setCurrentView("tools"); }}
+                  className={`flex items-center gap-3 p-3 rounded-xl transition font-medium w-full text-left ${currentView === "tools" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
+                >
+                  <Wrench className={`w-5 h-5 ${currentView === "tools" ? "text-blue-600" : "text-gray-400"}`} /> {lang === "bn" ? "টুলস ও ভিআইপি সাবস্ক্রিপশন" : "Tools & VIP Subscription"}
                 </button>
                 <button
                   onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setIsMobileMenuOpen(false); setCurrentView("profile"); })}

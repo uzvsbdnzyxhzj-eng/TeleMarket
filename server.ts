@@ -1283,7 +1283,11 @@ Be very polite, helpful, concise, and respond in the language the user speaks. U
                    console.warn(`Verify response failed on ${domain}: ${verifyRes.status}`);
                 }
               } catch (err: any) {
-                console.error(`Active verification details on ${domain} failed:`, err.message || err);
+                if (err.name === 'AbortError') {
+                  console.warn(`Active verification on ${domain} timed out / aborted.`);
+                } else {
+                  console.warn(`Active verification details on ${domain} failed:`, err.message || err);
+                }
               }
            }
 
