@@ -94,7 +94,23 @@ export default function ChildPanel({ currentUser, onNavigate, balanceUSD }: Chil
         })
       ]);
       
-      toast.success("Child panel successfully activated! Please update your nameservers.");
+      if (typeof (window as any).triggerPurchaseSuccess === "function") {
+        (window as any).triggerPurchaseSuccess({
+          title: `SMM Child Panel (${domain.trim()})`,
+          category: "Child Panel Subscription 🖥️",
+          priceUSD: INITIAL_PRICE,
+          details: {
+            "Domain": domain.trim(),
+            "Nameservers": "ns1.telemarketpanel.com, ns2.telemarketpanel.com",
+            "Admin User": adminUser.trim(),
+            "Status": "Active (Needs DNS setup)",
+            "Billing Cycle": "3 Months",
+            "Instructions": "Please update your domain nameservers to: ns1.telemarketpanel.com and ns2.telemarketpanel.com to connect it to our network!"
+          }
+        });
+      } else {
+        toast.success("Child panel successfully activated! Please update your nameservers.");
+      }
       setShowOrderModal(false);
       setDomain("");
       setAdminUser("");

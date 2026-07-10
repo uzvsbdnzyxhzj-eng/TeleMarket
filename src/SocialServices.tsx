@@ -254,7 +254,23 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
            ]);
 
            toast.dismiss(loadingToast);
-           toast.success(`Order placed successfully! ID: ${data.order}`);
+           if (typeof (window as any).triggerPurchaseSuccess === "function") {
+             (window as any).triggerPurchaseSuccess({
+               title: selectedService.name,
+               category: "SMM Social Service 🚀",
+               priceUSD: Number(charge),
+               details: {
+                 "Order ID": data.order,
+                 "SMM Category": selectedService.category,
+                 "Target Link": link.trim(),
+                 "Order Quantity": Number(quantity),
+                 "Service ID": selectedService.service,
+                 "Instructions": "Your SMM Order has been submitted and is currently being processed by our provider networks automatically!"
+               }
+             });
+           } else {
+             toast.success(`Order placed successfully! ID: ${data.order}`);
+           }
            setLink("");
            setQuantity("");
            setActiveTab("orders");
@@ -521,9 +537,9 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
                          
                          {showServiceDropdown && (
                              <div className="absolute z-40 w-full mt-1 bg-white border border-[#e2e8f0] rounded-xl shadow-lg max-h-[300px] overflow-y-auto">
-                                 {currentServices.map(s => (
+                                 {currentServices.map((s, idx) => (
                                      <div 
-                                        key={s.service} 
+                                        key={`${s.service}-${idx}`} 
                                         onClick={() => {
                                             setSelectedService(s);
                                             setShowServiceDropdown(false);
@@ -628,8 +644,8 @@ export default function SocialServices({ currentUser, onNavigate, balanceUSD, so
                            </tr>
                         </thead>
                         <tbody className="divide-y divide-[#e2e8f0]">
-                           {services.map(s => (
-                              <tr key={s.service} className="hover:bg-[#ffffff] transition-colors">
+                           {services.map((s, idx) => (
+                              <tr key={`${s.service}-${idx}`} className="hover:bg-[#ffffff] transition-colors">
                                  <td className="px-4 py-3.5"><span className="bg-gray-800 text-white px-2 py-0.5 rounded-full text-[11px] font-bold">{s.service}</span></td>
                                  <td className="px-4 py-3.5 font-medium text-gray-700">{s.name}</td>
                                  <td className="px-4 py-3.5 font-mono text-[#2AABEE] font-bold">${s.rate}</td>

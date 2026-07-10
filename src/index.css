@@ -45,3 +45,39 @@
     animation-delay: 4s;
   }
 }
+
+/* Enhance visual structure with prominent high-contrast borders & lines */
+.border-gray-100, .border-slate-100, .border-slate-150 {
+  border-color: #cbd5e1 !important; /* slate-300 */
+}
+.border-gray-50, .border-slate-50 {
+  border-color: #cbd5e1 !important; /* slate-300 */
+}
+.border-gray-200, .border-slate-200 {
+  border-color: #94a3b8 !important; /* slate-400 */
+}
+.border-gray-300, .border-slate-300 {
+  border-color: #64748b !important; /* slate-500 */
+}
+
+/* Dark mode compatibility for borders */
+.dark .border-gray-100, .dark .border-slate-100 {
+  border-color: #334155 !important;
+}
+.dark .border-gray-200, .dark .border-slate-200 {
+  border-color: #475569 !important;
+}
+.dark .border-gray-300, .dark .border-slate-300 {
+  border-color: #64748b !important;
+}
+
+/* Solid distinct boundaries for buttons and input panels */
+button:not(.bg-transparent), select, input, textarea {
+  border-style: solid;
+  transition: all 0.2s ease-in-out;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+

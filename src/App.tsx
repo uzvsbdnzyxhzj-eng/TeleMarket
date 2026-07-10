@@ -55,7 +55,9 @@ import {
   Ticket,
   Code,
   BookOpen,
-  Wrench
+  Wrench,
+  Sparkles,
+  Loader2
 } from "lucide-react";
 import { auth, db } from "./firebase";
 
@@ -150,6 +152,7 @@ import SupportTickets from "./SupportTickets";
 import AdminTickets from "./AdminTickets";
 import SocialServices from "./SocialServices";
 import ChatBot from "./ChatBot";
+import SuccessReceiptModal from "./SuccessReceiptModal";
 import AdminDataOverview from "./AdminDataOverview";
 
 export type View =
@@ -192,26 +195,23 @@ const TOPIC_OPTIONS = [
 ];
 
 const geminiCountriesList = [
-  "United States", "Canada", "United Kingdom", "Australia", "New Zealand", 
-  "Germany", "France", "Italy", "Spain", "Netherlands", "Belgium", "Sweden", 
-  "Norway", "Denmark", "Finland", "Switzerland", "Austria", "Ireland", 
-  "Luxembourg", "Iceland", "Poland", "Czech Republic", "Slovakia", "Hungary", 
-  "Romania", "Bulgaria", "Croatia", "Slovenia", "Serbia", "Bosnia and Herzegovina", 
-  "Albania", "Montenegro", "North Macedonia", "Greece", "Portugal", "Estonia", 
-  "Latvia", "Lithuania", "Malta", "Cyprus", "India", "Bangladesh", "Pakistan", 
-  "Nepal", "Sri Lanka", "Maldives", "Bhutan", "Indonesia", "Philippines", 
-  "Vietnam", "Thailand", "Malaysia", "Singapore", "Cambodia", "Laos", "Myanmar", 
-  "Mongolia", "South Korea", "Japan", "Hong Kong", "United Arab Emirates", 
-  "Saudi Arabia", "Qatar", "Kuwait", "Bahrain", "Oman", "Israel", "Jordan", 
-  "Lebanon", "Iraq", "Turkey", "Egypt", "Morocco", "Algeria", "Tunisia", 
-  "Brazil", "Argentina", "Chile", "Colombia", "Peru", "Venezuela", "Uruguay", 
-  "Paraguay", "Bolivia", "Ecuador", "Mexico", "Costa Rica", "Panama", "Guatemala", 
-  "Honduras", "El Salvador", "Nicaragua", "South Africa", "Nigeria", "Kenya", 
-  "Ghana", "Ethiopia", "Tanzania", "Uganda", "Rwanda", "Zambia", "Zimbabwe", 
-  "Botswana", "Namibia", "Senegal", "Ivory Coast", "Cameroon", "Angola", "Sudan", 
-  "Somalia", "Georgia", "Armenia", "Azerbaijan", "Kazakhstan", "Uzbekistan", 
-  "Kyrgyzstan", "Tajikistan", "Turkmenistan", "Moldova", "Ukraine"
-];
+  "Albania", "Algeria", "Angola", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", 
+  "Bahrain", "Bangladesh", "Belgium", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", 
+  "Brazil", "Bulgaria", "Cambodia", "Cameroon", "Canada", "Chile", "Colombia", "Costa Rica", 
+  "Croatia", "Cyprus", "Czech Republic", "Denmark", "Ecuador", "Egypt", "El Salvador", "Estonia", 
+  "Ethiopia", "Finland", "France", "Georgia", "Germany", "Ghana", "Greece", "Guatemala", 
+  "Honduras", "Hong Kong", "Hungary", "Iceland", "India", "Indonesia", "Iraq", "Ireland", 
+  "Israel", "Italy", "Ivory Coast", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kuwait", 
+  "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lithuania", "Luxembourg", "Malaysia", "Maldives", 
+  "Malta", "Mexico", "Moldova", "Mongolia", "Montenegro", "Morocco", "Myanmar", "Namibia", 
+  "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Nigeria", "North Macedonia", "Norway", 
+  "Oman", "Pakistan", "Panama", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", 
+  "Qatar", "Romania", "Rwanda", "Saudi Arabia", "Senegal", "Serbia", "Singapore", "Slovakia", 
+  "Slovenia", "Somalia", "South Africa", "South Korea", "Spain", "Sri Lanka", "Sudan", 
+  "Sweden", "Switzerland", "Tajikistan", "Tanzania", "Thailand", "Tunisia", "Turkey", 
+  "Turkmenistan", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", 
+  "Uruguay", "Uzbekistan", "Venezuela", "Vietnam", "Zambia", "Zimbabwe"
+].sort((a, b) => a.localeCompare(b));
 
 const geminiCountryFlags: Record<string, string> = {
   "United States": "🇺🇸",
@@ -459,6 +459,17 @@ const geminiCountryPrices12M: Record<string, number> = {
   "Ukraine": 8.99
 };
 
+const getGeminiPriceRangeText = () => {
+  const basePrices = Object.values(geminiCountryPrices12M);
+  if (basePrices.length === 0) return "$1.25 - $56.96 USD";
+  const oneMonthPrices = basePrices.map(base => Math.max(0.99, Math.round((base * 0.25) * 100) / 100));
+  const personalPrices = basePrices.map(base => base * 3.8);
+  const minPrice = Math.min(...oneMonthPrices).toFixed(2);
+  const maxPrice = Math.max(...personalPrices).toFixed(2);
+  return `$${minPrice} - $${maxPrice} USD`;
+};
+const geminiPriceRangeText = getGeminiPriceRangeText();
+
 const premiumProducts = [
   {
     id: 1,
@@ -662,9 +673,11 @@ export default function App() {
 
   // Google Gemini Pro Premium purchase form states
   const [geminiCountry, setGeminiCountry] = useState("Bangladesh");
+  const [geminiCategory, setGeminiCategory] = useState<"member" | "personal">("member");
   const [geminiPlan, setGeminiPlan] = useState<"1month" | "3month" | "6month" | "12month">("12month");
   const [geminiEmail, setGeminiEmail] = useState("");
   const [geminiPassword, setGeminiPassword] = useState("");
+  const [geminiBackupCodes, setGeminiBackupCodes] = useState("");
   const [selectedToolDetail, setSelectedToolDetail] = useState<string | null>(null);
   const [geminiCountrySearch, setGeminiCountrySearch] = useState("");
 
@@ -674,6 +687,31 @@ export default function App() {
   const [editingFamilyEmails, setEditingFamilyEmails] = useState<Record<string, string>>({});
   const [adminSubSearch, setAdminSubSearch] = useState("");
   const [adminSubFilter, setAdminSubFilter] = useState<"all" | "expiring" | "active" | "expired">("all");
+
+  // Success Receipt Modal state for order confirmation
+  const [successReceipt, setSuccessReceipt] = useState<{
+    txId?: string;
+    title: string;
+    category: string;
+    priceUSD: number;
+    details: Record<string, any>;
+  } | null>(null);
+
+  // Global listener for other components to trigger the receipt modal
+  useEffect(() => {
+    (window as any).triggerPurchaseSuccess = (data: {
+      txId?: string;
+      title: string;
+      category: string;
+      priceUSD: number;
+      details: Record<string, any>;
+    }) => {
+      setSuccessReceipt(data);
+    };
+    return () => {
+      delete (window as any).triggerPurchaseSuccess;
+    };
+  }, []);
 
   // Bind triggerAdClick to show the Special Offer ad
   useEffect(() => {
@@ -789,6 +827,110 @@ export default function App() {
     });
   };
 
+  const handleAiGenerateProductDetails = async () => {
+    if (!adminCourseForm.title) {
+      toast.error("Please enter a Product Title first to generate details!");
+      return;
+    }
+    setGeneratingProductDetails(true);
+    try {
+      const res = await fetch("/api/admin/product/generate-details", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: adminCourseForm.title,
+          category: adminCourseForm.category,
+          badge: adminCourseForm.badge
+        })
+      });
+      const data = await res.json();
+      if (data.description || data.featuresString) {
+        setAdminCourseForm(prev => ({
+          ...prev,
+          description: data.description || prev.description,
+          featuresString: data.featuresString || prev.featuresString
+        }));
+        toast.success("AI Details & Features generated successfully!");
+      } else if (data.error) {
+        toast.error(`AI Error: ${data.error}`);
+      } else {
+        toast.error("Failed to generate details. Please try again.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Network error while generating details.");
+    } finally {
+      setGeneratingProductDetails(false);
+    }
+  };
+
+  const handleBulkAiGenerateProductDetails = async () => {
+    const listToProcess = coursesList.length > 0 ? coursesList : premiumProducts;
+    if (listToProcess.length === 0) {
+      toast.error("No products/courses found to generate descriptions!");
+      return;
+    }
+
+    askConfirmation(
+      `Are you sure you want to bulk generate AI descriptions and key features for all ${listToProcess.length} products? This may take some time.`,
+      async () => {
+        setBulkGenerating(true);
+        let successCount = 0;
+        let failCount = 0;
+
+        for (let i = 0; i < listToProcess.length; i++) {
+          const prod = listToProcess[i];
+          setBulkProgress({
+            current: i + 1,
+            total: listToProcess.length,
+            title: prod.title
+          });
+
+          try {
+            const res = await fetch("/api/admin/product/generate-details", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                title: prod.title,
+                category: prod.category,
+                badge: prod.badge
+              })
+            });
+            const data = await res.json();
+            if (data.description || data.featuresString) {
+              const featuresListParsed = data.featuresString
+                ? data.featuresString.split(",").map((f: string) => f.trim()).filter(Boolean)
+                : [];
+              
+              await setDoc(doc(db, "courses", String(prod.id)), {
+                category: prod.category || "General",
+                title: prod.title,
+                description: data.description || "",
+                oldPrice: Number(prod.oldPrice) || 0,
+                price: Number(prod.price) || 0,
+                rating: Number(prod.rating) || 5,
+                badge: prod.badge || "Trending",
+                features: featuresListParsed,
+                imageUrl: prod.imageUrl || ""
+              }, { merge: true });
+              
+              successCount++;
+            } else {
+              console.warn(`Failed to generate details for product ID ${prod.id}: ${data.error || 'Unknown response'}`);
+              failCount++;
+            }
+          } catch (err) {
+            console.error(`Error generating details for product ID ${prod.id}:`, err);
+            failCount++;
+          }
+        }
+
+        setBulkGenerating(false);
+        toast.success(`Bulk AI generation complete! Success: ${successCount}, Failed: ${failCount}`);
+      }
+    );
+  };
+
   const handleSaveCourse = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adminCourseForm.title) {
@@ -803,6 +945,7 @@ export default function App() {
     const courseData = {
       category: adminCourseForm.category,
       title: adminCourseForm.title,
+      description: adminCourseForm.description || "",
       oldPrice: Number(adminCourseForm.oldPrice) || 0,
       price: Number(adminCourseForm.price) || 0,
       rating: Number(adminCourseForm.rating) || 5,
@@ -819,6 +962,7 @@ export default function App() {
         id: "",
         category: "Language & Skills",
         title: "",
+        description: "",
         oldPrice: 0,
         price: 0,
         rating: 5,
@@ -873,11 +1017,19 @@ export default function App() {
             createdAt: Date.now(),
           });
 
-          toast("Purchase successful! Contact support with your Transaction ID to get instant course access.");
-
-          // Auto-trigger prefilled WhatsApp link with purchase details for manual/instant delivery
-          const msg = `আসসালামু আলাইকুম, আমি এই মাত্র আপনার ওয়েবসাইট থেকে আমার ব্যালেন্স দিয়ে এই কোর্সটি কিনেছি:\n\n📂 কোর্স/প্রোডাক্ট: ${prod.title}\n💰 মূল্য: $${priceUSD.toFixed(2)} USD\n🆔 ইউজার আইডি: ${currentUser.uid}\n🧾 ট্রানজেকশন আইডি: ${txRef.id}\n\nদয়া করে আমাকে ডিরেক্ট গুগল ড্রাইভ ডাউনলোড লিংকটি দিন। ধন্যবাদ!`;
-          window.open(`https://wa.me/8801644627304?text=${encodeURIComponent(msg)}`, "_blank");
+          setSuccessReceipt({
+            txId: txRef.id,
+            title: prod.title,
+            category: "Premium Course 📂",
+            priceUSD: priceUSD,
+            details: {
+              "Course Category": prod.category || "N/A",
+              "Delivery System": "Google Drive Link",
+              "Instructions": lang === "bn"
+                ? "আপনার কোর্সটি সফলভাবে কেনা হয়েছে! আপনার ট্রানজেকশন আইডি সহ নিচের হোয়াটসঅ্যাপ বাটনে ক্লিক করে ডিরেক্ট গুগল ড্রাইভ ডাউনলোড লিংকটি সংগ্রহ করুন।"
+                : "Your course was purchased successfully! Click the WhatsApp button below with your transaction details to claim your direct Google Drive download link."
+            }
+          });
         } catch (error) {
           console.error("Error completing purchase", error);
           toast("Error completing purchase");
@@ -915,10 +1067,19 @@ export default function App() {
             createdAt: Date.now(),
           });
 
-          toast("Purchase successful! Contact support with your Transaction ID to get instant tool setup details.");
-
-          const msg = `আসসালামু আলাইকুম, আমি এই মাত্র আপনার ওয়েবসাইট থেকে আমার ব্যালেন্স দিয়ে এই প্রোডাক্ট/টুলটি কিনেছি:\n\n📂 প্রোডাক্ট: ${tool.title}\n💰 মূল্য: $${priceUSD.toFixed(2)} USD\n🆔 ইউজার আইডি: ${currentUser.uid}\n🧾 ট্রানজেকশন আইডি: ${txRef.id}\n\nদয়া করে আমার অ্যাক্টিভেশন ও ডাউনলোড ডিটেইলস দিন। ধন্যবাদ!`;
-          window.open(`https://wa.me/8801644627304?text=${encodeURIComponent(msg)}`, "_blank");
+          setSuccessReceipt({
+            txId: txRef.id,
+            title: tool.title,
+            category: "Premium Tool / Account 🛠️",
+            priceUSD: priceUSD,
+            details: {
+              "Tool Category": tool.category || "N/A",
+              "Status": "Ready for Setup",
+              "Instructions": lang === "bn"
+                ? "আপনার টুল/প্রোডাক্টটি সফলভাবে কেনা হয়েছে! অ্যাক্টিভেশন ও ডাউনলোড ডিটেইলস পেতে নিচের হোয়াটসঅ্যাপ বাটনে ক্লিক করে আমাদের সাথে যোগাযোগ করুন।"
+                : "Your tool/product was purchased successfully! Click the WhatsApp button below with your transaction details to claim your activation & download details."
+            }
+          });
         } catch (error) {
           console.error("Error completing purchase", error);
           toast("Error completing purchase");
@@ -933,12 +1094,32 @@ export default function App() {
     // Calculate country and plan price dynamically based on 12-Month base prices
     const base12MonthPrice = geminiCountryPrices12M[geminiCountry] || 9.99;
     let priceUSD = base12MonthPrice;
-    if (geminiPlan === "1month") {
-      priceUSD = Math.max(0.99, Math.round((base12MonthPrice * 0.25) * 100) / 100);
-    } else if (geminiPlan === "3month") {
-      priceUSD = Math.max(1.99, Math.round((base12MonthPrice * 0.45) * 100) / 100);
-    } else if (geminiPlan === "6month") {
-      priceUSD = Math.max(2.99, Math.round((base12MonthPrice * 0.70) * 100) / 100);
+    let durationDays = 365;
+    let planDbString = "member_12m";
+
+    if (geminiCategory === "personal") {
+      priceUSD = base12MonthPrice * 3.8;
+      durationDays = 365;
+      planDbString = "personal_12m";
+    } else {
+      // Gemini Member category
+      if (geminiPlan === "1month") {
+        priceUSD = Math.max(0.99, Math.round((base12MonthPrice * 0.25) * 100) / 100);
+        durationDays = 30;
+        planDbString = "member_1m";
+      } else if (geminiPlan === "3month") {
+        priceUSD = Math.max(1.99, Math.round((base12MonthPrice * 0.45) * 100) / 100);
+        durationDays = 90;
+        planDbString = "member_3m";
+      } else if (geminiPlan === "6month") {
+        priceUSD = Math.max(2.99, Math.round((base12MonthPrice * 0.70) * 100) / 100);
+        durationDays = 180;
+        planDbString = "member_6m";
+      } else {
+        priceUSD = base12MonthPrice;
+        durationDays = 365;
+        planDbString = "member_12m";
+      }
     }
 
     if (!geminiEmail) {
@@ -946,9 +1127,16 @@ export default function App() {
       return;
     }
 
-    if (geminiPlan === "12month" && !geminiPassword) {
-      toast("Please enter your Gmail password for the 12-Month Personal Plan.");
-      return;
+    // Password and Backup Codes are only required for the Personal category (12-Month Personal Plan)
+    if (geminiCategory === "personal") {
+      if (!geminiPassword) {
+        toast("Please enter your Gmail password for the 12-Month Personal Plan.");
+        return;
+      }
+      if (!geminiBackupCodes) {
+        toast("Please enter your Authentication Key for the 12-Month Personal Plan.");
+        return;
+      }
     }
 
     if (balanceUSD < priceUSD) {
@@ -957,10 +1145,9 @@ export default function App() {
     }
 
     const planTitle = `Google Gemini Pro Premium (${
-      geminiPlan === "1month" ? "1-Month Member" :
-      geminiPlan === "3month" ? "3-Month Member" :
-      geminiPlan === "6month" ? "6-Month Member" :
-      "12-Month Personal"
+      geminiCategory === "personal" 
+        ? "12-Month Personal" 
+        : `Member - ${geminiPlan === "1month" ? "1-Month" : geminiPlan === "3month" ? "3-Month" : geminiPlan === "6month" ? "6-Month" : "12-Month"}`
     }) - ${geminiCountry}`;
 
     askConfirmation(
@@ -984,18 +1171,16 @@ export default function App() {
               title: planTitle, 
               category: "Premium AI Subscription", 
               country: geminiCountry, 
-              plan: geminiPlan, 
+              plan: planDbString, 
               email: geminiEmail,
-              password: geminiPlan === "12month" ? geminiPassword : "Not Required",
+              password: geminiCategory === "personal" ? geminiPassword : "Not Required",
+              backupCodes: geminiCategory === "personal" ? geminiBackupCodes : "Not Required",
               url: "Gemini activation requested"
             },
             createdAt: Date.now(),
           });
 
           // Write subscription document
-          const durationDays = geminiPlan === "1month" ? 30 :
-                               geminiPlan === "3month" ? 90 :
-                               geminiPlan === "6month" ? 180 : 365;
           const createdAt = Date.now();
           const expiresAt = createdAt + durationDays * 24 * 60 * 60 * 1000;
           const subRef = doc(collection(db, "gemini_subscriptions"));
@@ -1006,20 +1191,37 @@ export default function App() {
             userName: currentUser.displayName || currentUser.email?.split("@")[0] || "No Name",
             userEmail: currentUser.email || "No Email",
             geminiEmail: geminiEmail,
-            geminiPassword: geminiPlan === "12month" ? geminiPassword : "Not Required",
-            plan: geminiPlan,
+            geminiPassword: geminiCategory === "personal" ? geminiPassword : "Not Required",
+            geminiBackupCodes: geminiCategory === "personal" ? geminiBackupCodes : "Not Required",
+            plan: planDbString,
             priceUSD: priceUSD,
             country: geminiCountry,
             createdAt: createdAt,
             expiresAt: expiresAt,
-            status: "active",
+            status: "pending",
             familyManagerEmail: "Not Assigned"
           });
 
-          toast("Purchase successful! We are activating your subscription. You can track this in your Account section.");
+          setSuccessReceipt({
+            txId: txRef.id,
+            title: planTitle,
+            category: "Google Gemini Subscription ⚡",
+            priceUSD: priceUSD,
+            details: {
+              "Gmail Address": geminiEmail,
+              "Account Type": geminiCategory === "personal" ? "Personal (Private)" : "Member (Shared Family)",
+              "Duration": `${durationDays} Days`,
+              "Country Zone": geminiCountry,
+              "Delivery Type": "Manual (5 mins - 2 hours)",
+              "Instructions": lang === "bn"
+                ? "আপনার অর্ডারটি সফলভাবে সম্পন্ন হয়েছে এবং এক্টিভেশন পেন্ডিং রয়েছে (৫ মিনিট - ২ ঘণ্টা)। দ্রুততম সময়ে অ্যাক্টিভেট করতে অনুগ্রহ করে নিচের হোয়াটসঅ্যাপ বাটনে ক্লিক করে আমাদের সাথে যোগাযোগ করুন।"
+                : "Your order was placed successfully and activation is pending (5 mins - 2 hours). To get it activated immediately, please click the WhatsApp button below to contact our support."
+            }
+          });
           
           setGeminiEmail("");
           setGeminiPassword("");
+          setGeminiBackupCodes("");
         } catch (error) {
           console.error("Error completing purchase", error);
           toast("Error completing purchase");
@@ -1040,7 +1242,8 @@ export default function App() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [adminTxs, setAdminTxs] = useState<any[]>([]);
   const [adminSearchTxId, setAdminSearchTxId] = useState("");
-  const [adminTab, setAdminTab] = useState<"overview" | "topups" | "withdrawals" | "failed" | "users" | "services" | "settings" | "courses" | "subscriptions">("overview");
+  const [adminTab, setAdminTab] = useState<"overview" | "topups" | "withdrawals" | "failed" | "users" | "services" | "settings" | "courses" | "subscriptions" | "tickets">("overview");
+  const [adminUnreadTickets, setAdminUnreadTickets] = useState(0);
   const [adminSubTab, setAdminSubTab] = useState<"pending" | "paid">("pending");
 
   const [adminAddBalanceUid, setAdminAddBalanceUid] = useState("");
@@ -1061,10 +1264,14 @@ export default function App() {
   // Courses list and admin states
   const [coursesList, setCoursesList] = useState<any[]>([]);
   const [adminEditingCourse, setAdminEditingCourse] = useState<any | null>(null);
+  const [generatingProductDetails, setGeneratingProductDetails] = useState(false);
+  const [bulkGenerating, setBulkGenerating] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0, title: "" });
   const [adminCourseForm, setAdminCourseForm] = useState({
     id: "",
     category: "Language & Skills",
     title: "",
+    description: "",
     oldPrice: 0,
     price: 0,
     rating: 5,
@@ -1290,6 +1497,40 @@ export default function App() {
             features: ["মায়াজাল এর কন্টেন্ট মেকিং সিক্রেট", "ইউটিউব এলগরিদম হ্যাকস", "ভিডিও এডিটিং ও ভয়েস ট্রিকস", "ইউটিউব গ্রোথ স্ট্র্যাটেজি"],
             badge: "Recommended",
             imageUrl: ""
+          },
+          {
+            id: "13",
+            category: "Tool",
+            title: "Telegram Member Adder Bot",
+            description: "যেকোনো পাবলিক বা টার্গেটেড গ্রুপ থেকে একটিভ মেম্বারদের স্ক্র্যাপ করে সম্পূর্ণ নিরাপদে অটোমেটিক থ্রোটলিং-সহ আপনার নিজের চ্যানেল বা গ্রুপে এড করুন। / Extract active members from niche groups and add them directly into your channel/group safely with auto-throttling.",
+            oldPrice: 59.99,
+            price: 29.99,
+            rating: 5,
+            features: [
+              "Multiple account rotation (anti-ban)",
+              "Active user filtering (online filters)",
+              "Windows / VPS ready software bundle",
+              "Step-by-step video setup guides"
+            ],
+            badge: "50% OFF",
+            imageUrl: ""
+          },
+          {
+            id: "14",
+            category: "Subscription",
+            title: "VIP Membership Subscription",
+            description: "আমাদের পুরো প্ল্যাটফর্ম জুড়ে পাইকারি মূল্যে অর্ডার করার অ্যাক্সেস, ফাস্ট প্রায়োরিটি সাপোর্ট এবং ডেডিকেটেড রিকভারি হেল্পলাইন পান। / Unlock wholesale prices across the entire platform, priority customer service, instant stock restock alerts, and exclusive seller tools.",
+            oldPrice: 29.99,
+            price: 15.00,
+            rating: 5,
+            features: [
+              "0% Purchase markup on Telegram Accounts",
+              "24/7 dedicated account recovery help",
+              "Early access to fresh country stocks",
+              "VIP badge on dashboard profile page"
+            ],
+            badge: "VIP Privileges",
+            imageUrl: ""
           }
         ];
         // Only seed courses in Firestore if the logged-in user is an admin!
@@ -1298,10 +1539,11 @@ export default function App() {
           currentUser.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2"
         );
         if (isUserAdmin) {
-          initialProducts.forEach((p) => {
+          initialProducts.forEach((p: any) => {
             setDoc(doc(db, "courses", p.id), {
               category: p.category,
               title: p.title,
+              description: p.description || "",
               oldPrice: p.oldPrice,
               price: p.price,
               rating: p.rating,
@@ -1388,10 +1630,20 @@ export default function App() {
       );
     }, (error) => console.error("admin subscriptions snapshot error", error));
 
+    // Real-time unread support tickets count for admin
+    const qUnreadTickets = query(
+      collection(db, "tickets"),
+      where("unreadByAdmin", "==", true)
+    );
+    const unsubUnreadTickets = onSnapshot(qUnreadTickets, (snapshot) => {
+      setAdminUnreadTickets(snapshot.size);
+    }, (error) => console.error("admin unread tickets snapshot error", error));
+
     return () => {
       unsubAdminTxs();
       unsubUsers();
       unsubAdminSubs();
+      unsubUnreadTickets();
     };
   }, [currentView]);
 
@@ -1760,6 +2012,19 @@ export default function App() {
     );
     return () => unsub();
   }, [currentUser]);
+
+  // Background expiry monitoring check to alert user on load
+  useEffect(() => {
+    if (userSubscriptions && userSubscriptions.length > 0) {
+      const activeExpiring = userSubscriptions.filter(sub => sub.status === "active" && isSubscriptionExpiringSoon(sub.expiresAt));
+      if (activeExpiring.length > 0) {
+        const countries = activeExpiring.map(s => s.country).join(", ");
+        toast(`⚠️ Critical Expiry: Your Gemini Pro Premium subscription for ${countries} is expiring within 24 hours! Please check your dashboard to renew.`, {
+          duration: 8000
+        });
+      }
+    }
+  }, [userSubscriptions]);
 
   // Sync SMM order statuses when opening SMM orders tab
   useEffect(() => {
@@ -2421,6 +2686,20 @@ export default function App() {
                 createdAt: Date.now(),
               });
               setPurchasedNumber({ number: data.Number, txId: txRef.id });
+              setSuccessReceipt({
+                txId: txRef.id,
+                title: `${country.country} Virtual Number`,
+                category: "Virtual Number 📱",
+                priceUSD: finalPrice,
+                details: {
+                  "Phone Number": data.Number,
+                  "Country": country.country,
+                  "Status": "Waiting for SMS OTP code",
+                  "Instructions": lang === "bn"
+                    ? "আপনার অ্যাকাউন্ট কেনার জন্য এই ভার্চুয়াল নম্বরটি সফলভাবে প্রস্তুত করা হয়েছে! নম্বরটি কপি করে আপনার সোশ্যাল অ্যাপে বসান এবং ওটিপি (OTP) কোডের জন্য অপেক্ষা করুন।"
+                    : "Your virtual number has been prepared! Copy the phone number, paste it into your desired app, and wait for the SMS OTP code on this page."
+                }
+              });
             } else {
               setPurchasedNumber({ number: data.Number });
             }
@@ -2570,9 +2849,19 @@ export default function App() {
                   }
 
                   setP2pModal(null);
-                  toast(
-                    "P2P Order Pending! Support will transfer the account to you shortly. (Secure Mode)",
-                  );
+                  setSuccessReceipt({
+                    txId: txRef.id,
+                    title: p2pModal.title,
+                    category: "P2P Escrow Account 🤝",
+                    priceUSD: totalToPay,
+                    details: {
+                      "Seller ID": p2pModal.ownerId || "Anonymous",
+                      "Escrow Status": "Funds held in Escrow (2% Fee applied)",
+                      "Instructions": lang === "bn"
+                        ? "টাকা এস্ক্রোতে জমা হয়েছে। অনুগ্রহ করে সেলারের সাথে যোগাযোগের নির্দেশাবলি অনুসরণ করুন।"
+                        : "Funds are now safely held in Escrow. Please proceed to receive account credentials."
+                    }
+                  });
                 } catch (error) {
                   console.error("Purchase error", error);
                 toast("Something went wrong with the purchase.");
@@ -3679,33 +3968,33 @@ export default function App() {
 
             {/* Desktop Navbar right side */}
             <div className="hidden md:flex w-full md:w-auto items-center gap-2 lg:gap-4 overflow-x-auto no-scrollbar">
-              <nav className="flex items-center gap-1 lg:gap-2 font-medium min-w-max">
-                <button onClick={() => { setCurrentView("dashboard"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "dashboard" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
-                  <LayoutDashboard className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.dashboardNav}</span>
+              <nav className="flex items-center gap-1.5 lg:gap-2.5 font-medium min-w-max">
+                <button onClick={() => { setCurrentView("dashboard"); }} className={`flex items-center gap-1.5 px-2.5 lg:px-3.5 py-2 rounded-xl transition text-sm border shadow-sm ${currentView === "dashboard" ? "bg-blue-50 text-[#2AABEE] border-[#2AABEE] font-extrabold" : "bg-white border-gray-350 text-gray-700 hover:bg-gray-50 hover:border-gray-400"}`}>
+                  <LayoutDashboard className="w-4 h-4 shrink-0 text-[#2AABEE]" /> <span className="whitespace-nowrap">{i18n.dashboardNav}</span>
                 </button>
-                <button onClick={() => { setCurrentView("buy"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "buy" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
-                  <ShoppingCart className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.buyNav}</span>
+                <button onClick={() => { setCurrentView("buy"); }} className={`flex items-center gap-1.5 px-2.5 lg:px-3.5 py-2 rounded-xl transition text-sm border shadow-sm ${currentView === "buy" ? "bg-blue-50 text-[#2AABEE] border-[#2AABEE] font-extrabold" : "bg-white border-gray-350 text-gray-700 hover:bg-gray-50 hover:border-gray-400"}`}>
+                  <ShoppingCart className="w-4 h-4 shrink-0 text-emerald-500" /> <span className="whitespace-nowrap">{i18n.buyNav}</span>
                 </button>
-                <button onClick={() => { setCurrentView("courses"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "courses" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
-                  <BookOpen className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{lang === "bn" ? "কোর্স ও রিল" : "Courses & Reels"}</span>
+                <button onClick={() => { setCurrentView("courses"); }} className={`flex items-center gap-1.5 px-2.5 lg:px-3.5 py-2 rounded-xl transition text-sm border shadow-sm ${currentView === "courses" ? "bg-blue-50 text-[#2AABEE] border-[#2AABEE] font-extrabold" : "bg-white border-gray-350 text-gray-700 hover:bg-gray-50 hover:border-gray-400"}`}>
+                  <BookOpen className="w-4 h-4 shrink-0 text-purple-500" /> <span className="whitespace-nowrap">{lang === "bn" ? "কোর্স ও রিল" : "Courses & Reels"}</span>
                 </button>
-                <button onClick={() => { setCurrentView("tools"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "tools" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
-                  <Wrench className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{lang === "bn" ? "টুলস ও ভিআইপি" : "Tools & VIP"}</span>
+                <button onClick={() => { setCurrentView("tools"); }} className={`flex items-center gap-1.5 px-2.5 lg:px-3.5 py-2 rounded-xl transition text-sm border shadow-sm ${currentView === "tools" ? "bg-blue-50 text-[#2AABEE] border-[#2AABEE] font-extrabold" : "bg-white border-gray-350 text-gray-700 hover:bg-gray-50 hover:border-gray-400"}`}>
+                  <Wrench className="w-4 h-4 shrink-0 text-orange-500" /> <span className="whitespace-nowrap">{lang === "bn" ? "টুলস ও ভিআইপি" : "Tools & VIP"}</span>
                 </button>
-                <button onClick={() => requireAuth(() => { setCurrentView("sell"); })} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "sell" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
-                  <PlusCircle className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.sellNav}</span>
+                <button onClick={() => requireAuth(() => { setCurrentView("sell"); })} className={`flex items-center gap-1.5 px-2.5 lg:px-3.5 py-2 rounded-xl transition text-sm border shadow-sm ${currentView === "sell" ? "bg-blue-50 text-[#2AABEE] border-[#2AABEE] font-extrabold" : "bg-white border-gray-350 text-gray-700 hover:bg-gray-50 hover:border-gray-400"}`}>
+                  <PlusCircle className="w-4 h-4 shrink-0 text-blue-500" /> <span className="whitespace-nowrap">{i18n.sellNav}</span>
                 </button>
-                <button onClick={() => requireAuth(() => { setCurrentView("records"); })} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "records" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
-                  <FileText className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.recordsNav || "My Orders"}</span>
+                <button onClick={() => requireAuth(() => { setCurrentView("records"); })} className={`flex items-center gap-1.5 px-2.5 lg:px-3.5 py-2 rounded-xl transition text-sm border shadow-sm ${currentView === "records" ? "bg-blue-50 text-[#2AABEE] border-[#2AABEE] font-extrabold" : "bg-white border-gray-350 text-gray-700 hover:bg-gray-50 hover:border-gray-400"}`}>
+                  <FileText className="w-4 h-4 shrink-0 text-amber-500" /> <span className="whitespace-nowrap">{i18n.recordsNav || "My Orders"}</span>
                 </button>
-                <button onClick={() => { setCurrentView("api"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "api" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
-                  <Code className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">API</span>
+                <button onClick={() => { setCurrentView("api"); }} className={`flex items-center gap-1.5 px-2.5 lg:px-3.5 py-2 rounded-xl transition text-sm border shadow-sm ${currentView === "api" ? "bg-blue-50 text-[#2AABEE] border-[#2AABEE] font-extrabold" : "bg-white border-gray-350 text-gray-700 hover:bg-gray-50 hover:border-gray-400"}`}>
+                  <Code className="w-4 h-4 shrink-0 text-cyan-500" /> <span className="whitespace-nowrap">API</span>
                 </button>
-                <button onClick={() => requireAuth(() => { setCurrentView("profile"); })} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm ${currentView === "profile" ? "bg-black/5 text-gray-900 font-bold" : "hover:bg-black/5 text-gray-600"}`}>
-                  <User className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.profileNav || "Profile"}</span>
+                <button onClick={() => requireAuth(() => { setCurrentView("profile"); })} className={`flex items-center gap-1.5 px-2.5 lg:px-3.5 py-2 rounded-xl transition text-sm border shadow-sm ${currentView === "profile" ? "bg-blue-50 text-[#2AABEE] border-[#2AABEE] font-extrabold" : "bg-white border-gray-350 text-gray-700 hover:bg-gray-50 hover:border-gray-400"}`}>
+                  <User className="w-4 h-4 shrink-0 text-indigo-500" /> <span className="whitespace-nowrap">{i18n.profileNav || "Profile"}</span>
                 </button>
                 {((currentUser?.email && (currentUser.email === "uzvsbdnzyxhzj@gmail.com")) || currentUser?.uid === "rLDBAtiXmOcXGLU2d5GYFonwJkr2") && (
-                  <button data-ad-skip="true" onClick={() => { setCurrentView("admin"); }} className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-lg transition text-sm bg-red-100 text-red-600 hover:bg-red-200 font-bold`}>
+                  <button data-ad-skip="true" onClick={() => { setCurrentView("admin"); }} className={`flex items-center gap-1.5 px-2.5 lg:px-3.5 py-2 rounded-xl transition text-sm bg-red-100 text-red-600 hover:bg-red-200 border border-red-300 font-black shadow-sm`}>
                     <Settings className="w-4 h-4 shrink-0" /> <span className="whitespace-nowrap">{i18n.adminNav}</span>
                   </button>
                 )}
@@ -3781,15 +4070,15 @@ export default function App() {
           </div>
         )}
         {currentView === "tickets" && (
-          <div className="max-w-4xl mx-auto py-8 bg-gradient-to-br from-sky-100 to-indigo-200 p-4 sm:p-6 rounded-2xl border border-blue-200/50 shadow-md">
+          <div className="max-w-5xl mx-auto py-8 bg-gradient-to-br from-sky-100 to-indigo-200 p-2 sm:p-6 rounded-2xl border border-blue-200/50 shadow-md">
              <button
               onClick={() => { setCurrentView("dashboard"); }}
-              className="md:hidden flex items-center text-gray-600 hover:text-gray-900 mb-2 font-medium bg-white px-4 py-2 rounded-full shadow-sm"
+              className="md:hidden flex items-center text-gray-600 hover:text-gray-900 mb-4 font-medium bg-white px-4 py-2 rounded-full shadow-sm"
              >
-               <ArrowLeft className="w-5 h-5 mr-2" /> Back to Dashboard
+               <ArrowLeft className="w-5 h-5 mr-2" /> {lang === "bn" ? "ড্যাশবোর্ডে ফিরুন" : "Back to Dashboard"}
              </button>
-             <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-               <Ticket className="w-6 h-6 text-[#2AABEE]" /> Support Tickets
+             <h2 className="text-2xl font-black text-gray-800 mb-6 flex items-center gap-2 px-1 font-sans">
+               <MessageSquare className="w-7 h-7 text-[#2AABEE]" /> {lang === "bn" ? "সাপোর্ট লাইভ চ্যাট ⚡" : "Live Support Chat ⚡"}
              </h2>
              <SupportTickets />
           </div>
@@ -4040,31 +4329,75 @@ export default function App() {
                           {/* Plan Toggle */}
                           <div>
                             <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-                              📦 {lang === "bn" ? "সাবস্ক্রিপশন প্ল্যান" : "Choose Subscription Plan"}
+                              📦 {lang === "bn" ? "সাবস্ক্রিপশন ক্যাটাগরি" : "Choose Subscription Category"}
                             </label>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                              {(["1month", "3month", "6month", "12month"] as const).map((planOption) => {
-                                const isSelected = geminiPlan === planOption;
+                            <div className="grid grid-cols-2 gap-2">
+                              {(["member", "personal"] as const).map((catOption) => {
+                                const isSelected = geminiCategory === catOption;
                                 return (
                                   <button
-                                    key={planOption}
+                                    key={catOption}
                                     type="button"
-                                    onClick={() => setGeminiPlan(planOption)}
-                                    className={`px-2 py-2.5 rounded-xl border text-[11px] font-bold transition-all ${
+                                    onClick={() => {
+                                      setGeminiCategory(catOption);
+                                      if (catOption === "member") {
+                                        setGeminiPassword("");
+                                      }
+                                    }}
+                                    className={`px-3 py-3 rounded-xl border text-xs font-extrabold transition-all duration-200 flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
                                       isSelected
-                                        ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-600/10"
-                                        : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                                        ? "bg-gradient-to-r from-blue-600 to-indigo-600 border-blue-600 text-white shadow-md shadow-blue-600/20"
+                                        : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300"
                                     }`}
                                   >
-                                    {planOption === "1month" ? "1 Month" :
-                                     planOption === "3month" ? "3 Month" :
-                                     planOption === "6month" ? "6 Month" :
-                                     "12 Month"}
+                                    <span>
+                                      {catOption === "member" 
+                                        ? (lang === "bn" ? "জেমিনি মেম্বার" : "Gemini Member")
+                                        : (lang === "bn" ? "পার্সোনাল প্ল্যান" : "Personal Plan")}
+                                    </span>
+                                    <span className={`text-[10px] font-medium ${isSelected ? "text-blue-100" : "text-gray-400"}`}>
+                                      {catOption === "member" ? "1, 3, 6, 12 Months" : "12 Months (1 Year)"}
+                                    </span>
                                   </button>
                                 );
                               })}
                             </div>
                           </div>
+
+                          {/* Duration Toggle (only for Member category) */}
+                          {geminiCategory === "member" && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              className="space-y-1.5"
+                            >
+                              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                ⏱️ {lang === "bn" ? "মেয়াদ নির্বাচন করুন" : "Select Duration"}
+                              </label>
+                              <div className="grid grid-cols-4 gap-1.5">
+                                {(["1month", "3month", "6month", "12month"] as const).map((durOption) => {
+                                  const isSelected = geminiPlan === durOption;
+                                  return (
+                                    <button
+                                      key={durOption}
+                                      type="button"
+                                      onClick={() => setGeminiPlan(durOption)}
+                                      className={`py-2.5 rounded-xl border text-xs font-black transition-all duration-150 cursor-pointer text-center ${
+                                        isSelected
+                                          ? "bg-blue-600 border-blue-600 text-white shadow-sm"
+                                          : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                                      }`}
+                                    >
+                                      {durOption === "1month" ? "1 M" :
+                                       durOption === "3month" ? "3 M" :
+                                       durOption === "6month" ? "6 M" :
+                                       "12 M"}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </motion.div>
+                          )}
 
                           {/* Gmail Input */}
                           <div>
@@ -4081,27 +4414,43 @@ export default function App() {
                           </div>
 
                           {/* Password Input (conditional) */}
-                          {geminiPlan === "12month" && (
+                          {geminiCategory === "personal" && (
                             <motion.div
                               initial={{ opacity: 0, height: 0 }}
                               animate={{ opacity: 1, height: "auto" }}
                               exit={{ opacity: 0, height: 0 }}
-                              className="space-y-1.5 text-left"
+                              className="space-y-3.5 text-left"
                             >
-                              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">
-                                🔒 {lang === "bn" ? "জিমেইল পাসওয়ার্ড" : "Gmail Password"}
-                              </label>
-                              <input
-                                type="password"
-                                value={geminiPassword}
-                                onChange={(e) => setGeminiPassword(e.target.value)}
-                                placeholder={lang === "bn" ? "আপনার জিমেইল পাসওয়ার্ড" : "Your Gmail Password"}
-                                className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-                              />
+                              <div className="space-y-1.5">
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                  🔒 {lang === "bn" ? "জিমেইল পাসওয়ার্ড" : "Gmail Password"}
+                                </label>
+                                <input
+                                  type="password"
+                                  value={geminiPassword}
+                                  onChange={(e) => setGeminiPassword(e.target.value)}
+                                  placeholder={lang === "bn" ? "আপনার জিমেইল পাসওয়ার্ড" : "Your Gmail Password"}
+                                  className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                                />
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                  🔑 {lang === "bn" ? "অথেনটিকেশন কী (Authentication Key)" : "Authentication Key / Auth Key"}
+                                </label>
+                                <input
+                                  type="text"
+                                  value={geminiBackupCodes}
+                                  onChange={(e) => setGeminiBackupCodes(e.target.value)}
+                                  placeholder={lang === "bn" ? "যেমন: Google Authenticator Key" : "e.g., Google Authenticator Key"}
+                                  className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                                />
+                              </div>
+
                               <p className="text-[10px] text-amber-600 leading-tight">
                                 ⚠️ {lang === "bn" 
-                                  ? "১-বছরের পার্সোনাল প্ল্যানটি আপনার নিজস্ব একাউন্টে সেটআপ করার জন্য পাসওয়ার্ড প্রয়োজন। কাজ শেষে পাসওয়ার্ড পরিবর্তন করে নিবেন।"
-                                  : "Password is required for the 1-Year Personal Plan setup on your account. You can change your password immediately after setup."}
+                                  ? "১-বছরের পার্সোনাল প্ল্যানটি আপনার নিজস্ব একাউন্টে সেটআপ করার জন্য পাসওয়ার্ড এবং অথেনটিকেশন কী প্রয়োজন। কাজ শেষে পাসওয়ার্ড পরিবর্তন করে নিবেন।"
+                                  : "Password & Authentication Key are required for 1-Year Personal Plan setup on your account. You can change your password immediately after setup."}
                               </p>
                             </motion.div>
                           )}
@@ -4112,23 +4461,75 @@ export default function App() {
                               <span className="text-xs font-bold text-gray-500">
                                 💰 {lang === "bn" ? "নির্ধারিত মূল্য:" : "Total Price:"}
                               </span>
-                              <span className="text-2xl font-black text-blue-600">
-                                ${(() => {
-                                  const base12MonthPrice = geminiCountryPrices12M[geminiCountry] || 9.99;
-                                  let priceUSD = base12MonthPrice;
-                                  if (geminiPlan === "1month") {
-                                    priceUSD = Math.max(0.99, Math.round((base12MonthPrice * 0.25) * 100) / 100);
-                                  } else if (geminiPlan === "3month") {
-                                    priceUSD = Math.max(1.99, Math.round((base12MonthPrice * 0.45) * 100) / 100);
-                                  } else if (geminiPlan === "6month") {
-                                    priceUSD = Math.max(2.99, Math.round((base12MonthPrice * 0.70) * 100) / 100);
-                                  }
-                                  return priceUSD.toFixed(2);
-                                })()} USD
-                              </span>
+                              <div className="flex flex-col items-end gap-1">
+                                <div className="text-xs text-gray-400 font-medium">
+                                  <span>{lang === "bn" ? "নরমাল প্রাইস: " : "Regular Price: "}</span>
+                                  <span className="line-through font-mono">
+                                    ${(() => {
+                                      const base12MonthPrice = geminiCountryPrices12M[geminiCountry] || 9.99;
+                                      let activePrice = base12MonthPrice;
+                                      if (geminiCategory === "personal") {
+                                        activePrice = base12MonthPrice * 3.8;
+                                      } else {
+                                        if (geminiPlan === "1month") {
+                                          activePrice = Math.max(0.99, Math.round((base12MonthPrice * 0.25) * 100) / 100);
+                                        } else if (geminiPlan === "3month") {
+                                          activePrice = Math.max(1.99, Math.round((base12MonthPrice * 0.45) * 100) / 100);
+                                        } else if (geminiPlan === "6month") {
+                                          activePrice = Math.max(2.99, Math.round((base12MonthPrice * 0.70) * 100) / 100);
+                                        } else {
+                                          activePrice = base12MonthPrice;
+                                        }
+                                      }
+                                      const regularPrice = activePrice * 2.5;
+                                      return regularPrice.toFixed(2);
+                                    })()} USD
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                                  <span className="bg-red-500 text-white font-black text-[9px] px-1.5 py-0.5 rounded-full uppercase tracking-wider animate-bounce">
+                                    🔥 {lang === "bn" ? "৬০% ছাড়" : "60% OFF"}
+                                  </span>
+                                  <span className="text-2xl font-black text-blue-600 font-mono">
+                                    ${(() => {
+                                      const base12MonthPrice = geminiCountryPrices12M[geminiCountry] || 9.99;
+                                      let activePrice = base12MonthPrice;
+                                      if (geminiCategory === "personal") {
+                                        activePrice = base12MonthPrice * 3.8;
+                                      } else {
+                                        if (geminiPlan === "1month") {
+                                          activePrice = Math.max(0.99, Math.round((base12MonthPrice * 0.25) * 100) / 100);
+                                        } else if (geminiPlan === "3month") {
+                                          activePrice = Math.max(1.99, Math.round((base12MonthPrice * 0.45) * 100) / 100);
+                                        } else if (geminiPlan === "6month") {
+                                          activePrice = Math.max(2.99, Math.round((base12MonthPrice * 0.70) * 100) / 100);
+                                        } else {
+                                          activePrice = base12MonthPrice;
+                                        }
+                                      }
+                                      return activePrice.toFixed(2);
+                                    })()} USD
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-green-600 font-bold bg-green-50 px-2 py-0.5 rounded border border-green-100">
+                                  ✨ {lang === "bn" ? "অফার প্রাইস / ডিসকাউন্ট মূল্য" : "Special Offer Price"}
+                                </div>
+                              </div>
                             </div>
                             <p className="text-[10px] text-gray-400 text-right mt-1">
                               {lang === "bn" ? "*ব্যালেন্স থেকে ইনস্ট্যান্ট কেটে নেয়া হবে" : "*Instantly deducted from your wallet balance"}
+                            </p>
+                          </div>
+
+                          {/* Manual Service Alert Notice */}
+                          <div className="mt-4 bg-amber-50 border border-amber-100 rounded-xl p-3 text-left">
+                            <p className="text-xs font-bold text-amber-800 flex items-center gap-1 mb-1">
+                              ⏳ {lang === "bn" ? "ম্যানুয়াল ডেলিভারি নোটিশ" : "Manual Delivery Notice"}
+                            </p>
+                            <p className="text-[11px] text-amber-700 leading-relaxed font-semibold">
+                              {lang === "bn"
+                                ? "এটি একটি ম্যানুয়াল সার্ভিস। অর্ডার সম্পন্ন হওয়ার পর সাধারণত ৫ মিনিট থেকে ২ ঘণ্টার মধ্যে সাবস্ক্রিপশনটি চালু করা হয়। জরুরি প্রয়োজনে আমাদের হোয়াটসঅ্যাপ বা টেলিগ্রাম সাপোর্টে যোগাযোগ করলে আরও দ্রুত এক্টিভ করে দেওয়া হবে।"
+                                : "This is a manual activation service. It usually takes 5 minutes to 2 hours to activate. For urgent activation, contact us on WhatsApp or Telegram to speed up the process!"}
                             </p>
                           </div>
                         </div>
@@ -4146,72 +4547,118 @@ export default function App() {
                       {/* Right Column: Rich Detailed Features & Information */}
                       <div className="lg:col-span-7 space-y-6 text-left overflow-y-auto max-h-[650px] pr-2 scrollbar-thin scrollbar-thumb-gray-200">
                         <div>
-                          <h3 className="text-xl font-extrabold text-gray-900 leading-snug">
-                            Google Gemini Pro Premium Official Subscription
+                          <h3 className="text-xl font-black text-gray-900 leading-snug flex items-center gap-2">
+                            ✨ {lang === "bn" ? "গুগল জেমিনি প্রো প্রিমিয়াম অফিসিয়াল সাবস্ক্রিপশন" : "Google Gemini Pro Premium Official Subscription"}
                           </h3>
                           <p className="text-gray-600 text-sm mt-2 leading-relaxed">
-                            Unlock the ultimate power of Google's next-generation AI with Gemini Pro Premium. Whether you are a content creator, programmer, researcher, or digital marketer, this all-in-one AI powerhouse is designed to turbocharge your productivity and bring your ideas to life.
+                            {lang === "bn" 
+                              ? "জেমিনি প্রো প্রিমিয়ামের মাধ্যমে গুগলের নেক্সট-জেনারেশন এআই-এর সর্বোচ্চ ক্ষমতা আনলক করুন। আপনি কনটেন্ট ক্রিয়েটর, প্রোগ্রামার, গবেষক বা ডিজিটাল মার্কেটার যা-ই হোন না কেন, আপনার প্রোডাক্টিভিটি বহুগুণ বাড়িয়ে তুলতে এই অল-ইন-ওয়ান এআই পাওয়ারহাউস তৈরি করা হয়েছে।"
+                              : "Unlock the ultimate power of Google's next-generation AI with Gemini Pro Premium. Whether you are a content creator, programmer, researcher, or digital marketer, this all-in-one AI powerhouse is designed to turbocharge your productivity and bring your ideas to life."}
                           </p>
-                          <p className="text-indigo-600 font-semibold text-xs mt-3 bg-indigo-50 px-3 py-2 rounded-lg border border-indigo-100">
-                            ✨ Buy 100% genuine, official, and legitimate Gemini Pro Premium subscriptions from SoftzoneBD at the most affordable prices, featuring instant delivery and a full-period warranty!
+                          <p className="text-blue-600 font-extrabold text-xs mt-3 bg-blue-50 px-3 py-2.5 rounded-xl border border-blue-100 flex items-center gap-1.5">
+                            🌟 {lang === "bn" 
+                              ? "SoftzoneBD থেকে সবচেয়ে সাশ্রয়ী মূল্যে ১০০% আসল, অফিসিয়াল এবং বৈধ জেমিনি প্রো প্রিমিয়াম সাবস্ক্রিপশন কিনুন একদম ইনস্ট্যান্ট ডেলিভারি ও ফুল-পিরিয়ড ওয়ারেন্টি সহ!"
+                              : "Buy 100% genuine, official, and legitimate Gemini Pro Premium subscriptions from SoftzoneBD at the most affordable prices, featuring instant delivery and a full-period warranty!"}
                           </p>
+                        </div>
+
+                        {/* Two Distinct Categories Comparison */}
+                        <div className="space-y-3.5">
+                          <h4 className="font-extrabold text-gray-800 text-sm flex items-center gap-1.5 border-b border-gray-100 pb-2">
+                            📦 {lang === "bn" ? "আমাদের ২ টি সাবস্ক্রিপশন ক্যাটাগরি ও প্রয়োজনীয়তা" : "Our 2 Subscription Categories & Requirements"}
+                          </h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Member Category Card */}
+                            <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/50 to-teal-50/20 border border-emerald-100/70 shadow-sm space-y-2.5 text-left">
+                              <div className="flex items-center justify-between">
+                                <span className="font-black text-emerald-800 text-sm flex items-center gap-1">
+                                  👥 {lang === "bn" ? "১. জেমিনি মেম্বার প্ল্যান" : "1. Gemini Member Plan"}
+                                </span>
+                                <span className="bg-emerald-100 text-emerald-800 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase">
+                                  {lang === "bn" ? "পাসওয়ার্ড ছাড়া" : "No Password Required"}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-600 leading-relaxed">
+                                {lang === "bn"
+                                  ? "এটি আমাদের সবচেয়ে বাজেট-ফ্রেন্ডলি অপশন। আমরা আপনাকে একটি গুগল ফ্যামিলি ইনভাইটেশন লিংক পাঠাবো, যেখানে জয়েন করে আপনি জেমিনি অ্যাডভান্সড এর সমস্ত প্রিমিয়াম ফিচার ব্যবহার করতে পারবেন।"
+                                  : "Our most budget-friendly option. We will send you an official Google Family Invitation link to your Gmail, and joining it will instantly activate Gemini Advanced benefits on your account."}
+                              </p>
+                              <div className="text-xs space-y-1.5 pt-1 border-t border-emerald-100/40">
+                                <p className="font-bold text-emerald-900">
+                                  ⏱️ {lang === "bn" ? "মেয়াদসমূহ:" : "Available Durations:"} <span className="font-normal text-gray-600">1, 3, 6, 12 {lang === "bn" ? "মাস" : "Months"}</span>
+                                </p>
+                                <p className="font-bold text-red-600 flex items-center gap-1">
+                                  🔒 {lang === "bn" ? "প্রয়োজনীয়তা: শুধুমাত্র জিমেইল এড্রেস!" : "Requirements: Gmail Address Only!"}
+                                </p>
+                                <p className="text-[11px] text-gray-500 italic">
+                                  {lang === "bn" ? "*কোন পাসওয়ার্ড বা লগইন কোডের প্রয়োজন নেই।" : "*No password or login credentials needed."}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Personal Category Card */}
+                            <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-50/50 to-blue-50/20 border border-indigo-100/70 shadow-sm space-y-2.5 text-left">
+                              <div className="flex items-center justify-between">
+                                <span className="font-black text-indigo-800 text-sm flex items-center gap-1">
+                                  👑 {lang === "bn" ? "২. পার্সোনাল প্ল্যান" : "2. Personal Plan"}
+                                </span>
+                                <span className="bg-indigo-100 text-indigo-800 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase">
+                                  {lang === "bn" ? "মাস্টার একাউন্ট" : "Master Access"}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-600 leading-relaxed">
+                                {lang === "bn"
+                                  ? "আপনার নিজস্ব পার্সোনাল জিমেইল একাউন্টেই অফিসিয়াল পেমেন্ট মেথড দিয়ে এটি একটিভেট করে দেয়া হবে। এটি নিলে আপনি মাস্টার একাউন্ট হোল্ডার হবেন এবং চাইলে আপনার আরও ৫ জন ফ্যামিলি মেম্বার/বন্ধুকে শেয়ার করতে পারবেন!"
+                                  : "Fully activated directly on your personal Gmail account using official Google billing. As the master owner, you can share all premium benefits with up to 5 family members or friends!"}
+                              </p>
+                              <div className="text-xs space-y-1.5 pt-1 border-t border-indigo-100/40">
+                                <p className="font-bold text-indigo-900">
+                                  ⏱️ {lang === "bn" ? "মেয়াদসমূহ:" : "Available Durations:"} <span className="font-normal text-gray-600">12 {lang === "bn" ? "মাস (১ বছর)" : "Months (1 Year)"}</span>
+                                </p>
+                                <p className="font-bold text-indigo-900 flex items-center gap-1">
+                                  👥 {lang === "bn" ? "মেম্বার সুবিধা: মোট ৬ জন ব্যবহারযোগ্য!" : "Sharing Benefit: Up to 6 Users Total!"}
+                                </p>
+                                <p className="font-bold text-amber-700 flex items-center gap-1 leading-tight">
+                                  ⚠️ {lang === "bn" ? "প্রয়োজনীয়তা: জিমেইল, পাসওয়ার্ড এবং অথেনটিকেশন কী" : "Requirements: Gmail, Password & Authentication Key"}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
                         </div>
 
                         {/* Features List */}
                         <div className="space-y-3">
                           <h4 className="font-extrabold text-gray-800 text-sm flex items-center gap-1.5 border-b border-gray-100 pb-2">
-                            💎 Exclusive Features & Benefits
+                            💎 {lang === "bn" ? "এক্সক্লুসিভ ফিচার ও সুবিধাসমূহ" : "Exclusive Features & Benefits"}
                           </h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs text-gray-600">
                             <div className="space-y-1 bg-gray-50/50 p-3 rounded-xl border border-gray-100">
-                              <span className="font-bold text-gray-800 block">☁️ Massive Cloud Storage:</span>
-                              <span>Get 5TB of secure Cloud Storage to save all your large files, documents, and high-res media.</span>
+                              <span className="font-bold text-gray-800 block">☁️ {lang === "bn" ? "৫টিবি ক্লাউড স্টোরেজ:" : "Massive Cloud Storage:"}</span>
+                              <span>{lang === "bn" ? "আপনার বড় ফাইল, ডকুমেন্টস ও মিডিয়া ব্যাকআপ রাখার জন্য ৫টিবি সুরক্ষিত ক্লাউড স্টোরেজ পাবেন।" : "Get 5TB of secure Cloud Storage to save all your large files, documents, and high-res media."}</span>
                             </div>
                             <div className="space-y-1 bg-gray-50/50 p-3 rounded-xl border border-gray-100">
-                              <span className="font-bold text-gray-800 block">⚡ Flow AI & Monthly Credits:</span>
-                              <span>Enjoy 1000 AI Credits every month for seamless, high-volume access to Flow AI, ChatGPT, and advanced AI tasks.</span>
+                              <span className="font-bold text-gray-800 block">⚡ {lang === "bn" ? "ফ্লো এআই ও মান্থলি ক্রেডিট:" : "Flow AI & Monthly Credits:"}</span>
+                              <span>{lang === "bn" ? "ফ্লো এআই, চ্যাটজিপিটি এবং অন্যান্য অ্যাডভান্সড কাজের জন্য প্রতি মাসে ১০০০ প্রিমিয়াম এআই ক্রেডিট পাবেন।" : "Enjoy 1000 AI Credits every month for seamless, high-volume access to Flow AI, ChatGPT, and advanced AI tasks."}</span>
                             </div>
                             <div className="space-y-1 bg-gray-50/50 p-3 rounded-xl border border-gray-100">
-                              <span className="font-bold text-gray-800 block">👥 Family Sharing Allowed:</span>
-                              <span>Share the power of AI! This plan allows you to invite and share premium access with up to 5 additional family members.</span>
+                              <span className="font-bold text-gray-800 block">👥 {lang === "bn" ? "ফ্যামিলি শেয়ারিং অপশন:" : "Family Sharing Allowed:"}</span>
+                              <span>{lang === "bn" ? "শেয়ার করুন সবার সাথে! পার্সোনাল প্ল্যানটি নিলে আপনার সাথে আরও ৫ জন ফ্যামিলি মেম্বারকে অ্যাড করার মাস্টার সুবিধা পাবেন।" : "Share the power of AI! The Personal plan allows you to invite and share premium access with up to 5 additional family members."}</span>
                             </div>
                             <div className="space-y-1 bg-gray-50/50 p-3 rounded-xl border border-gray-100">
-                              <span className="font-bold text-gray-800 block">⭐ Gemini Advanced:</span>
-                              <span>Gain priority access to Google’s most capable and cutting-edge AI models for highly complex workflows.</span>
+                              <span className="font-bold text-gray-800 block">⭐ {lang === "bn" ? "জেমিনি অ্যাডভান্সড এক্সেস:" : "Gemini Advanced:"}</span>
+                              <span>{lang === "bn" ? "জতিিল প্রজেক্ট বা কাজের জন্য গুগলের সবচেয়ে শক্তিশালী ও আধুনিক এআই মডেলগুলোতে প্রায়োরিটি এক্সেস পাবেন।" : "Gain priority access to Google’s most capable and cutting-edge AI models for highly complex workflows."}</span>
                             </div>
                             <div className="space-y-1 bg-gray-50/50 p-3 rounded-xl border border-gray-100">
-                              <span className="font-bold text-gray-800 block">🔍 Deep Research Capabilities:</span>
-                              <span>Conduct deep-dive web research, high-level data analysis, and comprehensive summaries effortlessly.</span>
+                              <span className="font-bold text-gray-800 block">🔍 {lang === "bn" ? "ডিপ রিসার্চ ক্যাপাবিলিটি:" : "Deep Research Capabilities:"}</span>
+                              <span>{lang === "bn" ? "খুব সহজেই গভীরভাবে ওয়েব রিসার্চ, হাই-লেভেল ডাটা অ্যানালাইসিস এবং নিখুঁতভাবে সারসংক্ষেপ তৈরি করুন।" : "Conduct deep-dive web research, high-level data analysis, and comprehensive summaries effortlessly."}</span>
                             </div>
                             <div className="space-y-1 bg-gray-50/50 p-3 rounded-xl border border-gray-100">
-                              <span className="font-bold text-gray-800 block">💼 Workspace Integration:</span>
-                              <span>Use AI assistance directly inside your everyday Google apps, including Gmail, Docs, Drive, and Slides.</span>
+                              <span className="font-bold text-gray-800 block">💼 {lang === "bn" ? "গুগল ওয়ার্কস্পেস ইন্টিগ্রেশন:" : "Workspace Integration:"}</span>
+                              <span>{lang === "bn" ? "সরাসরি আপনার দৈনন্দিন জিমেইল, গুগল ডকস, ড্রাইভ এবং স্লাইডের ভেতর এআই অ্যাসিস্ট্যান্ট ব্যবহার করুন।" : "Use AI assistance directly inside your everyday Google apps, including Gmail, Docs, Drive, and Slides."}</span>
                             </div>
                             <div className="space-y-1 bg-gray-50/50 p-3 rounded-xl border border-gray-100 col-span-1 md:col-span-2">
-                              <span className="font-bold text-gray-800 block">💻 Advanced Coding & Creative Tools:</span>
-                              <span>Write, debug, and optimize complex code in seconds. Plus, transform text prompts into photorealistic next-gen images and interact with your PDFs via NotebookLM Premium Access!</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Plans section */}
-                        <div className="space-y-3 bg-gray-50/60 p-4 rounded-2xl border border-gray-100">
-                          <h4 className="font-extrabold text-gray-800 text-sm flex items-center gap-1.5 border-b border-gray-100 pb-2">
-                            📦 Our Subscription Plans & Requirements
-                          </h4>
-                          <p className="text-xs text-gray-500 leading-relaxed">
-                            We activate the premium subscription directly on your personal Gmail account, and it can be easily renewed upon expiration. Choose the plan that best fits your needs:
-                          </p>
-                          <div className="space-y-3 text-xs">
-                            <div className="p-3 bg-white rounded-xl border border-gray-100">
-                              <span className="font-bold text-blue-600 block mb-1">1. Personal Plan (1-Year Validity)</span>
-                              <span className="text-gray-600">The perfect choice for long-term users. This requires a one-time purchase for a 1-Year subscription. You hold the master access and can add 5 family members.</span>
-                              <span className="block mt-1.5 text-amber-600 font-medium">⚠️ Requirement: Gmail login access (Email & Password) is required for setup. 🔒 100% Safe & Secure.</span>
-                            </div>
-                            <div className="p-3 bg-white rounded-xl border border-gray-100">
-                              <span className="font-bold text-blue-600 block mb-1">2. Member Plan (Monthly Validity)</span>
-                              <span className="text-gray-600">A budget-friendly option if you prefer to pay on a Monthly basis.</span>
-                              <span className="block mt-1.5 text-emerald-600 font-medium">📧 Requirement: No passwords or login access required! Simply provide your Gmail address.</span>
+                              <span className="font-bold text-gray-800 block">💻 {lang === "bn" ? "অ্যাডভান্সড কোডিং ও ক্রিয়েটিভ টুলস:" : "Advanced Coding & Creative Tools:"}</span>
+                              <span>{lang === "bn" ? "কয়েক সেকেন্ডে জটিল কোড লিখুন, ডিবাগ করুন ও অপ্টিমাইজ করুন। এছাড়াও টেক্সট দিয়ে ফটো-রিয়েলিস্টিক ছবি তৈরি এবং পিডিএফ নিয়ে কাজ করার জন্য NotebookLM প্রিমিয়াম এক্সেস পাবেন!" : "Write, debug, and optimize complex code in seconds. Plus, transform text prompts into photorealistic next-gen images and interact with your PDFs via NotebookLM Premium Access!"}</span>
                             </div>
                           </div>
                         </div>
@@ -4219,32 +4666,48 @@ export default function App() {
                         {/* Tracking, Warranty, Step-by-Step */}
                         <div className="space-y-4 text-xs text-gray-600 border-t border-gray-100 pt-4">
                           <div>
-                            <span className="font-bold text-gray-800 flex items-center gap-1 mb-1.5">📊 How to Track Your Order & Expiry</span>
+                            <span className="font-bold text-gray-800 flex items-center gap-1 mb-1.5">📊 {lang === "bn" ? "কিভাবে অর্ডার এবং এক্সপায়ারি ট্র্যাকিং করবেন" : "How to Track Your Order & Expiry"}</span>
                             <p className="leading-relaxed">
-                              You can track your active plans and check how many days are left on your subscription directly from our website. Simply log into your Account Dashboard, go to "My Plan and Subscription" section, and view all details in one click.
+                              {lang === "bn" 
+                                ? "অর্ডারের পর আপনার সচল প্ল্যানগুলো এবং মেয়াদ শেষ হতে কতদিন বাকি আছে তা সরাসরি আমাদের ওয়েবসাইট থেকেই দেখতে পারবেন। আপনার একাওন্ট ড্যাশবোর্ডের 'My Plan and Subscription' সেকশনে গেলেই সমস্ত ডিটেইলস পেয়ে যাবেন।"
+                                : "You can track your active plans and check how many days are left on your subscription directly from our website. Simply log into your Account Dashboard, go to 'My Plan and Subscription' section, and view all details in one click."}
                             </p>
                           </div>
 
                           <div>
-                            <span className="font-bold text-gray-800 flex items-center gap-1 mb-1.5">🛡️ Full-Period Warranty & Priority Support</span>
+                            <span className="font-bold text-gray-800 flex items-center gap-1 mb-1.5">🛡️ {lang === "bn" ? "ফুল-পিরিয়ড ওয়ারেন্টি ও কাস্টমার সাপোর্ট" : "Full-Period Warranty & Priority Support"}</span>
                             <p className="leading-relaxed">
-                              Enjoy 100% peace of mind with our official full-period warranty. If you face any issues, contact our support team on WhatsApp or Telegram for ultra-fast, priority issue resolution and fast-track processing (takes 1 minute to 2 hours).
+                              {lang === "bn"
+                                ? "আমাদের ১০০% অফিসিয়াল ফুল-পিরিয়ড ওয়ারেন্টির কারণে সম্পূর্ণ নিশ্চিন্তে ব্যবহার করতে পারবেন। যেকোনো প্রয়োজনে আমাদের হোয়াটসঅ্যাপ বা টেলিগ্রাম সাপোর্টে যোগাযোগ করলেই অতি দ্রুত (১ মিনিট থেকে ২ ঘন্টার মধ্যে) সমাধান পেয়ে যাবেন।"
+                                : "Enjoy 100% peace of mind with our official full-period warranty. If you face any issues, contact our support team on WhatsApp or Telegram for ultra-fast, priority issue resolution and fast-track processing (takes 1 minute to 2 hours)."}
                             </p>
                           </div>
 
                           <div>
-                            <span className="font-bold text-gray-800 flex items-center gap-1 mb-1.5">🌍 Global Service & Regional Pricing Notice</span>
+                            <span className="font-bold text-gray-800 flex items-center gap-1 mb-1.5">🌍 {lang === "bn" ? "গ্লোবাল সার্ভিস ও রিজিওনাল প্রাইজ নোটিশ" : "Global Service & Regional Pricing Notice"}</span>
                             <p className="leading-relaxed">
-                              We proudly serve customers globally. Please note that pricing may vary depending on your country due to regional taxes and localized Google billing policies. Use our dropdown to view the exact rate for your country!
+                              {lang === "bn"
+                                ? "আমরা বিশ্বজুড়ে গ্রাহকদের সেবা প্রদান করি। রিজিওনাল ট্যাক্স এবং গুগলের স্থানীয় বিলিং পলিসির কারণে বিভিন্ন দেশে দামের তারতম্য হতে পারে। ড্রপডাউন মেনু থেকে আপনার দেশ সিলেক্ট করে সঠিক রেটটি দেখে নিতে পারেন।"
+                                : "We proudly serve customers globally. Please note that pricing may vary depending on your country due to regional taxes and localized Google billing policies. Use our dropdown to view the exact rate for your country!"}
                             </p>
                           </div>
 
                           <div className="bg-blue-50/40 p-4 rounded-xl border border-blue-100/50">
-                            <span className="font-bold text-blue-800 flex items-center gap-1 mb-1.5">🛒 Step-by-Step Ordering Process</span>
+                            <span className="font-bold text-blue-800 flex items-center gap-1 mb-1.5">🛒 {lang === "bn" ? "ধাপ-বাই-ধাপ অর্ডার করার নিয়ম" : "Step-by-Step Ordering Process"}</span>
                             <ol className="list-decimal list-inside space-y-1.5 leading-relaxed text-blue-900/80">
-                              <li>Before placing an order, make sure to Top Up your website wallet with sufficient funds.</li>
-                              <li>Select your Country/Region and choose your preferred plan (Personal 1-Year or Monthly Member).</li>
-                              <li>Provide the required information (either just your Email or Email & Password based on the chosen plan) and confirm the order. The amount will be instantly deducted from your wallet balance.</li>
+                              {lang === "bn" ? (
+                                <>
+                                  <li>অর্ডার করার পূর্বে অবশ্যই নিশ্চিত করুন যে আপনার ওয়ালেটে পর্যাপ্ত ব্যালেন্স আছে।</li>
+                                  <li>আপনার কান্ট্রি/রিজিওন সিলেক্ট করুন এবং আপনার পছন্দের ক্যাটাগরি (মেম্বার নাকি পার্সোনাল) ও মেয়াদ বেছে নিন।</li>
+                                  <li>প্ল্যান অনুযায়ী প্রয়োজনীয় তথ্য (মেম্বারের জন্য শুধুমাত্র জিমেইল এড্রেস, এবং পার্সোনালের জন্য জিমেইল, পাসওয়ার্ড ও অথেনটিকেশন কী) দিয়ে অর্ডার সাবমিট করুন। ব্যালেন্স ইনস্ট্যান্ট কেটে নেওয়া হবে এবং দ্রুত সাবস্ক্রিপশন চালু হবে।</li>
+                                </>
+                              ) : (
+                                <>
+                                  <li>Before placing an order, make sure to Top Up your website wallet with sufficient funds.</li>
+                                  <li>Select your Country/Region, choose your preferred category (Member or Personal), and select duration.</li>
+                                  <li>Provide the required information (only Gmail Address for Member plan, or Gmail Address, Password & Authentication Key for Personal plan) and confirm the order. The amount will be instantly deducted from your wallet balance.</li>
+                                </>
+                              )}
                             </ol>
                           </div>
                         </div>
@@ -4279,151 +4742,7 @@ export default function App() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 
-                {/* Product 1: Member Adder Bot */}
-                <div className="bg-white rounded-3xl border border-indigo-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden group">
-                  {/* Visual Header */}
-                  <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-6 text-white flex flex-col justify-between h-44 text-left">
-                    <div className="flex justify-between items-start">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-white/20 text-white backdrop-blur-sm">
-                        {lang === "bn" ? "অটোমেশন সফটওয়্যার" : "Automation Software"}
-                      </span>
-                      <span className="text-xs font-black text-amber-300 bg-black/20 px-2 py-1 rounded-md">
-                        {lang === "bn" ? "৫০% ছাড়" : "50% OFF"}
-                      </span>
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-extrabold tracking-tight drop-shadow-sm">
-                        {lang === "bn" ? "টেলিগ্রাম মেম্বার অ্যাডার বট" : "Telegram Member Adder Bot"}
-                      </h3>
-                      <p className="text-xs text-indigo-100 mt-1 line-clamp-1">
-                        {lang === "bn" ? "হাই-স্পিড গ্রুপ মেম্বার স্ক্র্যাপার এবং ইনভাইটার" : "High-speed scraper and active group inviter"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Content Body */}
-                  <div className="p-6 flex-1 flex flex-col justify-between">
-                    <div className="text-left">
-                      <p className="text-gray-600 text-sm leading-relaxed mb-4">
-                        {lang === "bn" 
-                          ? "যেকোনো পাবলিক বা টার্গেটেড গ্রুপ থেকে একটিভ মেম্বারদের স্ক্র্যাপ করে সম্পূর্ণ নিরাপদে অটোমেটিক থ্রোটলিং-সহ আপনার নিজের চ্যানেল বা গ্রুপে এড করুন।"
-                          : "High-speed scraper and inviter bot. Extract active members from niche groups and add them directly into your channel/group safely with auto-throttling."}
-                      </p>
-
-                      <div className="space-y-2 mb-6 text-xs text-gray-600 border-t border-gray-50 pt-4">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                          <span>{lang === "bn" ? "একাধিক অ্যাকাউন্ট রোটেশন (এন্টি-ব্যান)" : "Multiple account rotation (anti-ban)"}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                          <span>{lang === "bn" ? "একটিভ ইউজার ফিল্টারিং (অনলাইন ফিল্টার)" : "Active user filtering (online filters)"}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                          <span>{lang === "bn" ? "উইন্ডোজ / ভিপিএস রেডি সফটওয়্যার বান্ডেল" : "Windows / VPS ready software bundle"}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                          <span>{lang === "bn" ? "স্টেপ-বাই-স্টেপ ভিডিও সেটআপ গাইড" : "Step-by-step video setup guides"}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="pt-4 border-t border-slate-100">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="leading-tight text-left">
-                          <span className="text-xs text-slate-400 font-bold line-through block">$59.99 USD</span>
-                          <span className="text-2xl font-black text-indigo-600 block">$29.99 USD</span>
-                        </div>
-                        <span className="text-xs font-black text-green-700 bg-green-50 px-2.5 py-1 rounded-md border border-green-100">
-                          {lang === "bn" ? "ইনস্ট্যান্ট ডেলিভারি" : "Instant Delivery"}
-                        </span>
-                      </div>
-
-                      <button
-                        onClick={() => handleBuyTool({ title: "Telegram Member Adder Bot", price: 29.99, category: "Automation Software" })}
-                        className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-black text-sm shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center cursor-pointer border-b-2 border-indigo-700 gap-1.5"
-                      >
-                        <span>⚡ {lang === "bn" ? "ব্যালেন্স দিয়ে অ্যাক্টিভেট করুন" : "Activate with Balance"}</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Product 2: VIP Membership */}
-                <div className="bg-white rounded-3xl border border-purple-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden group">
-                  {/* Visual Header */}
-                  <div className="bg-gradient-to-r from-purple-500 to-indigo-600 p-6 text-white flex flex-col justify-between h-44 text-left">
-                    <div className="flex justify-between items-start">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-white/20 text-white backdrop-blur-sm">
-                        {lang === "bn" ? "মাসিক পাস / প্রিমিয়াম র‍্যাঙ্ক" : "Monthly Pass / Premium Rank"}
-                      </span>
-                      <span className="text-xs font-black text-amber-300 bg-black/20 px-2 py-1 rounded-md">
-                        VIP Privileges
-                      </span>
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-extrabold tracking-tight drop-shadow-sm">
-                        {lang === "bn" ? "ভিআইপি মেম্বারশিপ সাবস্ক্রিপশন" : "VIP Membership Subscription"}
-                      </h3>
-                      <p className="text-xs text-purple-100 mt-1 line-clamp-1">
-                        {lang === "bn" ? "প্ল্যাটফর্মের সর্বনিম্ম হোলসেল মূল্যে ক্রয়ের সুবিধা" : "Unlock wholesale prices and custom tools"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Content Body */}
-                  <div className="p-6 flex-1 flex flex-col justify-between">
-                    <div className="text-left">
-                      <p className="text-gray-600 text-sm leading-relaxed mb-4">
-                        {lang === "bn" 
-                          ? "আমাদের পুরো প্ল্যাটফর্ম জুড়ে পাইকারি মূল্যে অর্ডার করার অ্যাক্সেস, ফাস্ট প্রায়োরিটি সাপোর্ট এবং ডেডিকেটেড রিকভারি হেল্পলাইন পান।"
-                          : "Unlock wholesale prices across the entire platform, priority customer service, instant stock restock alerts, and exclusive seller tools."}
-                      </p>
-
-                      <div className="space-y-2 mb-6 text-xs text-gray-600 border-t border-gray-50 pt-4">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                          <span>{lang === "bn" ? "টেলিগ্রাম অ্যাকাউন্টে ০% পারচেস মার্কআপ (হোলসেল রেট)" : "0% Purchase markup on Telegram Accounts"}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                          <span>{lang === "bn" ? "২৪/৭ ডেডিকেটেড ভিআইপি কাস্টমার কেয়ার হেল্প" : "24/7 dedicated account recovery help"}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                          <span>{lang === "bn" ? "নতুন হাই-কোয়ালিটি কান্ট্রি স্টকের দ্রুত অ্যাক্সেস" : "Early access to fresh country stocks"}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                          <span>{lang === "bn" ? "প্রোফাইল ড্যাশবোর্ডে প্রাইড ভিআইপি মেম্বার ব্যাজ" : "VIP badge on dashboard profile page"}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="pt-4 border-t border-slate-100">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="leading-tight text-left">
-                          <span className="text-xs text-slate-400 font-bold block">{lang === "bn" ? "প্রতি মাসে চার্জ" : "Subscription Fee"}</span>
-                          <span className="text-2xl font-black text-purple-600 block">$15.00 <span className="text-sm font-normal text-slate-400">/ mo</span></span>
-                        </div>
-                        <span className="text-xs font-black text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-100">
-                          {lang === "bn" ? "মাসিক সাবস্ক্রিপশন" : "Monthly Pass"}
-                        </span>
-                      </div>
-
-                      <button
-                        onClick={() => handleBuyTool({ title: "VIP Membership Subscription", price: 15.00, category: "Monthly Pass" })}
-                        className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-black text-sm shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center cursor-pointer border-b-2 border-purple-700 gap-1.5"
-                      >
-                        <span>⚡ {lang === "bn" ? "ব্যালেন্স দিয়ে জয়েন করুন" : "Join VIP with Balance"}</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Product 3: Google Gemini Pro Premium */}
+                {/* Product: Google Gemini Pro Premium (Custom Featured Card) */}
                 <div className="bg-white rounded-3xl border border-blue-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden group">
                   {/* Visual Header with Gemini PNG */}
                   <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-6 text-white flex justify-between items-center h-44 relative overflow-hidden">
@@ -4478,7 +4797,10 @@ export default function App() {
                       <div className="flex items-center justify-between mb-4">
                         <div className="leading-tight text-left">
                           <span className="text-xs text-slate-400 font-bold block">{lang === "bn" ? "সাবস্ক্রিপশন ফি" : "Subscription Fee"}</span>
-                          <span className="text-lg font-black text-blue-600 block">{lang === "bn" ? "দেশভেদে পরিবর্তনশীল" : "Varies by Country"}</span>
+                          <span className="text-lg font-black text-blue-600 block">{geminiPriceRangeText}</span>
+                          <span className="text-[10px] text-gray-400 font-medium block leading-none mt-0.5">
+                            {lang === "bn" ? "দেশভেদে পরিবর্তনশীল" : "Varies by Country"}
+                          </span>
                         </div>
                         <span className="text-xs font-black text-green-700 bg-green-50 px-2.5 py-1 rounded-md border border-green-100">
                           {lang === "bn" ? "ইনস্ট্যান্ট সেটআপ" : "Instant Setup"}
@@ -4494,6 +4816,96 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+
+                {/* Dynamic Tools & Subscriptions added by admin in database */}
+                {coursesList
+                  .filter((prod) => prod.category === "Tool" || prod.category === "Subscription")
+                  .map((prod, index) => {
+                    const discountPercent = prod.oldPrice > 0 ? Math.round(((prod.oldPrice - prod.price) / prod.oldPrice) * 100) : 0;
+                    
+                    // Assign lovely modern background gradients depending on type and index
+                    let bgGradient = "from-indigo-500 to-purple-600";
+                    if (prod.category === "Subscription") {
+                      bgGradient = "from-purple-500 to-indigo-600";
+                    } else if (index % 2 !== 0) {
+                      bgGradient = "from-teal-500 to-emerald-600";
+                    }
+
+                    return (
+                      <div key={prod.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden group">
+                        {/* Visual Header */}
+                        <div className={`bg-gradient-to-r ${bgGradient} p-6 text-white flex flex-col justify-between h-44 text-left relative overflow-hidden`}>
+                          <div className="flex justify-between items-start z-10">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-white/20 text-white backdrop-blur-sm">
+                              {prod.category === "Subscription" 
+                                ? (lang === "bn" ? "VIP সাবস্ক্রিপশন" : "VIP Subscription")
+                                : (lang === "bn" ? "অটোমেশন টুল" : "Automation Tool")}
+                            </span>
+                            {discountPercent > 0 && (
+                              <span className="text-xs font-black text-amber-300 bg-black/20 px-2 py-1 rounded-md font-mono">
+                                {discountPercent}% {lang === "bn" ? "ছাড়" : "OFF"}
+                              </span>
+                            )}
+                          </div>
+                          <div className="z-10">
+                            <h3 className="text-xl font-extrabold tracking-tight drop-shadow-sm line-clamp-2" title={prod.title}>
+                              {prod.title}
+                            </h3>
+                            <p className="text-xs text-white/90 mt-1 line-clamp-1">
+                              {prod.badge || "Genuine Software"}
+                            </p>
+                          </div>
+                          <div className="absolute right-[-10px] bottom-[-10px] w-24 h-24 bg-white/5 rounded-full blur-xl pointer-events-none" />
+                        </div>
+
+                        {/* Content Body */}
+                        <div className="p-6 flex-1 flex flex-col justify-between">
+                          <div className="text-left">
+                            <p className="text-gray-600 text-sm leading-relaxed mb-4 line-clamp-3" title={prod.description}>
+                              {prod.description || prod.title}
+                            </p>
+
+                            {/* Features list */}
+                            {Array.isArray(prod.features) && prod.features.length > 0 && (
+                              <div className="space-y-2 mb-6 text-xs text-gray-600 border-t border-gray-50 pt-4">
+                                {prod.features.slice(0, 4).map((feat, i) => (
+                                  <div key={i} className="flex items-center gap-2">
+                                    <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                                    <span className="line-clamp-1">{feat}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="pt-4 border-t border-slate-100">
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="leading-tight text-left">
+                                {prod.oldPrice > 0 && (
+                                  <span className="text-xs text-slate-400 font-bold line-through block font-mono">
+                                    ${prod.oldPrice} USD
+                                  </span>
+                                )}
+                                <span className="text-2xl font-black text-blue-600 block font-mono">
+                                  ${prod.price} USD
+                                </span>
+                              </div>
+                              <span className="text-xs font-black text-green-700 bg-green-50 px-2.5 py-1 rounded-md border border-green-100">
+                                {prod.badge || (lang === "bn" ? "ইনস্ট্যান্ট ডেলিভারি" : "Instant Delivery")}
+                              </span>
+                            </div>
+
+                            <button
+                              onClick={() => handleBuyTool(prod)}
+                              className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-sm shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center cursor-pointer border-b-2 border-blue-800 gap-1.5"
+                            >
+                              <span>⚡ {lang === "bn" ? "ব্যালেন্স দিয়ে অ্যাক্টিভেট করুন" : "Activate with Balance"}</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
 
               </div>
             )}
@@ -5303,14 +5715,20 @@ export default function App() {
                               Google Gemini Pro Premium
                             </span>
                             <span className="bg-gray-100 text-gray-700 text-[10px] font-bold px-1.5 py-0.5 rounded">
-                              {sub.plan === "1month" ? "1-Month" :
-                               sub.plan === "3month" ? "3-Month" :
-                               sub.plan === "6month" ? "6-Month" : "12-Month"}
+                              {sub.plan === "member_1m" ? "Gemini Member (1-Month)" :
+                               sub.plan === "member_3m" ? "Gemini Member (3-Month)" :
+                               sub.plan === "member_6m" ? "Gemini Member (6-Month)" :
+                               sub.plan === "member_12m" ? "Gemini Member (12-Month)" :
+                               sub.plan === "personal_12m" ? "Personal (12-Month)" : "12-Month"}
                             </span>
                           </div>
                           
                           <div className="flex items-center gap-1.5">
-                            {remaining.isExpired ? (
+                            {sub.status === "pending" ? (
+                              <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-2.5 py-0.5 rounded-full border border-amber-200 animate-pulse">
+                                ⏳ {lang === "bn" ? "পেন্ডিং (ম্যানুয়াল এক্টিভেশন)" : "Pending (Manual Activation)"}
+                              </span>
+                            ) : remaining.isExpired ? (
                               <span className="bg-red-50 text-red-600 text-[10px] font-bold px-2 py-0.5 rounded-full border border-red-100">
                                 {lang === "bn" ? "মেয়াদোত্তীর্ণ" : "Expired"}
                               </span>
@@ -5357,7 +5775,21 @@ export default function App() {
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-1.5 text-gray-600 col-span-2 bg-indigo-50/40 p-2 rounded-xl border border-indigo-50/50">
+                          {sub.plan === "personal_12m" && (
+                            <div className="col-span-2 bg-amber-50/40 p-2.5 rounded-xl border border-amber-100/30 space-y-1">
+                              <p className="text-[10px] text-amber-600 font-bold uppercase tracking-wider flex items-center gap-1">🔒 Submitted Credentials</p>
+                              <p className="text-xs text-gray-600 font-medium">
+                                Pass: <span className="font-mono font-bold text-gray-800 select-all">{sub.geminiPassword}</span>
+                              </p>
+                              {sub.geminiBackupCodes && sub.geminiBackupCodes !== "Not Required" && (
+                                <p className="text-xs text-gray-600 font-medium">
+                                  Authentication Key: <span className="font-mono font-bold text-gray-800 select-all">{sub.geminiBackupCodes}</span>
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                           <div className="flex items-center gap-1.5 text-gray-600 col-span-2 bg-indigo-50/40 p-2 rounded-xl border border-indigo-50/50">
                             <Users className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
                             <div className="min-w-0 flex-1">
                               <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Family Manager Gmail</p>
@@ -5372,6 +5804,19 @@ export default function App() {
                               </p>
                             </div>
                           </div>
+
+                          {sub.status === "pending" && (
+                            <div className="col-span-2 mt-2 bg-amber-50/50 border border-amber-200/60 rounded-xl p-3 text-left">
+                              <p className="text-[11px] font-bold text-amber-800 flex items-center gap-1 mb-1">
+                                📢 {lang === "bn" ? "ম্যানুয়াল প্রসেস (৫ মিনিট - ২ ঘণ্টা)" : "Manual Process (5 Mins - 2 Hours)"}
+                              </p>
+                              <p className="text-[10px] text-amber-700 leading-relaxed font-semibold">
+                                {lang === "bn"
+                                  ? "আপনার সাবস্ক্রিপশনটি ম্যানুয়ালি প্রসেস করা হচ্ছে। দ্রুততম সময়ে ডেলিভারি পেতে অনুগ্রহ করে হোয়াটসঅ্যাপ বা টেলিগ্রাম সাপোর্টে আমাদের সাথে যোগাযোগ করুন।"
+                                  : "Your subscription is being manually processed. To get it activated faster, please reach out to our WhatsApp or Telegram support team."}
+                              </p>
+                            </div>
+                          )}
                         </div>
 
                         <div className="flex items-center justify-between border-t border-gray-50 pt-2.5 mt-2">
@@ -5609,6 +6054,55 @@ export default function App() {
                 </div>
               )}
             </motion.div>
+
+            {/* Critical Subscription Expiry Warning Banner */}
+            {(() => {
+              const expiringUserSubs = userSubscriptions.filter(sub => sub.status === "active" && isSubscriptionExpiringSoon(sub.expiresAt));
+              if (expiringUserSubs.length === 0) return null;
+              return (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-red-50 border border-red-200 text-red-900 px-4 py-3.5 rounded-xl shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-left"
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="text-xl shrink-0">⚠️</span>
+                    <div>
+                      <h4 className="font-extrabold text-sm text-red-800">
+                        {lang === "bn" ? "সাবস্ক্রিপশন মেয়াদ শেষ হচ্ছে!" : "Critical Expiry Alert!"}
+                      </h4>
+                      <p className="text-xs text-red-700 mt-0.5">
+                        {lang === "bn" 
+                          ? `আপনার ${expiringUserSubs.map(s => s.country).join(", ")} Gemini Pro Premium সাবস্ক্রিপশনটি আগামী ২৪ ঘন্টার মধ্যে শেষ হয়ে যাবে। রিনিউ করুন এখনই!` 
+                          : `Your Gemini Pro Premium subscription for ${expiringUserSubs.map(s => s.country).join(", ")} is expiring in less than 24 hours. Please renew now to avoid service interruption.`}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const firstSub = expiringUserSubs[0];
+                      setGeminiCountry(firstSub.country);
+                      if (firstSub.plan && firstSub.plan.startsWith("personal")) {
+                        setGeminiCategory("personal");
+                        setGeminiPlan("12month");
+                      } else {
+                        setGeminiCategory("member");
+                        if (firstSub.plan === "member_1m") setGeminiPlan("1month");
+                        else if (firstSub.plan === "member_3m") setGeminiPlan("3month");
+                        else if (firstSub.plan === "member_6m") setGeminiPlan("6month");
+                        else setGeminiPlan("12month");
+                      }
+                      setGeminiEmail(firstSub.geminiEmail);
+                      setSelectedToolDetail("gemini");
+                      setCurrentView("tools");
+                    }}
+                    className="bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl transition shadow-md border-b-2 border-red-800 shrink-0 cursor-pointer self-start sm:self-center"
+                  >
+                    {lang === "bn" ? "রিনিউ করুন 🔄" : "Renew Now 🔄"}
+                  </button>
+                </motion.div>
+              );
+            })()}
 
             {/* Custom Premium Offer Buttons placed above Buy Telegram Accounts */}
             <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-4">
@@ -6273,6 +6767,7 @@ export default function App() {
             <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-none border-b border-gray-200">
               {[
                 { id: "overview", label: "Overview" },
+                { id: "tickets", label: "Live Chat 💬", badge: adminUnreadTickets > 0 ? adminUnreadTickets : undefined },
                 { id: "topups", label: "Top Ups" },
                 { id: "withdrawals", label: "Withdrawals" },
                 { id: "failed", label: "Failed" },
@@ -6285,13 +6780,18 @@ export default function App() {
                 <button
                   key={tab.id}
                   onClick={() => { setAdminTab(tab.id as any); setAdminSubTab("pending"); }}
-                  className={`px-4 py-2 font-bold text-sm whitespace-nowrap rounded-t-lg transition border-b-2 ${
+                  className={`px-4 py-2 font-bold text-sm whitespace-nowrap rounded-t-lg transition border-b-2 flex items-center gap-1.5 ${
                     adminTab === tab.id
                       ? "bg-blue-50 text-blue-600 border-blue-600"
                       : "text-gray-500 border-transparent hover:text-gray-800 hover:bg-gray-50 hover:border-gray-300"
                   }`}
                 >
                   {tab.label}
+                  {tab.badge !== undefined && (
+                    <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-black animate-pulse">
+                      {tab.badge}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -6540,9 +7040,11 @@ export default function App() {
                 </button>
               </div>
             </div>
-
-            <AdminTickets />
             </>
+            )}
+
+            {adminTab === "tickets" && (
+              <AdminTickets />
             )}
 
             {adminTab === "services" && (
@@ -7291,7 +7793,7 @@ export default function App() {
             {adminTab === "courses" && (
               <div className="space-y-6">
                 {/* Header & Add Button */}
-                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
                   <div>
                     <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                       📚 Course & Product Management
@@ -7301,27 +7803,64 @@ export default function App() {
                     </p>
                   </div>
                   {!adminEditingCourse && (
-                    <button
-                      onClick={() => {
-                        setAdminEditingCourse("new");
-                        setAdminCourseForm({
-                          id: "",
-                          category: "Language & Skills",
-                          title: "",
-                          oldPrice: 1000,
-                          price: 150,
-                          rating: 5,
-                          badge: "Hot Offer",
-                          featuresString: "",
-                          imageUrl: ""
-                        });
-                      }}
-                      className="bg-blue-600 text-white font-bold py-2.5 px-5 rounded-xl hover:bg-blue-700 transition flex items-center gap-2 shadow-sm text-sm"
-                    >
-                      <span>➕ Add New Product</span>
-                    </button>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        onClick={handleBulkAiGenerateProductDetails}
+                        disabled={bulkGenerating}
+                        className="bg-gradient-to-r from-blue-600 to-[#2AABEE] text-white font-bold py-2.5 px-4 rounded-xl hover:opacity-95 active:scale-[0.98] transition flex items-center gap-2 shadow-sm text-sm disabled:opacity-50 cursor-pointer"
+                      >
+                        {bulkGenerating ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-4 h-4" />
+                        )}
+                        <span>✨ Bulk AI Generate All Descriptions</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setAdminEditingCourse("new");
+                          setAdminCourseForm({
+                            id: "",
+                            category: "Language & Skills",
+                            title: "",
+                            description: "",
+                            oldPrice: 1000,
+                            price: 150,
+                            rating: 5,
+                            badge: "Hot Offer",
+                            featuresString: "",
+                            imageUrl: ""
+                          });
+                        }}
+                        className="bg-blue-600 text-white font-bold py-2.5 px-5 rounded-xl hover:bg-blue-700 transition flex items-center gap-2 shadow-sm text-sm cursor-pointer"
+                      >
+                        <span>➕ Add New Product</span>
+                      </button>
+                    </div>
                   )}
                 </div>
+
+                {/* Bulk Progress Banner */}
+                {bulkGenerating && (
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-5 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+                    <div className="space-y-1 w-full sm:w-auto">
+                      <h4 className="font-extrabold text-blue-900 text-sm flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                        Bulk Generating AI Descriptions... ({bulkProgress.current} / {bulkProgress.total})
+                      </h4>
+                      <p className="text-xs text-blue-700 font-bold truncate max-w-md md:max-w-xl">
+                        Current: <span className="font-mono text-gray-800 bg-white/80 px-1.5 py-0.5 rounded border border-blue-100">{bulkProgress.title}</span>
+                      </p>
+                    </div>
+                    <div className="w-full sm:w-64 bg-blue-100 h-3 rounded-full overflow-hidden border border-blue-200 relative">
+                      <div 
+                        className="bg-blue-600 h-full transition-all duration-300"
+                        style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Create or Edit Form */}
                 {adminEditingCourse && (
@@ -7362,6 +7901,8 @@ export default function App() {
                             <option value="Maps & Assets">Maps & Assets</option>
                             <option value="Government Tendering">Government Tendering</option>
                             <option value="YouTube Course">YouTube Course</option>
+                            <option value="Tool">Tool (Automation Software)</option>
+                            <option value="Subscription">VIP Subscription / Monthly Pass</option>
                           </select>
                         </div>
                         <div>
@@ -7375,22 +7916,28 @@ export default function App() {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-bold text-gray-700 mb-1">Original Price (oldPrice in ৳)</label>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">
+                            Original Price (৳ for Courses/Reels, or $ for Tools/Subscriptions)
+                          </label>
                           <input
                             type="number"
                             required
                             min="0"
+                            step="0.01"
                             value={adminCourseForm.oldPrice}
                             onChange={(e) => setAdminCourseForm({ ...adminCourseForm, oldPrice: Number(e.target.value) })}
                             className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 bg-white"
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-bold text-gray-700 mb-1">Discount Price (price in ৳)</label>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">
+                            Discount Price (৳ for Courses/Reels, or $ for Tools/Subscriptions)
+                          </label>
                           <input
                             type="number"
                             required
                             min="0"
+                            step="0.01"
                             value={adminCourseForm.price}
                             onChange={(e) => setAdminCourseForm({ ...adminCourseForm, price: Number(e.target.value) })}
                             className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 bg-white"
@@ -7418,6 +7965,35 @@ export default function App() {
                           placeholder="Enter course title in Bengali/English"
                           value={adminCourseForm.title}
                           onChange={(e) => setAdminCourseForm({ ...adminCourseForm, title: e.target.value })}
+                          className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-sm font-bold text-gray-700">Product Description / Details (Especially for Tools & Subscriptions)</label>
+                          <button
+                            type="button"
+                            onClick={handleAiGenerateProductDetails}
+                            disabled={generatingProductDetails}
+                            className="text-xs bg-gradient-to-r from-blue-600 to-[#2AABEE] text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 hover:opacity-90 active:scale-[0.98] transition disabled:opacity-50 cursor-pointer"
+                          >
+                            {generatingProductDetails ? (
+                              <>
+                                <Loader2 className="w-3 h-3 animate-spin" /> Generating...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-3 h-3" /> ✨ AI Generate Details & Features
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <textarea
+                          rows={3}
+                          placeholder="Enter details, description or long information of the product"
+                          value={adminCourseForm.description}
+                          onChange={(e) => setAdminCourseForm({ ...adminCourseForm, description: e.target.value })}
                           className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 bg-white"
                         />
                       </div>
@@ -7547,6 +8123,7 @@ export default function App() {
                                         id: String(prod.id),
                                         category: prod.category || "Language & Skills",
                                         title: prod.title || "",
+                                        description: prod.description || "",
                                         oldPrice: prod.oldPrice || 0,
                                         price: prod.price || 0,
                                         rating: prod.rating || 5,
@@ -7731,18 +8308,27 @@ export default function App() {
                                 </div>
                                 <div className="text-right">
                                   <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                    isOver 
+                                    sub.status === "pending"
+                                      ? "bg-amber-100 text-amber-800 animate-pulse border border-amber-200"
+                                      : isOver 
                                       ? "bg-red-100 text-red-800" 
                                       : isExpSoon 
                                       ? "bg-amber-100 text-amber-800 animate-pulse" 
                                       : "bg-green-100 text-green-800"
                                   }`}>
-                                    {isOver ? "Expired" : isExpSoon ? "Expiring Soon ⚠️" : "Active"}
+                                    {sub.status === "pending" ? "Pending ⏳" : isOver ? "Expired" : isExpSoon ? "Expiring Soon ⚠️" : "Active"}
                                   </span>
+                                  {isExpSoon && (
+                                    <span className="block bg-red-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded uppercase mt-1 animate-pulse tracking-wide">
+                                      CRITICAL EXPIRY
+                                    </span>
+                                  )}
                                   <span className="block text-xs font-bold text-blue-600 mt-1">
-                                    {sub.plan === "1month" ? "1-Month Plan" :
-                                     sub.plan === "3month" ? "3-Month Plan" :
-                                     sub.plan === "6month" ? "6-Month Plan" : "12-Month Plan"}
+                                    {sub.plan === "member_1m" ? "Gemini Member (1M)" :
+                                     sub.plan === "member_3m" ? "Gemini Member (3M)" :
+                                     sub.plan === "member_6m" ? "Gemini Member (6M)" :
+                                     sub.plan === "member_12m" ? "Gemini Member (12M)" :
+                                     sub.plan === "personal_12m" ? "Personal Plan (12M)" : "12-Month Plan"}
                                   </span>
                                 </div>
                               </div>
@@ -7760,6 +8346,11 @@ export default function App() {
                                   <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Linked AI Account</p>
                                   <p className="font-bold text-indigo-900 truncate select-all">{sub.geminiEmail}</p>
                                   <p className="text-gray-500 select-all font-mono">Pass: {sub.geminiPassword}</p>
+                                  {sub.geminiBackupCodes && sub.geminiBackupCodes !== "Not Required" && (
+                                    <p className="text-red-600 font-bold select-all font-mono text-[10px] bg-red-50 p-1 rounded border border-red-100">
+                                      🔑 Auth Key: {sub.geminiBackupCodes}
+                                    </p>
+                                  )}
                                   <p className="text-gray-700 font-semibold flex items-center gap-1">
                                     {countryFlag} {sub.country} <span className="text-gray-400 font-normal">(${sub.priceUSD} USD)</span>
                                   </p>
@@ -7807,6 +8398,31 @@ export default function App() {
                                 This will show immediately in the member's Account panel.
                               </p>
                             </div>
+
+                            {/* Mark as Active for Pending Subscriptions */}
+                            {sub.status === "pending" && (
+                              <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 mt-2.5 flex flex-col sm:flex-row items-center justify-between gap-3">
+                                <span className="text-xs font-bold text-amber-800 flex items-center gap-1">
+                                  ⏳ Subscription needs Manual Setup
+                                </span>
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await updateDoc(doc(db, "gemini_subscriptions", sub.id), {
+                                        status: "active"
+                                      });
+                                      toast.success("Subscription activated successfully!");
+                                    } catch (err) {
+                                      console.error("Error activating subscription:", err);
+                                      toast.error("Failed to activate.");
+                                    }
+                                  }}
+                                  className="bg-green-600 hover:bg-green-700 text-white font-extrabold text-xs px-3.5 py-2 rounded-lg transition shadow-sm cursor-pointer whitespace-nowrap"
+                                >
+                                  ✅ Mark as Active
+                                </button>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -7854,7 +8470,7 @@ export default function App() {
           <div className="flex items-center shadow-xl rounded-full" style={{ filter: 'drop-shadow(0px 8px 16px rgba(42,171,238,0.25))' }}>
             <button onClick={() => setCurrentView("tickets")} className="flex items-center cursor-pointer group">
                 <div className="bg-gradient-to-r from-blue-600 to-[#2AABEE] text-white px-3 py-1.5 rounded-l-full font-bold text-xs border border-blue-500/30 tracking-wide h-10 flex items-center -mr-3 pr-4 group-hover:-translate-x-1 transition-transform">
-                  Tickets
+                  {lang === "bn" ? "সাপোর্ট চ্যাট ⚡" : "Live Chat ⚡"}
                 </div>
                 <div className="bg-gradient-to-br from-blue-500 to-[#1d82b8] text-white p-2.5 rounded-full z-10 w-11 h-11 flex items-center justify-center transform group-hover:scale-110 transition-all shadow-[0_0_15px_rgba(42,171,238,0.5)]">
                   <MessageSquare className="w-5 h-5 fill-current" />
@@ -7878,6 +8494,12 @@ export default function App() {
 
       {/* Modals */}
       <AnimatePresence>
+        <SuccessReceiptModal
+          isOpen={successReceipt !== null}
+          onClose={() => setSuccessReceipt(null)}
+          lang={lang}
+          receipt={successReceipt}
+        />
         {p2pModal && renderP2pModal()}
         {topupModal && renderTopupModal()}
         {withdrawModal && renderWithdrawModal()}

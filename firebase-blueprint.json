@@ -29,10 +29,10 @@
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
-        "type": { "type": "string", "enum": ["topup", "withdraw", "purchase", "transfer", "refund"] },
+        "type": { "type": "string", "enum": ["topup", "withdraw", "purchase", "deposit", "referral_bonus", "fee", "buy", "ad_reward", "smm_order", "p2p_buy", "child_panel_order", "purchase_course", "purchase_tool", "purchase_gemini"] },
         "txType": { "type": "string", "enum": ["Credit", "Debit"] },
         "amountUSD": { "type": "number" },
-        "status": { "type": "string", "enum": ["WAIT", "OK", "FAILED", "pending", "paid"] },
+        "status": { "type": "string", "enum": ["WAIT", "OK", "FAILED", "pending", "paid", "success", "Pending", "In progress", "Completed", "Partial", "Processing", "Canceled", "completed"] },
         "details": { "type": "object" },
         "createdAt": { "type": "number" }
       },
@@ -131,7 +131,8 @@
         "userEmail": { "type": "string" },
         "geminiEmail": { "type": "string" },
         "geminiPassword": { "type": "string" },
-        "plan": { "type": "string", "enum": ["1month", "3month", "6month", "12month"] },
+        "geminiBackupCodes": { "type": "string" },
+        "plan": { "type": "string", "enum": ["member_1m", "member_3m", "member_6m", "member_12m", "personal_12m", "1month", "3month", "6month", "12month"] },
         "priceUSD": { "type": "number" },
         "country": { "type": "string" },
         "createdAt": { "type": "number" },
@@ -139,7 +140,7 @@
         "status": { "type": "string", "enum": ["active", "expired", "pending"] },
         "familyManagerEmail": { "type": "string" }
       },
-      "required": ["userId", "geminiEmail", "plan", "priceUSD", "country", "createdAt", "expiresAt", "status", "familyManagerEmail"]
+      "required": ["userId", "geminiEmail", "geminiPassword", "geminiBackupCodes", "plan", "priceUSD", "country", "createdAt", "expiresAt", "status", "familyManagerEmail"]
     }
   },
   "firestore": {

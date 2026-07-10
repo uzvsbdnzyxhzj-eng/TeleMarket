@@ -61,7 +61,7 @@ service cloud.firestore {
 
     function isValidTransaction(data) {
       return data.userId is string &&
-             data.type in ['topup', 'withdraw', 'purchase', 'deposit', 'referral_bonus', 'fee', 'buy', 'ad_reward', 'smm_order', 'p2p_buy', 'child_panel_order'] &&
+             data.type in ['topup', 'withdraw', 'purchase', 'deposit', 'referral_bonus', 'fee', 'buy', 'ad_reward', 'smm_order', 'p2p_buy', 'child_panel_order', 'purchase_course', 'purchase_tool', 'purchase_gemini'] &&
              data.amountUSD is number &&
              data.status in ['WAIT', 'OK', 'FAILED', 'pending', 'paid', 'success', 'Pending', 'In progress', 'Completed', 'Partial', 'Processing', 'Canceled', 'completed'] &&
              (data.keys().hasAll(['userEmail']) == false || data.userEmail is string) &&
@@ -196,7 +196,9 @@ service cloud.firestore {
              data.userEmail is string &&
              data.geminiEmail is string &&
              data.geminiPassword is string &&
-             data.plan in ['1month', '3month', '6month', '12month'] &&
+             data.geminiBackupCodes is string &&
+             data.id is string &&
+             data.plan in ['member_1m', 'member_3m', 'member_6m', 'member_12m', 'personal_12m', '1month', '3month', '6month', '12month'] &&
              data.priceUSD is number &&
              data.country is string &&
              data.createdAt is number &&

@@ -239,7 +239,7 @@ export default function AdminSMMPricing({ socialMarkupPercent }: { socialMarkupP
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {displayServices.map((s) => {
+              {displayServices.map((s, idx) => {
                 const isCustom = smmMarkup[s.service]?.type === "fixed";
                 const base = parseFloat(s.rate);
                 const defaultProfit = base * socialMarkupPercent / 100;
@@ -256,7 +256,7 @@ export default function AdminSMMPricing({ socialMarkupPercent }: { socialMarkupP
                 }
 
                 return (
-                  <tr key={s.service} className="hover:bg-gray-50 transition-colors">
+                  <tr key={`${s.service}-${idx}`} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3"><span className="bg-gray-800 text-white px-2 py-0.5 rounded-full text-[11px] font-bold">{s.service}</span></td>
                     <td className="px-4 py-3">
                        <div className="font-medium text-gray-800 line-clamp-1" title={s.name}>{s.name}</div>

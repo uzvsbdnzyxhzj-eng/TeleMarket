@@ -477,6 +477,90 @@ Guidelines:
       res.status(500).json({ error: "Failed to generate description." });
     }
   });
+
+  app.post("/api/admin/product/generate-details", async (req, res) => {
+    try {
+      const { title, category, badge } = req.body;
+
+      if (!title) {
+        return res.status(400).json({ error: "Product title is required." });
+      }
+
+      // 1. Try to use Gemini AI if available
+      if (process.env.GEMINI_API_KEY) {
+        try {
+          const { GoogleGenAI } = await import("@google/genai");
+          const ai = new GoogleGenAI({ 
+            apiKey: process.env.GEMINI_API_KEY,
+            httpOptions: {
+              headers: {
+                'User-Agent': 'aistudio-build'
+              }
+            }
+          });
+
+          const prompt = `You are an expert copywriter, marketer, and curriculum developer.
+Generate a compelling, descriptive marketing detail and key bulleted features for a product or course in our marketplace.
+
+Product Title: ${title}
+Product Category: ${category || "General"}
+Badge: ${badge || "Special Offer"}
+
+Guidelines:
+1. Generate:
+   - A descriptive paragraph/overview (2-3 sentences max) explaining what this product/course is and how it benefits the buyer.
+   - A comma-separated list of exactly 4 concise, high-value feature highlights/bullets (e.g. "Lifetime Access, 4K High Definition, Easy to Customize, Premium Support" or similar).
+2. The response MUST be a valid JSON object with EXACTLY these two keys:
+   {
+     "description": "Your generated description paragraph...",
+     "features": "Feature 1, Feature 2, Feature 3, Feature 4"
+   }
+3. Keep the language persuasive yet professional. You can write in English, or standard Bengali-English mix (Banglish or formal Bengali) depending on the context of the title. If the title is in Bengali, write the description in professional Bengali and features in Bengali. If the title is in English, write in professional English.
+4. Output ONLY the JSON object. Do not include markdown formatting like \`\`\`json or any other text.`;
+
+          const response = await ai.models.generateContent({
+            model: "gemini-3.5-flash",
+            contents: prompt,
+            config: {
+              responseMimeType: "application/json"
+            }
+          });
+
+          const responseText = response.text || "";
+          const parsed = JSON.parse(responseText.trim());
+          if (parsed.description && parsed.features) {
+            return res.json({ 
+              description: parsed.description, 
+              featuresString: parsed.features 
+            });
+          }
+        } catch (aiError) {
+          console.error("Gemini Product Details Gen Error, fallback to rules:", aiError);
+        }
+      }
+
+      // 2. High-quality Fallback Generator
+      console.log("Using professional fallback details generator for product:", title);
+      const isEnglish = /^[a-zA-Z0-9\s\-\.\,\!\?\(\)\&\:\'\"]+$/.test(title);
+      
+      let description = "";
+      let featuresString = "";
+
+      if (isEnglish) {
+        description = `Unlock complete mastery with our elite ${category} package: "${title}". Specially crafted to provide maximum value, professional-grade materials, and a structured path to success. Perfect for self-paced learning or fast-track execution.`;
+        featuresString = "Lifetime Unlimited Access, Full Course Materials, Step-by-Step Guidance, 100% Satisfaction Guarantee";
+      } else {
+        description = `আমাদের এই বিশেষ "${title}" প্যাকেজটি আপনাকে নিখুঁতভাবে সাহায্য করার জন্য ডিজাইন করা হয়েছে। এটি অত্যন্ত প্রফেশনাল মানের গাইডলাইন, রিসোর্স এবং সহজ নির্দেশনা দিয়ে সাজানো হয়েছে যাতে আপনি খুব সহজে আপনার কাঙ্ক্ষিত দক্ষতা অর্জন করতে পারেন।`;
+        featuresString = "আজীবন অ্যাক্সেস সুবিধা, প্রফেশনাল রিসোর্স ফাইল, সহজ বাংলা নির্দেশিকা, ১০০% কাস্টমার সাপোর্ট";
+      }
+
+      res.json({ description, featuresString });
+
+    } catch (error: any) {
+      console.error("Product Details Generate Main Error:", error);
+      res.status(500).json({ error: "Failed to generate product details." });
+    }
+  });
   // ----------------------------
 
   app.post("/api/proxy/chat", async (req, res) => {
