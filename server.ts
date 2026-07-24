@@ -7,37 +7,215 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { countries as countryList } from "countries-list";
 import crypto from "crypto";
-import admin from "firebase-admin";
-import { getFirestore } from "firebase-admin/firestore";
 import fs from "fs";
+
+import { initializeApp } from "firebase/app";
+import { 
+  getFirestore, 
+  collection as clientCollection, 
+  doc as clientDoc, 
+  getDoc as clientGetDoc, 
+  getDocs as clientGetDocs, 
+  setDoc as clientSetDoc, 
+  updateDoc as clientUpdateDoc, 
+  query as clientQuery, 
+  where as clientWhere, 
+  limit as clientLimit, 
+  runTransaction as clientRunTransaction,
+  increment as clientIncrement
+} from "firebase/firestore";
 
 const firebaseConfigPath = path.join(process.cwd(), "firebase-applet-config.json");
 let databaseId = "(default)";
+let firebaseConfig: any = {};
 if (fs.existsSync(firebaseConfigPath)) {
-  const config = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf-8"));
-  if (config.firestoreDatabaseId) {
-    databaseId = config.firestoreDatabaseId;
+  firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf-8"));
+  if (firebaseConfig.firestoreDatabaseId) {
+    databaseId = firebaseConfig.firestoreDatabaseId;
   }
 }
 
-if (!admin.apps.length) {
-  let credential = admin.credential.applicationDefault();
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    try {
-      const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-      credential = admin.credential.cert(sa);
-      console.log("Firebase Admin initialized with Service Account config.");
-    } catch (e) {
-      console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT", e);
+const firebaseApp = initializeApp({
+  apiKey: firebaseConfig.apiKey,
+  authDomain: firebaseConfig.authDomain,
+  projectId: firebaseConfig.projectId,
+});
+const clientDb = getFirestore(firebaseApp, databaseId);
+
+const SERVER_SECRET = "TG_MARKET_SUPER_SECRET_SALT_2026";
+
+function generateSignature(userId: string, timestamp: number): string {
+  const dataToHash = userId + timestamp.toString() + SERVER_SECRET;
+  return crypto.createHash("sha256").update(dataToHash).digest("hex");
+}
+
+function appendSignature(colName: string, docId: string, data: any) {
+  if (!data || typeof data !== "object") return data;
+  
+  let userId = data.userId;
+  if (!userId && colName === "users") {
+    userId = docId;
+  }
+  
+  if (userId) {
+    const timestamp = Date.now();
+    const signature = generateSignature(userId, timestamp);
+    return {
+      ...data,
+      serverTimestamp: timestamp.toString(),
+      serverSignature: signature
+    };
+  }
+  return data;
+}
+
+class DocRef {
+  constructor(public colName: string, public docId: string, public dRef: any) {}
+  get id() { return this.docId; }
+  get path() { return `${this.colName}/${this.docId}`; }
+  
+  async get(): Promise<any> {
+    const snap = await clientGetDoc(this.dRef);
+    return {
+      exists: snap.exists(),
+      data: () => snap.data() as any,
+      id: snap.id,
+      ref: this
+    };
+  }
+  
+  async set(data: any, options?: any) {
+    const signedData = appendSignature(this.colName, this.docId, data);
+    return clientSetDoc(this.dRef, signedData, options);
+  }
+  
+  async update(data: any) {
+    const signedData = appendSignature(this.colName, this.docId, data);
+    const parsedData = { ...signedData };
+    for (const key of Object.keys(parsedData)) {
+      if (parsedData[key] && parsedData[key]._incrementVal !== undefined) {
+        parsedData[key] = clientIncrement(parsedData[key]._incrementVal);
+      }
+    }
+    return clientUpdateDoc(this.dRef, parsedData);
+  }
+}
+
+class QueryWrapper {
+  private q: any;
+  constructor(public colName: string, private initialQuery?: any) {
+    this.q = initialQuery || clientCollection(clientDb, colName);
+  }
+  
+  where(field: string, op: any, val: any) {
+    this.q = clientQuery(this.q, clientWhere(field, op, val));
+    return this;
+  }
+  
+  limit(l: number) {
+    this.q = clientQuery(this.q, clientLimit(l));
+    return this;
+  }
+  
+  async get(): Promise<any> {
+    const snap = await clientGetDocs(this.q);
+    const docs: any[] = snap.docs.map(d => {
+      const ref = new DocRef(this.colName, d.id, d.ref);
+      return {
+        id: d.id,
+        data: () => d.data() as any,
+        exists: true,
+        ref
+      };
+    });
+    return {
+      empty: snap.empty,
+      size: snap.size,
+      docs,
+      forEach(cb: (d: any) => void) {
+        docs.forEach(cb);
+      }
+    };
+  }
+}
+
+class CollectionWrapper {
+  constructor(public colName: string) {}
+  
+  doc(docId?: string) {
+    const id = docId || clientDoc(clientCollection(clientDb, this.colName)).id;
+    const dRef = clientDoc(clientDb, this.colName, id);
+    return new DocRef(this.colName, id, dRef);
+  }
+  
+  where(field: string, op: any, val: any) {
+    return new QueryWrapper(this.colName).where(field, op, val);
+  }
+  
+  async get(): Promise<any> {
+    return new QueryWrapper(this.colName).get();
+  }
+}
+
+const db = {
+  collection(colName: string) {
+    return new CollectionWrapper(colName);
+  },
+  
+  async runTransaction(cb: (t: any) => Promise<any>) {
+    return clientRunTransaction(clientDb, async (transaction) => {
+      const transactionWrapper = {
+        async get(docRefOrQuery: any): Promise<any> {
+          if (docRefOrQuery instanceof QueryWrapper) {
+            return docRefOrQuery.get();
+          }
+          const snap = await transaction.get(docRefOrQuery.dRef);
+          return {
+            exists: snap.exists(),
+            data: () => snap.data() as any,
+            id: snap.id,
+            ref: docRefOrQuery
+          };
+        },
+        
+        update(docRefWrapper: DocRef, data: any) {
+          const signedData = appendSignature(docRefWrapper.colName, docRefWrapper.docId, data);
+          const parsedData = { ...signedData };
+          for (const key of Object.keys(parsedData)) {
+            if (parsedData[key] && parsedData[key]._incrementVal !== undefined) {
+              parsedData[key] = clientIncrement(parsedData[key]._incrementVal);
+            }
+          }
+          transaction.update(docRefWrapper.dRef, parsedData);
+          return this;
+        },
+        
+        set(docRefWrapper: DocRef, data: any) {
+          const signedData = appendSignature(docRefWrapper.colName, docRefWrapper.docId, data);
+          const parsedData = { ...signedData };
+          for (const key of Object.keys(parsedData)) {
+            if (parsedData[key] && parsedData[key]._incrementVal !== undefined) {
+              parsedData[key] = clientIncrement(parsedData[key]._incrementVal);
+            }
+          }
+          transaction.set(docRefWrapper.dRef, parsedData);
+          return this;
+        }
+      };
+      return cb(transactionWrapper);
+    });
+  }
+};
+
+const admin = {
+  firestore: {
+    FieldValue: {
+      increment(val: number) {
+        return { _incrementVal: val };
+      }
     }
   }
-
-  admin.initializeApp({
-    credential,
-    projectId: "gen-lang-client-0153398594",
-  });
-}
-const db = getFirestore(admin.app(), databaseId);
+};
 
 
 
@@ -239,8 +417,498 @@ async function startServer() {
     }
   });
 
+  // --- Telekos Virtual Number API Routes ---
+  const TELEKOS_API_KEY = "telekos_a8b55bc4a8ffd03d72916ded77c96ee42c4589ea";
+  const TELEKOS_BASE_URL = "https://api.telekos.my.id";
+  const TELEKOS_HEADERS = { "x-api-key": TELEKOS_API_KEY, "Content-Type": "application/json" };
+  const TELEKOS_IDR_TO_USD = 12000; // Markup rate for 1 USD to IDR conversion
+
+  app.get("/api/telekos/countries", async (req, res) => {
+    try {
+      const response = await fetch(`${TELEKOS_BASE_URL}/api/countries`, { headers: TELEKOS_HEADERS });
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching Telekos countries:", error);
+      res.status(500).json({ ok: false, error: "SERVER_ERROR", message: "Failed to fetch countries" });
+    }
+  });
+
+  app.get("/api/telekos/services", async (req, res) => {
+    const { country } = req.query;
+    if (!country) {
+      return res.status(400).json({ ok: false, error: "MISSING_PARAM", message: "Country parameter is required" });
+    }
+    try {
+      const response = await fetch(`${TELEKOS_BASE_URL}/api/services?country=${country}`, { headers: TELEKOS_HEADERS });
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching Telekos services:", error);
+      res.status(500).json({ ok: false, error: "SERVER_ERROR", message: "Failed to fetch services" });
+    }
+  });
+
+  function translateTelekosError(error?: string, message?: string): string {
+    const errUpper = (error || "").toUpperCase();
+    const msgLower = (message || "").toLowerCase();
+
+    if (errUpper === "NO_SALDO" || msgLower.includes("saldo")) {
+      return "Insufficient provider API balance. Please try again later or contact support.";
+    }
+    if (errUpper === "NO_STOK" || msgLower.includes("stok")) {
+      return "Selected service is out of stock.";
+    }
+    if (errUpper === "CANCEL_TOO_EARLY" || msgLower.includes("bisa cancel") || msgLower.includes("tunggu")) {
+      return "Cannot cancel yet. Provider requires waiting at least 2 minutes after order.";
+    }
+    if (errUpper === "ORDER_HAS_OTP" || msgLower.includes("sudah menerima otp") || msgLower.includes("menerima otp")) {
+      return "Order has already received an OTP and cannot be cancelled.";
+    }
+    if (errUpper === "INVALID_KEY") {
+      return "Provider API key authentication failed.";
+    }
+    if (errUpper === "ORDER_NOT_FOUND") {
+      return "Order activation ID not found.";
+    }
+    if (errUpper === "RETRY_CODE_ERROR") {
+      return "Failed to request additional code from provider.";
+    }
+    if (errUpper === "FINISH_ERROR") {
+      return "Failed to finish order.";
+    }
+    if (errUpper === "RECEIVE_EXPIRED") {
+      return "Time limit to receive additional codes has expired.";
+    }
+    if (errUpper === "ORDER_FAILED") {
+      return "Failed to order number from provider. Please try again.";
+    }
+
+    if (message) {
+      if (msgLower.includes("gagal")) return "Provider operation failed. Please try again.";
+      if (msgLower.includes("salah") || msgLower.includes("tidak ada")) return "Invalid request parameters.";
+      return message;
+    }
+
+    return "An error occurred with provider service.";
+  }
+
+  app.post("/api/telekos/order", async (req, res) => {
+    const { service, country, uid, userEmail, server } = req.body;
+    if (!service || !country || !uid) {
+      return res.status(400).json({ ok: false, error: "MISSING_PARAM", message: "Missing service, country or uid" });
+    }
+
+    try {
+      // 1. Fetch the service to get the current price in IDR
+      const servicesRes = await fetch(`${TELEKOS_BASE_URL}/api/services?country=${country}`, { headers: TELEKOS_HEADERS });
+      const servicesData = await servicesRes.json();
+      if (!servicesData.ok || !servicesData.services) {
+        return res.status(400).json({ ok: false, error: "SERVICE_ERROR", message: "Failed to fetch service pricing" });
+      }
+
+      const selectedService = servicesData.services.find((s: any) => s.code === service);
+      if (!selectedService) {
+        return res.status(400).json({ ok: false, error: "SERVICE_ERROR", message: "Selected service not found or out of stock" });
+      }
+
+      if (selectedService.stock <= 0) {
+        return res.status(400).json({ ok: false, error: "NO_STOK", message: "Selected service is out of stock" });
+      }
+
+      // Directly calculate price in USD from Telekos API price
+      const serverName = "Telekos Direct";
+      const priceIDR = selectedService.price;
+      const priceUSD = Math.ceil((priceIDR / TELEKOS_IDR_TO_USD) * 100) / 100;
+
+      // 2. Fetch User and verify balance, deduct in a transaction
+      const userRef = db.collection("users").doc(uid);
+      
+      let purchaseAllowed = false;
+      let userBalanceUSD = 0;
+
+      await db.runTransaction(async (transaction) => {
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists) {
+          throw new Error("USER_NOT_FOUND");
+        }
+        
+        userBalanceUSD = userDoc.data()?.balanceUSD || 0;
+        if (userBalanceUSD < priceUSD) {
+          throw new Error("INSUFFICIENT_BALANCE");
+        }
+
+        // Deduct balance
+        transaction.update(userRef, {
+          balanceUSD: admin.firestore.FieldValue.increment(-priceUSD),
+          total_spent: admin.firestore.FieldValue.increment(priceUSD),
+          last_update: Date.now()
+        });
+        purchaseAllowed = true;
+      });
+
+      if (!purchaseAllowed) {
+        return res.status(400).json({ ok: false, error: "TRANSACTION_FAILED", message: "Transaction failed" });
+      }
+
+      // 3. Make the order to Telekos
+      const orderResponse = await fetch(`${TELEKOS_BASE_URL}/api/order`, {
+        method: "POST",
+        headers: TELEKOS_HEADERS,
+        body: JSON.stringify({ service, country })
+      });
+      const orderData = await orderResponse.json();
+
+      if (orderData.ok && orderData.activationId) {
+        // Success! Save order in Firestore under virtual_orders
+        const orderId = orderData.activationId;
+        const phone = orderData.phone;
+        
+        const orderRef = db.collection("virtual_orders").doc(orderId);
+        await orderRef.set({
+          userId: uid,
+          userEmail: userEmail || "",
+          activationId: orderId,
+          phone,
+          serviceCode: service,
+          serviceName: selectedService.name,
+          serverName,
+          countryId: country,
+          countryName: servicesData.country?.name || "Unknown",
+          priceIDR,
+          priceUSD,
+          status: "waiting",
+          createdAt: Date.now(),
+          last_checked: Date.now()
+        });
+
+        // Save transaction log
+        const txRef = db.collection("transactions").doc();
+        await txRef.set({
+          userId: uid,
+          userEmail: userEmail || "",
+          type: "virtual_number_buy",
+          txType: "Debit",
+          amountUSD: priceUSD,
+          status: "paid",
+          details: { 
+            activationId: orderId, 
+            phone, 
+            serviceCode: service, 
+            serviceName: `${selectedService.name} (${serverName})` 
+          },
+          createdAt: Date.now()
+        });
+
+        return res.json({
+          ok: true,
+          activationId: orderId,
+          phone,
+          serviceName: selectedService.name,
+          priceUSD,
+          status: "waiting"
+        });
+      } else {
+        // Telekos Order failed! Refund the user
+        await db.runTransaction(async (transaction) => {
+          transaction.update(userRef, {
+            balanceUSD: admin.firestore.FieldValue.increment(priceUSD),
+            total_spent: admin.firestore.FieldValue.increment(-priceUSD),
+            last_update: Date.now()
+          });
+        });
+
+        return res.status(400).json({
+          ok: false,
+          error: orderData.error || "ORDER_FAILED",
+          message: translateTelekosError(orderData.error, orderData.message)
+        });
+      }
+
+    } catch (error: any) {
+      console.error("Error in Telekos order:", error);
+      if (error.message === "USER_NOT_FOUND") {
+        return res.status(404).json({ ok: false, error: "USER_NOT_FOUND", message: "User account not found" });
+      }
+      if (error.message === "INSUFFICIENT_BALANCE") {
+        return res.status(400).json({ ok: false, error: "NO_SALDO", message: "Insufficient balance in your account" });
+      }
+      res.status(500).json({ ok: false, error: "SERVER_ERROR", message: "Internal server error occurred" });
+    }
+  });
+
+  app.get("/api/telekos/status/:activationId", async (req, res) => {
+    const { activationId } = req.params;
+    const { uid } = req.query;
+
+    if (!activationId || !uid) {
+      return res.status(400).json({ ok: false, error: "MISSING_PARAM", message: "Missing activationId or uid" });
+    }
+
+    try {
+      // Fetch current status from Telekos
+      const response = await fetch(`${TELEKOS_BASE_URL}/api/status/${activationId}`, { headers: TELEKOS_HEADERS });
+      const data = await response.json();
+
+      if (!data.ok) {
+        return res.status(400).json({ ok: false, error: data.error || "STATUS_ERROR", message: translateTelekosError(data.error, data.message) });
+      }
+
+      const orderRef = db.collection("virtual_orders").doc(activationId);
+      const orderDoc = await orderRef.get();
+
+      if (!orderDoc.exists) {
+        return res.status(404).json({ ok: false, error: "ORDER_NOT_FOUND", message: "Order not found in database" });
+      }
+
+      const orderData = orderDoc.data();
+      if (orderData?.status === "waiting" || orderData?.status === "completed") {
+        if ((data.state === "sukses" || data.state === "ok") && data.otp) {
+          // Received OTP! Update order to completed
+          await orderRef.update({
+            status: "completed",
+            otp: data.otp,
+            canRetry: data.canRetry ?? true,
+            otpCodes: data.otpCodes || (data.otp ? [{ code: data.otp, receivedAt: new Date().toISOString() }] : []),
+            expiresAt: data.expiresAt || null,
+            last_checked: Date.now()
+          });
+
+          // Update transaction log to completed/paid
+          const txs = await db.collection("transactions").where("details.activationId", "==", activationId).get();
+          if (!txs.empty && txs.docs[0].data().status !== "completed") {
+            await txs.docs[0].ref.update({ status: "completed" });
+          }
+
+          return res.json({ 
+            ok: true, 
+            state: "sukses", 
+            otp: data.otp,
+            canRetry: data.canRetry ?? true,
+            otpCodes: data.otpCodes || [{ code: data.otp, receivedAt: new Date().toISOString() }],
+            expiresAt: data.expiresAt || null
+          });
+        } else if (data.state === "expired" || data.state === "cancel") {
+          // Only refund if it was in 'waiting' status and never received an OTP
+          if (orderData?.status === "waiting" && !orderData?.otp) {
+            const priceUSD = orderData.priceUSD || 0;
+            const userRef = db.collection("users").doc(uid as string);
+
+            await db.runTransaction(async (transaction) => {
+              transaction.update(userRef, {
+                balanceUSD: admin.firestore.FieldValue.increment(priceUSD),
+                total_spent: admin.firestore.FieldValue.increment(-priceUSD),
+                last_update: Date.now()
+              });
+              transaction.update(orderRef, {
+                status: "expired",
+                last_checked: Date.now()
+              });
+            });
+
+            // Save refund transaction log
+            const txRef = db.collection("transactions").doc();
+            await txRef.set({
+              userId: uid,
+              userEmail: orderData.userEmail || "",
+              type: "virtual_number_refund",
+              txType: "Credit",
+              amountUSD: priceUSD,
+              status: "refunded",
+              details: { activationId, reason: "expired", serviceCode: orderData.serviceCode, serviceName: orderData.serviceName },
+              createdAt: Date.now()
+            });
+
+            return res.json({ ok: true, state: "expired", refunded: true });
+          } else {
+            await orderRef.update({ status: "expired", last_checked: Date.now() });
+            return res.json({ ok: true, state: "expired", refunded: false });
+          }
+        }
+      }
+
+      // If already processed in our database
+      return res.json({ 
+        ok: true, 
+        state: orderData?.status === "completed" ? "sukses" : orderData?.status, 
+        otp: orderData?.otp,
+        canRetry: orderData?.canRetry,
+        otpCodes: orderData?.otpCodes || [],
+        expiresAt: orderData?.expiresAt
+      });
+
+    } catch (error) {
+      console.error("Error in Telekos status check:", error);
+      res.status(500).json({ ok: false, error: "SERVER_ERROR", message: "Failed to check status" });
+    }
+  });
+
+  app.post("/api/telekos/retry-code", async (req, res) => {
+    const { activationId, uid } = req.body;
+    if (!activationId || !uid) {
+      return res.status(400).json({ ok: false, error: "MISSING_PARAM", message: "Missing activationId or uid" });
+    }
+
+    try {
+      const response = await fetch(`${TELEKOS_BASE_URL}/api/retry-code`, {
+        method: "POST",
+        headers: TELEKOS_HEADERS,
+        body: JSON.stringify({ activationId })
+      });
+      const data = await response.json();
+
+      if (data.ok) {
+        const orderRef = db.collection("virtual_orders").doc(activationId);
+        if (data.state === "sukses" && data.otp) {
+          const orderDoc = await orderRef.get();
+          const existingCodes = orderDoc.data()?.otpCodes || [];
+          const updatedCodes = [...existingCodes];
+          if (!updatedCodes.some((c: any) => c.code === data.otp)) {
+            updatedCodes.push({ code: data.otp, receivedAt: new Date().toISOString() });
+          }
+
+          await orderRef.update({
+            otp: data.otp,
+            otpCodes: updatedCodes,
+            last_checked: Date.now()
+          });
+        }
+        return res.json(data);
+      } else {
+        return res.status(400).json({
+          ok: false,
+          error: data.error || "RETRY_CODE_ERROR",
+          message: translateTelekosError(data.error, data.message)
+        });
+      }
+    } catch (error) {
+      console.error("Error requesting retry code:", error);
+      res.status(500).json({ ok: false, error: "SERVER_ERROR", message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/telekos/finish", async (req, res) => {
+    const { activationId, uid } = req.body;
+    if (!activationId || !uid) {
+      return res.status(400).json({ ok: false, error: "MISSING_PARAM", message: "Missing activationId or uid" });
+    }
+
+    try {
+      const response = await fetch(`${TELEKOS_BASE_URL}/api/finish`, {
+        method: "POST",
+        headers: TELEKOS_HEADERS,
+        body: JSON.stringify({ activationId })
+      });
+      const data = await response.json();
+
+      if (data.ok) {
+        const orderRef = db.collection("virtual_orders").doc(activationId);
+        await orderRef.update({
+          status: "finished",
+          canRetry: false,
+          last_checked: Date.now()
+        });
+        return res.json({ ok: true, state: "finished" });
+      } else {
+        return res.status(400).json({
+          ok: false,
+          error: data.error || "FINISH_ERROR",
+          message: translateTelekosError(data.error, data.message)
+        });
+      }
+    } catch (error) {
+      console.error("Error finishing order:", error);
+      res.status(500).json({ ok: false, error: "SERVER_ERROR", message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/telekos/cancel", async (req, res) => {
+    const { activationId, uid } = req.body;
+    if (!activationId || !uid) {
+      return res.status(400).json({ ok: false, error: "MISSING_PARAM", message: "Missing activationId or uid" });
+    }
+
+    try {
+      const orderRef = db.collection("virtual_orders").doc(activationId);
+      const orderDoc = await orderRef.get();
+
+      if (!orderDoc.exists) {
+        return res.status(404).json({ ok: false, error: "ORDER_NOT_FOUND", message: "Order not found" });
+      }
+
+      const orderData = orderDoc.data();
+      if (orderData?.status !== "waiting") {
+        return res.status(400).json({ ok: false, error: "CANCEL_ERROR", message: "Order is already completed or cancelled" });
+      }
+
+      // Call Telekos cancel API
+      const response = await fetch(`${TELEKOS_BASE_URL}/api/cancel`, {
+        method: "POST",
+        headers: TELEKOS_HEADERS,
+        body: JSON.stringify({ activationId })
+      });
+      const data = await response.json();
+
+      if (data.ok) {
+        const priceUSD = orderData.priceUSD || 0;
+        const userRef = db.collection("users").doc(uid);
+
+        await db.runTransaction(async (transaction) => {
+          transaction.update(userRef, {
+            balanceUSD: admin.firestore.FieldValue.increment(priceUSD),
+            total_spent: admin.firestore.FieldValue.increment(-priceUSD),
+            last_update: Date.now()
+          });
+          transaction.update(orderRef, {
+            status: "cancelled",
+            last_checked: Date.now()
+          });
+        });
+
+        // Save cancel refund transaction log
+        const txRef = db.collection("transactions").doc();
+        await txRef.set({
+          userId: uid,
+          userEmail: orderData.userEmail || "",
+          type: "virtual_number_cancel",
+          txType: "Credit",
+          amountUSD: priceUSD,
+          status: "refunded",
+          details: { activationId, reason: "cancelled_by_user", serviceCode: orderData.serviceCode, serviceName: orderData.serviceName },
+          createdAt: Date.now()
+        });
+
+        return res.json({ ok: true, refunded: true });
+      } else {
+        return res.status(400).json({ ok: false, error: data.error || "CANCEL_ERROR", message: translateTelekosError(data.error, data.message) });
+      }
+
+    } catch (error) {
+      console.error("Error in Telekos cancel:", error);
+      res.status(500).json({ ok: false, error: "SERVER_ERROR", message: "Failed to cancel order" });
+    }
+  });
+
+  app.get("/api/telekos/orders/:uid", async (req, res) => {
+    const { uid } = req.params;
+    try {
+      const ordersSnap = await db.collection("virtual_orders")
+        .where("userId", "==", uid)
+        .limit(50)
+        .get();
+
+      const orders = ordersSnap.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+      res.json({ ok: true, orders });
+    } catch (error) {
+      console.error("Error fetching user virtual orders:", error);
+      res.status(500).json({ ok: false, error: "SERVER_ERROR", message: "Failed to fetch orders" });
+    }
+  });
+
   // --- SMM Sun Proxy Routes ---
-  const SMM_API_URL = "https://smmgen.com/api/v2";
+  const SMM_API_URL = "https://my.smmgen.com/api/v2";
   const SMM_API_KEY = "076622ae1547776678e14a4c4e6586cc";
 
   let smmServicesCache: any = null;

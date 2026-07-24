@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, doc, increment } from "firebase/firestore";
 import { db, auth } from "./firebase";
+import { formatValueWithCurrency } from "./currencies";
 import { Globe, Save, Loader2, ArrowLeft, PlusCircle } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -9,9 +10,11 @@ interface ChildPanelProps {
   currentUser: any;
   onNavigate: (view: string) => void;
   balanceUSD: number;
+  lang?: string;
+  displayCurrency?: string;
 }
 
-export default function ChildPanel({ currentUser, onNavigate, balanceUSD }: ChildPanelProps) {
+export default function ChildPanel({ currentUser, onNavigate, balanceUSD, lang, displayCurrency = "USD" }: ChildPanelProps) {
   const [panels, setPanels] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOrdering, setIsOrdering] = useState(false);
@@ -24,6 +27,10 @@ export default function ChildPanel({ currentUser, onNavigate, balanceUSD }: Chil
   const [adminPass, setAdminPass] = useState("");
 
   const INITIAL_PRICE = 5; // $5 for first 3 months
+
+  const formatChildCurrency = (amountUSD: number) => {
+    return formatValueWithCurrency(amountUSD, displayCurrency);
+  };
 
   useEffect(() => {
     if (!currentUser) return;
@@ -121,38 +128,46 @@ export default function ChildPanel({ currentUser, onNavigate, balanceUSD }: Chil
     setIsOrdering(false);
   };
 
+  const isBn = lang === "bn";
+
   return (
     <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="max-w-4xl mx-auto py-8">
       <button
         onClick={() => onNavigate("dashboard")}
         className="md:hidden flex items-center text-gray-600 hover:text-gray-900 mb-2 font-medium bg-white px-4 py-2 rounded-full shadow-sm"
       >
-        <ArrowLeft className="w-5 h-5 mr-2" /> Back
+        <ArrowLeft className="w-5 h-5 mr-2" /> {isBn ? "ফিরে যান" : "Back"}
       </button>
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
            <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-             <Globe className="w-6 h-6 text-[#2AABEE]" /> Rent Child Panel
+             <Globe className="w-6 h-6 text-[#2AABEE]" /> {isBn ? "সাব পেইজ / চাইল্ড প্যানেল রেন্ট" : "Rent Sub Page / Child Panel"}
            </h2>
-           <p className="text-gray-500 text-sm mt-1">Start your own SMM or Account business fully automatedly connected to our API.</p>
+           <p className="text-gray-500 text-sm mt-1">
+             {isBn 
+               ? "আমাদের API-এর সাথে সম্পূর্ণ স্বয়ংক্রিয়ভাবে সংযুক্ত আপনার নিজস্ব SMM বা অ্যাকাউন্ট ব্যবসা শুরু করুন।" 
+               : "Start your own SMM or Account business fully automatedly connected to our API."}
+           </p>
         </div>
         <button
           onClick={() => setShowOrderModal(true)}
           className="bg-[#2AABEE] hover:bg-[#2299d6] text-white px-5 py-2.5 rounded-xl shadow-[0_4px_14px_rgba(42,171,238,0.39)] hover:shadow-[0_6px_20px_rgba(42,171,238,0.23)] active:scale-[0.98] transition-all flex items-center gap-2 font-bold"
         >
-          <PlusCircle className="w-5 h-5" /> Order New Panel ($5 / 3 Months)
+          <PlusCircle className="w-5 h-5" /> {isBn ? `নতুন সাব পেইজ অর্ডার করুন (${formatChildCurrency(5)} / ৩ মাস)` : `Order New Sub Page (${formatChildCurrency(5)} / 3 Months)`}
         </button>
       </div>
 
       <div className="bg-blue-50 border border-blue-100 rounded-xl p-5 mb-8">
-        <h3 className="font-bold text-blue-900 mb-3 text-lg">What do you get with a Child Panel? ✔️</h3>
+        <h3 className="font-bold text-blue-900 mb-3 text-lg">
+          {isBn ? "সাব পেইজ / চাইল্ড প্যানেলের সাথে আপনি কী কী পাচ্ছেন? ✔️" : "What do you get with a Child Panel / Sub Page? ✔️"}
+        </h3>
         <ul className="text-blue-800 text-sm space-y-2 font-medium">
-          <li className="flex items-center gap-2">• Fully Automated Orders connected to TeleMarket API</li>
-          <li className="flex items-center gap-2">• Set your own prices and make unlimited profit</li>
-          <li className="flex items-center gap-2">• Your Own Domain & Custom Branding</li>
-          <li className="flex items-center gap-2">• 100% Free Hosting & Maintenance included</li>
-          <li className="flex items-center gap-2">• Admin panel to manage your users, payments & orders</li>
+          <li className="flex items-center gap-2">• {isBn ? "টেলি-মার্কেট API-এর সাথে সংযুক্ত সম্পূর্ণ অটোমেটেড অর্ডার" : "Fully Automated Orders connected to TeleMarket API"}</li>
+          <li className="flex items-center gap-2">• {isBn ? "আপনার নিজস্ব দাম সেট করুন এবং আনলিমিটেড প্রফিট করুন" : "Set your own prices and make unlimited profit"}</li>
+          <li className="flex items-center gap-2">• {isBn ? "আপনার নিজস্ব ডেমেইন এবং কাস্টম ব্র্যান্ডিং" : "Your Own Domain & Custom Branding"}</li>
+          <li className="flex items-center gap-2">• {isBn ? "১০০% ফ্রি হোস্টিং এবং মেইনটেন্যান্স অন্তর্ভুক্ত" : "100% Free Hosting & Maintenance included"}</li>
+          <li className="flex items-center gap-2">• {isBn ? "ইউজার, পেমেন্ট এবং অর্ডার পরিচালনা করার জন্য অ্যাডমিন প্যানেল" : "Admin panel to manage your users, payments & orders"}</li>
         </ul>
       </div>
 
@@ -165,10 +180,16 @@ export default function ChildPanel({ currentUser, onNavigate, balanceUSD }: Chil
             <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-4">
                <Globe className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-bold text-gray-800 mb-2">No Child Panels Yet</h3>
-            <p className="text-gray-500 max-w-sm mx-auto mb-6">You haven't ordered any child panels. Get your own fully branded panel now.</p>
+            <h3 className="text-xl font-bold text-gray-800 mb-2">
+              {isBn ? "কোনো সাব পেইজ বা চাইল্ড প্যানেল নেই" : "No Sub Pages / Child Panels Yet"}
+            </h3>
+            <p className="text-gray-500 max-w-sm mx-auto mb-6">
+              {isBn 
+                ? "আপনি এখনও কোনো সাব পেইজ বা চাইল্ড প্যানেল অর্ডার করেননি। এখনই আপনার নিজের ব্র্যান্ডের প্যানেল নিন।" 
+                : "You haven't ordered any child panels. Get your own fully branded panel now."}
+            </p>
             <button onClick={() => setShowOrderModal(true)} className="bg-[#2AABEE] text-white px-6 py-2.5 rounded-lg font-bold shadow-sm hover:shadow-md transition">
-               Order Child Panel
+               {isBn ? "সাব পেইজ অর্ডার করুন" : "Order Sub Page"}
             </button>
         </div>
       ) : (
@@ -176,10 +197,10 @@ export default function ChildPanel({ currentUser, onNavigate, balanceUSD }: Chil
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="p-4 font-semibold text-gray-600">Domain</th>
-                <th className="p-4 font-semibold text-gray-600 text-center">Price</th>
-                <th className="p-4 font-semibold text-gray-600 text-center">Status</th>
-                <th className="p-4 font-semibold text-gray-600 text-right">Order Date</th>
+                <th className="p-4 font-semibold text-gray-600">{isBn ? "ডোমেইন" : "Domain"}</th>
+                <th className="p-4 font-semibold text-gray-600 text-center">{isBn ? "মূল্য" : "Price"}</th>
+                <th className="p-4 font-semibold text-gray-600 text-center">{isBn ? "স্ট্যাটাস" : "Status"}</th>
+                <th className="p-4 font-semibold text-gray-600 text-right">{isBn ? "অর্ডারের তারিখ" : "Order Date"}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -188,18 +209,18 @@ export default function ChildPanel({ currentUser, onNavigate, balanceUSD }: Chil
                   <td className="p-4">
                     <p className="font-bold text-gray-800">{p.domain}</p>
                     <p className="text-xs text-gray-500 flex gap-2 mt-1">
-                      <span>Admin: {p.adminUser}</span>
-                      <span>Currency: {p.currency}</span>
+                      <span>{isBn ? "অ্যাডমিন" : "Admin"}: {p.adminUser}</span>
+                      <span>{isBn ? "কারেন্সি" : "Currency"}: {p.currency}</span>
                     </p>
                     {p.nameservers && (
-                       <p className="text-xs text-blue-600 mt-1 font-medium">Nameservers: {p.nameservers}</p>
+                       <p className="text-xs text-blue-600 mt-1 font-medium">{isBn ? "নেমসার্ভার" : "Nameservers"}: {p.nameservers}</p>
                     )}
                   </td>
-                  <td className="p-4 text-center font-medium">${p.price} <span className="text-xs text-gray-500 font-normal">({p.billingCycle || "initially"})</span></td>
+                  <td className="p-4 text-center font-medium">{formatChildCurrency(p.price)} <span className="text-xs text-gray-500 font-normal">({p.billingCycle || "initially"})</span></td>
                   <td className="p-4 text-center">
-                    {p.status === "pending" && <span className="bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full">Pending</span>}
-                    {p.status === "active" && <span className="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full">Active</span>}
-                    {p.status === "suspended" && <span className="bg-red-100 text-red-800 text-xs font-bold px-3 py-1 rounded-full">Suspended</span>}
+                    {p.status === "pending" && <span className="bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full">{isBn ? "পেন্ডিং" : "Pending"}</span>}
+                    {p.status === "active" && <span className="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full">{isBn ? "অ্যাক্টিভ" : "Active"}</span>}
+                    {p.status === "suspended" && <span className="bg-red-100 text-red-800 text-xs font-bold px-3 py-1 rounded-full">{isBn ? "সাসপেন্ডেড" : "Suspended"}</span>}
                   </td>
                   <td className="p-4 text-right text-sm text-gray-500">
                     {new Date(p.createdAt).toLocaleDateString()}
@@ -223,13 +244,17 @@ export default function ChildPanel({ currentUser, onNavigate, balanceUSD }: Chil
               
               <div className="p-6">
                  <h3 className="text-xl font-bold text-gray-800 mb-1 flex items-center gap-2">
-                    <Globe className="w-5 h-5 text-[#2AABEE]" /> Order Child Panel
+                    <Globe className="w-5 h-5 text-[#2AABEE]" /> {isBn ? "সাব পেইজ / চাইল্ড প্যানেল অর্ডার" : "Order Sub Page (Child Panel)"}
                  </h3>
-                 <p className="text-sm text-gray-500 mb-6">Price: $5 for the first 3 months (then $3/month). Make sure your domain is registered elsewhere before ordering.</p>
+                 <p className="text-sm text-gray-500 mb-6">
+                   {isBn 
+                     ? `মূল্য: প্রথম ৩ মাসের জন্য ${formatChildCurrency(5)} (এরপর প্রতি মাসে ${formatChildCurrency(3)})। অর্ডার করার আগে নিশ্চিত করুন আপনার ডোমেইনটি অন্য কোথাও রেজিস্টার করা আছে।`
+                     : `Price: ${formatChildCurrency(5)} for the first 3 months (then ${formatChildCurrency(3)}/month). Make sure your domain is registered elsewhere before ordering.`}
+                 </p>
                  
                  <div className="space-y-4">
                     <div>
-                       <label className="block text-sm font-semibold text-gray-700 mb-1">Your Domain Name</label>
+                       <label className="block text-sm font-semibold text-gray-700 mb-1">{isBn ? "আপনার ডোমেইন নাম" : "Your Domain Name"}</label>
                        <input 
                          type="text" 
                          placeholder="e.g. mypanel.com" 
@@ -238,7 +263,7 @@ export default function ChildPanel({ currentUser, onNavigate, balanceUSD }: Chil
                        />
                     </div>
                     <div>
-                       <label className="block text-sm font-semibold text-gray-700 mb-1">Desired Currency</label>
+                       <label className="block text-sm font-semibold text-gray-700 mb-1">{isBn ? "পছন্দের কারেন্সি" : "Desired Currency"}</label>
                        <select 
                          value={currency} onChange={e => setCurrency(e.target.value)}
                          className="w-full outline-none border border-gray-300 rounded-lg px-4 py-2.5 focus:border-[#2AABEE]"
@@ -249,7 +274,7 @@ export default function ChildPanel({ currentUser, onNavigate, balanceUSD }: Chil
                        </select>
                     </div>
                     <div>
-                       <label className="block text-sm font-semibold text-gray-700 mb-1">Admin Username</label>
+                       <label className="block text-sm font-semibold text-gray-700 mb-1">{isBn ? "অ্যাডমিন ইউজারনেম" : "Admin Username"}</label>
                        <input 
                          type="text" 
                          value={adminUser} onChange={e => setAdminUser(e.target.value)}
@@ -257,7 +282,7 @@ export default function ChildPanel({ currentUser, onNavigate, balanceUSD }: Chil
                        />
                     </div>
                     <div>
-                       <label className="block text-sm font-semibold text-gray-700 mb-1">Admin Password</label>
+                       <label className="block text-sm font-semibold text-gray-700 mb-1">{isBn ? "অ্যাডমিন পাসওয়ার্ড" : "Admin Password"}</label>
                        <input 
                          type="text" 
                          value={adminPass} onChange={e => setAdminPass(e.target.value)}
@@ -272,7 +297,7 @@ export default function ChildPanel({ currentUser, onNavigate, balanceUSD }: Chil
                    className="w-full bg-[#2AABEE] text-white font-bold py-3.5 rounded-lg shadow-sm hover:bg-blue-500 transition mt-6 disabled:opacity-50 flex justify-center items-center gap-2"
                  >
                    {isOrdering ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                   Place Order - $5.00
+                   {isBn ? `অর্ডার প্লেস করুন - ${formatChildCurrency(5)}` : `Place Order - ${formatChildCurrency(5)}`}
                  </button>
               </div>
            </div>

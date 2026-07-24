@@ -3,6 +3,7 @@ import toast, { Toaster } from "react-hot-toast";
 import { motion, AnimatePresence } from "motion/react";
 import { CountryData } from "./types";
 import { t, Language } from "./i18n";
+import { currenciesList, formatValueWithCurrency } from "./currencies";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import {
   ShoppingCart,
@@ -57,7 +58,8 @@ import {
   BookOpen,
   Wrench,
   Sparkles,
-  Loader2
+  Loader2,
+  Hash
 } from "lucide-react";
 import { auth, db } from "./firebase";
 
@@ -154,6 +156,8 @@ import SocialServices from "./SocialServices";
 import ChatBot from "./ChatBot";
 import SuccessReceiptModal from "./SuccessReceiptModal";
 import AdminDataOverview from "./AdminDataOverview";
+import AdminOrdersManagement from "./AdminOrdersManagement";
+import VirtualNumbers from "./VirtualNumbers";
 
 export type View =
   | "buy"
@@ -1182,7 +1186,7 @@ export default function App() {
 
           // Write subscription document
           const createdAt = Date.now();
-          const expiresAt = createdAt + durationDays * 24 * 60 * 60 * 1000;
+          const expiresAt = 0;
           const subRef = doc(collection(db, "gemini_subscriptions"));
           
           await setDoc(subRef, {
@@ -1197,6 +1201,7 @@ export default function App() {
             priceUSD: priceUSD,
             country: geminiCountry,
             createdAt: createdAt,
+            durationDays: durationDays,
             expiresAt: expiresAt,
             status: "pending",
             familyManagerEmail: "Not Assigned"
@@ -1242,7 +1247,7 @@ export default function App() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [adminTxs, setAdminTxs] = useState<any[]>([]);
   const [adminSearchTxId, setAdminSearchTxId] = useState("");
-  const [adminTab, setAdminTab] = useState<"overview" | "topups" | "withdrawals" | "failed" | "users" | "services" | "settings" | "courses" | "subscriptions" | "tickets">("overview");
+  const [adminTab, setAdminTab] = useState<"overview" | "orders" | "topups" | "withdrawals" | "failed" | "users" | "services" | "settings" | "courses" | "subscriptions" | "tickets">("overview");
   const [adminUnreadTickets, setAdminUnreadTickets] = useState(0);
   const [adminSubTab, setAdminSubTab] = useState<"pending" | "paid">("pending");
 
@@ -1596,7 +1601,7 @@ export default function App() {
         });
       }
       setAdminTxs(
-        snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) })).filter((tx: any) => tx.type === "withdraw" || tx.type === "topup")
+        snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))
       );
       isInitialAdminLoad = false;
     }, (error) => console.error("admin transactions query error", error));
@@ -1651,9 +1656,16 @@ export default function App() {
   const [lang, setLang] = useState<Language>("en");
   const i18n = t[lang];
 
+  // Multi-currency display state
+  const [displayCurrency, setDisplayCurrency] = useState<string>("USD");
+
+  const formatCurrency = (amountUSD: number) => {
+    return formatValueWithCurrency(amountUSD, displayCurrency);
+  };
+
   const [showAuth, setShowAuth] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
-  const [showLanding, setShowLanding] = useState(false);
+  const [showLanding, setShowLanding] = useState(true);
 
   // Atomic double-spend secure wallet crediting system
   const executeAtomicTopUpCredit = async (txId: string, amountUSD: number, userId: string) => {
@@ -3208,7 +3220,7 @@ export default function App() {
               </h4>
               <div className="space-y-3 max-h-48 overflow-y-auto pr-1 flex flex-col">
                 {transactions.filter(t => t.type === "topup" && t.status === "pending").map(tx => (
-                  <div key={tx.id} className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm flex justify-between items-center gap-2">
+                  <div key={`pending-topup-${tx.id}`} className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm flex justify-between items-center gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="font-bold text-gray-700">${tx.amountUSD?.toFixed(2)} USD</div>
                       <div className="text-xs text-gray-500 font-medium mt-1 truncate">
@@ -3445,7 +3457,7 @@ export default function App() {
                   .filter((t) => t.type === "withdraw")
                   .map((tx) => (
                     <div
-                      key={tx.id}
+                      key={`withdraw-history-${tx.id}`}
                       className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100"
                     >
                       <div>
@@ -3511,13 +3523,28 @@ export default function App() {
   };
 
   if (!currentUser) {
+    if (showLanding) {
+      return (
+        <Landing
+          countries={countries}
+          markupPercent={markupPercent}
+          lang={lang}
+          setLang={setLang}
+          displayCurrency={displayCurrency}
+          onGetStarted={(mode) => {
+            setAuthMode(mode || 'login');
+            setShowLanding(false);
+          }}
+        />
+      );
+    }
     return (
       <Login
         lang={lang}
         setLang={setLang}
         initialMode={authMode}
         onBack={() => {
-          setAuthMode('login');
+          setShowLanding(true);
         }}
       />
     );
@@ -3944,14 +3971,19 @@ export default function App() {
                     <option value="pl">Polish</option>
                     <option value="vi">Vietnamese</option>
                     <option value="th">Thai</option>
+                    <option value="ms">Malay</option>
+                    <option value="tl">Tagalog</option>
+                    <option value="fa">Persian</option>
+                    <option value="uk">Ukrainian</option>
+                    <option value="ro">Romanian</option>
                   </select>
                 </div>
                 <div 
-                  className="flex items-center gap-1 bg-[#1cd435] hover:bg-green-600 text-white px-3 py-1.5 rounded-full cursor-pointer transition shadow-sm"
+                  className="flex items-center gap-1 bg-[#1cd435] hover:bg-green-600 text-white px-3 py-1.5 rounded-full cursor-pointer transition shadow-sm shrink-0"
                   onClick={() => { requireAuth(() => setTopupModal(true)); }}
                 >
                   <Wallet className="w-4 h-4" />
-                  <span className={`font-bold text-sm inline-block transition-all duration-300 ${balanceAnimate ? 'scale-125 text-yellow-300' : ''}`}>${(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))}</span>
+                  <span className={`font-bold text-sm inline-block transition-all duration-300 ${balanceAnimate ? 'scale-125 text-yellow-300' : ''}`}>{formatCurrency(balanceUSD)}</span>
                 </div>
                 <div
                   className={`w-9 h-9 bg-[#5b8735] hover:opacity-90 text-white rounded-full flex items-center justify-center font-bold text-base cursor-pointer shadow-sm uppercase tracking-wider relative ${currentUser?.photoURL ? '' : 'overflow-hidden'}`}
@@ -3976,7 +4008,7 @@ export default function App() {
                   <ShoppingCart className="w-4 h-4 shrink-0 text-emerald-500" /> <span className="whitespace-nowrap">{i18n.buyNav}</span>
                 </button>
                 <button onClick={() => { setCurrentView("courses"); }} className={`flex items-center gap-1.5 px-2.5 lg:px-3.5 py-2 rounded-xl transition text-sm border shadow-sm ${currentView === "courses" ? "bg-blue-50 text-[#2AABEE] border-[#2AABEE] font-extrabold" : "bg-white border-gray-350 text-gray-700 hover:bg-gray-50 hover:border-gray-400"}`}>
-                  <BookOpen className="w-4 h-4 shrink-0 text-purple-500" /> <span className="whitespace-nowrap">{lang === "bn" ? "কোর্স ও রিল" : "Courses & Reels"}</span>
+                  <Hash className="w-4 h-4 shrink-0 text-blue-500" /> <span className="whitespace-nowrap">{lang === "bn" ? "ভার্চুয়াল নাম্বার" : "Virtual Numbers"}</span>
                 </button>
                 <button onClick={() => { setCurrentView("tools"); }} className={`flex items-center gap-1.5 px-2.5 lg:px-3.5 py-2 rounded-xl transition text-sm border shadow-sm ${currentView === "tools" ? "bg-blue-50 text-[#2AABEE] border-[#2AABEE] font-extrabold" : "bg-white border-gray-350 text-gray-700 hover:bg-gray-50 hover:border-gray-400"}`}>
                   <Wrench className="w-4 h-4 shrink-0 text-orange-500" /> <span className="whitespace-nowrap">{lang === "bn" ? "টুলস ও ভিআইপি" : "Tools & VIP"}</span>
@@ -3986,6 +4018,9 @@ export default function App() {
                 </button>
                 <button onClick={() => requireAuth(() => { setCurrentView("records"); })} className={`flex items-center gap-1.5 px-2.5 lg:px-3.5 py-2 rounded-xl transition text-sm border shadow-sm ${currentView === "records" ? "bg-blue-50 text-[#2AABEE] border-[#2AABEE] font-extrabold" : "bg-white border-gray-350 text-gray-700 hover:bg-gray-50 hover:border-gray-400"}`}>
                   <FileText className="w-4 h-4 shrink-0 text-amber-500" /> <span className="whitespace-nowrap">{i18n.recordsNav || "My Orders"}</span>
+                </button>
+                <button onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setCurrentView("child-panel"); })} className={`flex items-center gap-1.5 px-2.5 lg:px-3.5 py-2 rounded-xl transition text-sm border shadow-sm ${currentView === "child-panel" ? "bg-rose-50 text-rose-700 border-rose-300 font-extrabold" : "bg-white border-gray-350 text-gray-700 hover:bg-gray-50 hover:border-gray-400"}`}>
+                  <Globe className="w-4 h-4 shrink-0 text-rose-500" /> <span className="whitespace-nowrap">{lang === "bn" ? "সাব পেইজ" : "Sub Page"}</span>
                 </button>
                 <button onClick={() => { setCurrentView("api"); }} className={`flex items-center gap-1.5 px-2.5 lg:px-3.5 py-2 rounded-xl transition text-sm border shadow-sm ${currentView === "api" ? "bg-blue-50 text-[#2AABEE] border-[#2AABEE] font-extrabold" : "bg-white border-gray-350 text-gray-700 hover:bg-gray-50 hover:border-gray-400"}`}>
                   <Code className="w-4 h-4 shrink-0 text-cyan-500" /> <span className="whitespace-nowrap">API</span>
@@ -4023,6 +4058,11 @@ export default function App() {
                   <option value="pl">Polish</option>
                   <option value="vi">Vietnamese</option>
                   <option value="th">Thai</option>
+                  <option value="ms">Malay</option>
+                  <option value="tl">Tagalog</option>
+                  <option value="fa">Persian</option>
+                  <option value="uk">Ukrainian</option>
+                  <option value="ro">Romanian</option>
                 </select>
               </div>
 
@@ -4031,7 +4071,7 @@ export default function App() {
                 onClick={() => { requireAuth(() => setTopupModal(true)); }}
               >
                 <Wallet className="w-4 h-4" />
-                <span className={`font-bold text-sm inline-block transition-all duration-300 ${balanceAnimate ? 'scale-125 text-yellow-300' : ''}`}>${(balanceUSD > 0 && balanceUSD < 0.01 ? balanceUSD.toFixed(4) : balanceUSD.toFixed(2))}</span>
+                <span className={`font-bold text-sm inline-block transition-all duration-300 ${balanceAnimate ? 'scale-125 text-yellow-300' : ''}`}>{formatCurrency(balanceUSD)}</span>
               </div>
               <div
                 className={`w-9 h-9 lg:w-10 lg:h-10 bg-[#5b8735] hover:opacity-90 text-white rounded-full flex items-center justify-center font-bold text-lg cursor-pointer shadow-sm uppercase tracking-wider relative shrink-0 ${currentUser?.photoURL ? '' : 'overflow-hidden'}`}
@@ -4080,17 +4120,17 @@ export default function App() {
              <h2 className="text-2xl font-black text-gray-800 mb-6 flex items-center gap-2 px-1 font-sans">
                <MessageSquare className="w-7 h-7 text-[#2AABEE]" /> {lang === "bn" ? "সাপোর্ট লাইভ চ্যাট ⚡" : "Live Support Chat ⚡"}
              </h2>
-             <SupportTickets />
+             <SupportTickets lang={lang} />
           </div>
         )}
         {currentView === "smm" && (
           <div className="w-full h-[calc(100vh-140px)] md:h-[calc(100vh-80px)] -mt-4 sm:-mt-8 -mx-3 sm:-mx-6 lg:-mx-8 p-0 relative bg-gradient-to-br from-sky-100 to-indigo-200">
-            <SocialServices currentUser={currentUser} onNavigate={setCurrentView} balanceUSD={balanceUSD} socialMarkupPercent={socialMarkupPercent} smmMarkupData={smmMarkupData} smmCategoryGroupName={smmCategory} />
+            <SocialServices currentUser={currentUser} onNavigate={setCurrentView} balanceUSD={balanceUSD} socialMarkupPercent={socialMarkupPercent} smmMarkupData={smmMarkupData} smmCategoryGroupName={smmCategory} lang={lang} displayCurrency={displayCurrency} />
           </div>
         )}
         {currentView === "child-panel" && (
           <div className="bg-gradient-to-br from-sky-100 to-indigo-200 p-4 sm:p-6 rounded-2xl border border-blue-200/50 shadow-md">
-            <ChildPanel currentUser={currentUser} onNavigate={(v) => setCurrentView(v as View)} balanceUSD={balanceUSD} />
+            <ChildPanel currentUser={currentUser} onNavigate={(v) => setCurrentView(v as View)} balanceUSD={balanceUSD} lang={lang} displayCurrency={displayCurrency} />
           </div>
         )}
         {currentView === "api" && (
@@ -4099,137 +4139,13 @@ export default function App() {
           </div>
         )}
         {currentView === "courses" && (
-          <div className="space-y-6 bg-gradient-to-br from-sky-100 to-indigo-200 p-4 sm:p-6 rounded-2xl border border-blue-200/50 shadow-md">
-            <button
-              onClick={() => { setCurrentView("dashboard"); }}
-              className="md:hidden flex items-center text-gray-600 hover:text-gray-900 mb-2 font-medium bg-white px-4 py-2 rounded-full shadow-sm"
-            >
-              <ArrowLeft className="w-5 h-5 mr-2" /> Back to Dashboard
-            </button>
-
-            {/* Header style matching Buy view */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="text-left">
-                <h2 className="text-xl md:text-2xl font-bold text-gray-800">
-                  📚 {lang === "bn" ? "প্রয়োজনীয় কোর্স ও রিল বান্ডেল" : "Courses & Reel Bundles"}
-                </h2>
-                <p className="text-gray-500 mt-1 text-sm md:text-base">
-                  {lang === "bn" ? "আপনাকে ১০০% অথেন্টিক প্রোডাক্ট দেওয়া হবে। অর্ডার করুন নির্ভয়ে!" : "100% authentic digital products. Order with absolute confidence!"}
-                </p>
-              </div>
-              <div className="hidden md:flex bg-blue-50 text-blue-700 px-4 py-2 rounded-lg items-center gap-2 font-medium border border-blue-100">
-                <CheckCircle className="w-5 h-5" />
-                <span>{lang === "bn" ? "ইনস্ট্যান্ট ডেলিভারি" : "Instant Access"}</span>
-              </div>
-            </div>
-
-            {/* Clean Category Filter buttons */}
-            <div className="flex gap-2 mb-4 bg-white p-1.5 rounded-xl border border-gray-100 shadow-sm max-w-md">
-              <button
-                onClick={() => setSelectedCourseCat("all")}
-                className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${selectedCourseCat === "all" ? "bg-[#2AABEE] text-white shadow-sm" : "text-gray-600 hover:bg-gray-50"}`}
-              >
-                {lang === "bn" ? "সব প্রোডাক্ট" : "All Products"}
-              </button>
-              <button
-                onClick={() => setSelectedCourseCat("reels")}
-                className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${selectedCourseCat === "reels" ? "bg-[#2AABEE] text-white shadow-sm" : "text-gray-600 hover:bg-gray-50"}`}
-              >
-                {lang === "bn" ? "রিল বান্ডেল" : "Reel Bundles"}
-              </button>
-              <button
-                onClick={() => setSelectedCourseCat("courses")}
-                className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${selectedCourseCat === "courses" ? "bg-[#2AABEE] text-white shadow-sm" : "text-gray-600 hover:bg-gray-50"}`}
-              >
-                {lang === "bn" ? "কোর্স" : "Courses"}
-              </button>
-            </div>
-
-            {/* Courses / Reel Bundles List */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {(coursesList.length > 0 ? coursesList : premiumProducts)
-                .filter((prod) => {
-                  if (selectedCourseCat === "all") return true;
-                  if (selectedCourseCat === "reels") {
-                    return prod.category.includes("Reels");
-                  }
-                  if (selectedCourseCat === "courses") {
-                    return prod.category.includes("Course") || prod.category.includes("Skills") || prod.category.includes("Tendering");
-                  }
-                  return true;
-                })
-                .map((prod) => {
-                  const discountPercent = prod.oldPrice > 0 ? Math.round(((prod.oldPrice - prod.price) / prod.oldPrice) * 100) : 0;
-                  
-                  return (
-                    <div 
-                      key={prod.id} 
-                      className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden group"
-                    >
-                      {/* Product Visual Mockup Container */}
-                      <div className="relative h-44 border-b border-gray-100 overflow-hidden">
-                        {renderProductCoverMockup(prod)}
-                      </div>
-
-                      {/* Info & Content Body */}
-                      <div className="p-4 flex-1 flex flex-col justify-between">
-                        <div className="text-left">
-                          <h4 className="text-xs sm:text-sm font-black text-slate-950 leading-snug mb-2 hover:text-[#2AABEE] transition duration-200 line-clamp-2">
-                            {prod.title}
-                          </h4>
-
-                          <div className="flex items-center gap-0.5 mb-3">
-                            {[...Array(prod.rating || 5)].map((_, i) => (
-                              <span key={i} className="text-amber-400 text-xs">★</span>
-                            ))}
-                            <span className="text-[10px] text-gray-400 font-extrabold ml-1.5">(৫/৫ রিভিউ)</span>
-                          </div>
-
-                          <div className="space-y-1.5 mb-4">
-                            {prod.features && prod.features.slice(0, 3).map((feat: string, index: number) => (
-                              <div key={index} className="flex items-center gap-1.5 text-[11px] text-gray-600 font-medium">
-                                <span className="text-emerald-500 font-bold shrink-0">✓</span>
-                                <span className="truncate">{feat}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="pt-3 border-t border-slate-100 mt-auto">
-                          <div className="flex items-center justify-between gap-1.5 mb-3">
-                            <div className="leading-tight text-left">
-                              <span className="text-[11px] text-slate-400 font-bold line-through block">${Number((prod.oldPrice / TOPUP_RATE).toFixed(2)).toFixed(2)} USD</span>
-                              <span className="text-lg font-black text-red-600 block">${Number((prod.price / TOPUP_RATE).toFixed(2)).toFixed(2)} USD</span>
-                            </div>
-                            <span className="text-[10px] font-black text-green-700 bg-green-50 px-2 py-1 rounded-md border border-green-100">
-                              {discountPercent}% ছাড়
-                            </span>
-                          </div>
-
-                          <button
-                            onClick={() => handleBuyCourse(prod)}
-                            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 font-black text-xs sm:text-sm shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center text-center cursor-pointer border-b-2 border-amber-600 gap-1.5"
-                          >
-                            <span>⚡ ব্যালেন্স দিয়ে কিনুন</span>
-                          </button>
-
-                          <a
-                            href={`https://wa.me/8801644627304?text=${encodeURIComponent(
-                              `আসসালামু আলাইকুম, আমি এই প্রোডাক্টটি নিতে চাই:\n\n📂 প্রোডাক্ট: ${prod.title}\n💰 মূল্য: $${Number((prod.price / TOPUP_RATE).toFixed(2)).toFixed(2)} USD (${prod.price}৳)\n\nদয়া করে আমাকে লিংক ও পেমেন্ট ডিটেইলস পাঠান।`
-                            )}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mt-2 text-center text-[10px] font-bold text-gray-500 hover:text-blue-600 flex items-center justify-center gap-1 transition"
-                          >
-                            <span>💬 WhatsApp এ অর্ডার করতে এখানে ক্লিক করুন</span>
-                          </a>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
+          <VirtualNumbers
+            currentUser={currentUser}
+            onNavigate={(v) => setCurrentView(v as View)}
+            balanceUSD={balanceUSD}
+            lang={lang}
+            displayCurrency={displayCurrency}
+          />
         )}
         {currentView === "tools" && (
           <div className="space-y-6 bg-gradient-to-br from-indigo-100 via-purple-100 to-sky-100 p-4 sm:p-6 rounded-2xl border border-indigo-200/50 shadow-md">
@@ -5014,7 +4930,7 @@ export default function App() {
                               </span>
                             </div>
                             <div className="bg-green-50 text-green-700 px-3 py-1 rounded-full text-sm font-bold border border-green-200">
-                              ${finalPrice.toFixed(2)}
+                              {formatCurrency(finalPrice)}
                             </div>
                           </div>
 
@@ -5126,7 +5042,7 @@ export default function App() {
                   )
                   .map((tx) => (
                     <div
-                      key={tx.id}
+                      key={`wallet-history-${tx.id}`}
                       className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:bg-gray-50 transition-colors"
                     >
                       <div className="flex items-center gap-3">
@@ -5255,7 +5171,7 @@ export default function App() {
                       .filter((t) => t.type === "purchase")
                       .map((tx) => (
                         <tr
-                          key={tx.id}
+                          key={`purchase-${tx.id}`}
                           className="hover:bg-gray-50 transition-colors"
                         >
                           <td className="px-6 py-4 font-mono font-bold text-gray-900">
@@ -5338,7 +5254,7 @@ export default function App() {
                       .filter((t) => t.type === "smm_order")
                       .map((tx) => (
                         <tr
-                          key={tx.id}
+                          key={`smm-order-${tx.id}`}
                           className="hover:bg-gray-50 transition-colors"
                         >
                           <td className="px-6 py-4 font-mono font-bold text-[#2AABEE]">
@@ -5728,6 +5644,10 @@ export default function App() {
                               <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-2.5 py-0.5 rounded-full border border-amber-200 animate-pulse">
                                 ⏳ {lang === "bn" ? "পেন্ডিং (ম্যানুয়াল এক্টিভেশন)" : "Pending (Manual Activation)"}
                               </span>
+                            ) : sub.status === "canceled" || sub.status === "cancelled" ? (
+                              <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-gray-200">
+                                ❌ {lang === "bn" ? "বাতিল ও রিফান্ডড" : "Cancelled & Refunded"}
+                              </span>
                             ) : remaining.isExpired ? (
                               <span className="bg-red-50 text-red-600 text-[10px] font-bold px-2 py-0.5 rounded-full border border-red-100">
                                 {lang === "bn" ? "মেয়াদোত্তীর্ণ" : "Expired"}
@@ -5796,6 +5716,10 @@ export default function App() {
                               <p className="font-bold text-indigo-900 truncate">
                                 {sub.familyManagerEmail && sub.familyManagerEmail !== "Not Assigned" ? (
                                   <span className="select-all">{sub.familyManagerEmail}</span>
+                                ) : sub.status === "canceled" || sub.status === "cancelled" ? (
+                                  <span className="text-red-500 font-semibold italic">
+                                    {lang === "bn" ? "অর্ডার বাতিল করা হয়েছে" : "Order Cancelled"}
+                                  </span>
                                 ) : (
                                   <span className="text-gray-400 font-normal italic">
                                     {lang === "bn" ? "অ্যাক্টিভেশন প্রক্রিয়াধীন..." : "Activation in progress..."}
@@ -5925,7 +5849,7 @@ export default function App() {
                   .slice(0, 5)
                   .map((tx) => (
                     <div
-                      key={tx.id}
+                      key={`recent-activity-${tx.id}`}
                       className="p-4 flex items-center justify-between hover:bg-gray-50 transition"
                     >
                       <div>
@@ -6106,7 +6030,7 @@ export default function App() {
 
             {/* Custom Premium Offer Buttons placed above Buy Telegram Accounts */}
             <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-4">
-              {/* Course & Reel Bundles Card/Button */}
+              {/* Virtual Number for Verification Card/Button */}
               <motion.div
                 variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
                 whileHover={{ scale: 1.02 }}
@@ -6114,17 +6038,17 @@ export default function App() {
                 onClick={() => { (window as any).triggerAdClick?.(); setCurrentView("courses"); }}
                 className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] border border-slate-100/80 overflow-hidden cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 hover:border-slate-200 transition-all duration-300 flex flex-col group"
               >
-                <div className="relative bg-gradient-to-br from-amber-500 to-orange-600 h-28 flex flex-col items-center justify-center px-4 pt-4 pb-2 bg-cover bg-center">
-                  <div className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    Premium
+                <div className="relative bg-gradient-to-br from-blue-500 to-indigo-600 h-28 flex flex-col items-center justify-center px-4 pt-4 pb-2 bg-cover bg-center">
+                  <div className="absolute top-2 left-2 bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    Instant OTP
                   </div>
-                  <BookOpen className="w-12 h-12 text-white drop-shadow-sm" />
-                  <div className="text-white font-bold text-xs sm:text-sm tracking-tight mt-1 uppercase">REELS & COURSE</div>
+                  <Hash className="w-12 h-12 text-white drop-shadow-sm animate-pulse" />
+                  <div className="text-white font-bold text-xs sm:text-sm tracking-tight mt-1 uppercase">SMS VERIFICATION</div>
                 </div>
                 <div className="p-3 flex-1 flex flex-col justify-between">
                   <div>
                     <h3 className="font-bold text-gray-900 mb-1 text-sm sm:text-base leading-tight">
-                      Course & Reel Bundles
+                      {lang === "bn" ? "ভার্চুয়াল নাম্বার" : "Virtual Number Verification"}
                     </h3>
                     <div className="flex items-center gap-0.5 mb-2">
                       <span className="text-amber-400 text-xs sm:text-sm">★</span>
@@ -6135,8 +6059,8 @@ export default function App() {
                     </div>
                   </div>
                   <div className="flex items-center text-xs text-gray-500 gap-1.5 mt-auto">
-                    <BookOpen className="w-3.5 h-3.5 shrink-0 text-amber-500" />
-                    <span className="truncate">10k+ reels & marketing guides</span>
+                    <Phone className="w-3.5 h-3.5 shrink-0 text-blue-500" />
+                    <span className="truncate">{lang === "bn" ? "হোয়াটসঅ্যাপ, টেলিগ্রাম ও জিমেইল ওটিপি" : "WhatsApp, Telegram & Gmail OTP"}</span>
                   </div>
                 </div>
               </motion.div>
@@ -6767,6 +6691,7 @@ export default function App() {
             <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-none border-b border-gray-200">
               {[
                 { id: "overview", label: "Overview" },
+                { id: "orders", label: "User Orders 🛒" },
                 { id: "tickets", label: "Live Chat 💬", badge: adminUnreadTickets > 0 ? adminUnreadTickets : undefined },
                 { id: "topups", label: "Top Ups" },
                 { id: "withdrawals", label: "Withdrawals" },
@@ -7129,6 +7054,10 @@ export default function App() {
               </>
             )}
 
+            {adminTab === "orders" && (
+              <AdminOrdersManagement adminTxs={adminTxs} />
+            )}
+
             {(adminTab === "topups" || adminTab === "withdrawals") && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden p-4 mb-6">
                 <input 
@@ -7192,7 +7121,7 @@ export default function App() {
                     )
                     .map((adminTx) => (
                       <div
-                        key={adminTx.id}
+                        key={`admin-pending-${adminTx.id}`}
                         className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:bg-gray-50 transition-colors"
                       >
                         <div>
@@ -7392,7 +7321,7 @@ export default function App() {
                     )
                     .map((adminTx) => (
                       <div
-                        key={adminTx.id}
+                        key={`admin-paid-topup-${adminTx.id}`}
                         className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4"
                       >
                         <div>
@@ -7493,7 +7422,7 @@ export default function App() {
                     )
                     .map((adminTx) => (
                       <div
-                        key={adminTx.id}
+                        key={`admin-paid-withdraw-${adminTx.id}`}
                         className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4"
                       >
                         <div>
@@ -7594,7 +7523,7 @@ export default function App() {
                     .filter((tx) => tx.status === "failed" || tx.status === "canceled" || tx.status === "rejected" || tx.status === "cancelled")
                     .map((adminTx) => (
                     <div
-                      key={adminTx.id}
+                      key={`admin-failed-${adminTx.id}`}
                       className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:bg-gray-50 transition"
                     >
                       <div>
@@ -8157,9 +8086,9 @@ export default function App() {
             )}
 
             {adminTab === "subscriptions" && (() => {
-              const expiringSoonCount = allSubscriptions.filter(s => isSubscriptionExpiringSoon(s.expiresAt)).length;
-              const activeCount = allSubscriptions.filter(s => s.expiresAt > Date.now()).length;
-              const expiredCount = allSubscriptions.filter(s => s.expiresAt <= Date.now()).length;
+              const expiringSoonCount = allSubscriptions.filter(s => s.status === "active" && isSubscriptionExpiringSoon(s.expiresAt)).length;
+              const activeCount = allSubscriptions.filter(s => s.status === "active" && s.expiresAt > Date.now()).length;
+              const expiredCount = allSubscriptions.filter(s => s.status === "expired" || (s.status !== "pending" && s.status !== "canceled" && s.expiresAt <= Date.now())).length;
 
               const filteredSubs = allSubscriptions.filter((sub) => {
                 // Search term match
@@ -8173,9 +8102,9 @@ export default function App() {
                 if (!matchesSearch) return false;
 
                 // Filter status match
-                if (adminSubFilter === "active") return sub.expiresAt > Date.now();
-                if (adminSubFilter === "expired") return sub.expiresAt <= Date.now();
-                if (adminSubFilter === "expiring") return isSubscriptionExpiringSoon(sub.expiresAt);
+                if (adminSubFilter === "active") return sub.status === "active" && sub.expiresAt > Date.now();
+                if (adminSubFilter === "expired") return sub.status === "expired" || (sub.status !== "pending" && sub.status !== "canceled" && sub.expiresAt <= Date.now());
+                if (adminSubFilter === "expiring") return sub.status === "active" && isSubscriptionExpiringSoon(sub.expiresAt);
                 return true;
               });
 
@@ -8266,8 +8195,8 @@ export default function App() {
                   ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {filteredSubs.map((sub) => {
-                        const isExpSoon = isSubscriptionExpiringSoon(sub.expiresAt);
-                        const isOver = sub.expiresAt <= Date.now();
+                        const isExpSoon = sub.status === "active" && isSubscriptionExpiringSoon(sub.expiresAt);
+                        const isOver = sub.status !== "pending" && sub.status !== "canceled" && sub.status !== "cancelled" && sub.expiresAt <= Date.now();
                         const countryFlag = geminiCountryFlags[sub.country] || "🌍";
 
                         const editableEmail = editingFamilyEmails[sub.id] !== undefined 
@@ -8288,7 +8217,7 @@ export default function App() {
 
                         return (
                           <div 
-                            key={sub.id} 
+                            key={`gemini-sub-${sub.id}`} 
                             className={`bg-white rounded-xl shadow-sm border p-5 flex flex-col justify-between transition-all ${
                               isExpSoon 
                                 ? "border-amber-300 ring-2 ring-amber-100" 
@@ -8310,13 +8239,15 @@ export default function App() {
                                   <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                                     sub.status === "pending"
                                       ? "bg-amber-100 text-amber-800 animate-pulse border border-amber-200"
+                                      : sub.status === "canceled" || sub.status === "cancelled"
+                                      ? "bg-gray-100 text-gray-500 border border-gray-200"
                                       : isOver 
                                       ? "bg-red-100 text-red-800" 
                                       : isExpSoon 
                                       ? "bg-amber-100 text-amber-800 animate-pulse" 
                                       : "bg-green-100 text-green-800"
                                   }`}>
-                                    {sub.status === "pending" ? "Pending ⏳" : isOver ? "Expired" : isExpSoon ? "Expiring Soon ⚠️" : "Active"}
+                                    {sub.status === "pending" ? "Pending ⏳" : sub.status === "canceled" || sub.status === "cancelled" ? "Canceled ❌" : isOver ? "Expired" : isExpSoon ? "Expiring Soon ⚠️" : "Active"}
                                   </span>
                                   {isExpSoon && (
                                     <span className="block bg-red-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded uppercase mt-1 animate-pulse tracking-wide">
@@ -8359,15 +8290,33 @@ export default function App() {
                                 <div className="sm:col-span-2 space-y-1 bg-blue-50/30 p-2 rounded-lg border border-blue-100/30">
                                   <div className="flex justify-between items-center text-[10px] font-bold text-blue-500 uppercase">
                                     <span>Timeframe Duration</span>
-                                    {!isOver && (
+                                    {sub.status === "pending" ? (
+                                      <span className="text-amber-600 font-extrabold animate-pulse">
+                                        PENDING ACTIVATION
+                                      </span>
+                                    ) : sub.status === "canceled" || sub.status === "cancelled" ? (
+                                      <span className="text-gray-500 font-bold">
+                                        CANCELLED
+                                      </span>
+                                    ) : !isOver ? (
                                       <span className={isExpSoon ? "text-amber-600 font-extrabold" : "text-green-600 font-bold"}>
                                         {getSubscriptionRemainingText(sub.expiresAt).text}
+                                      </span>
+                                    ) : (
+                                      <span className="text-red-600 font-bold">
+                                        EXPIRED
                                       </span>
                                     )}
                                   </div>
                                   <div className="flex justify-between font-medium text-gray-700">
                                     <span>Bought: {new Date(sub.createdAt).toLocaleString()}</span>
-                                    <span>Expires: {new Date(sub.expiresAt).toLocaleDateString()}</span>
+                                    {sub.status === "pending" ? (
+                                      <span className="text-amber-600 italic">Starts upon activation ({sub.durationDays || 30} Days)</span>
+                                    ) : sub.status === "canceled" || sub.status === "cancelled" ? (
+                                      <span className="text-gray-500 italic">Refunded</span>
+                                    ) : (
+                                      <span>Expires: {new Date(sub.expiresAt).toLocaleDateString()}</span>
+                                    )}
                                   </div>
                                   <p className="text-[10px] text-gray-400 italic">Purchased {getSubscriptionDaysAgo(sub.createdAt)}</p>
                                 </div>
@@ -8405,22 +8354,82 @@ export default function App() {
                                 <span className="text-xs font-bold text-amber-800 flex items-center gap-1">
                                   ⏳ Subscription needs Manual Setup
                                 </span>
-                                <button
-                                  onClick={async () => {
-                                    try {
-                                      await updateDoc(doc(db, "gemini_subscriptions", sub.id), {
-                                        status: "active"
+                                <div className="flex gap-2 w-full sm:w-auto">
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        const activatedAt = Date.now();
+                                        const duration = sub.durationDays || 30;
+                                        const newExpiresAt = activatedAt + duration * 24 * 60 * 60 * 1000;
+                                        await updateDoc(doc(db, "gemini_subscriptions", sub.id), {
+                                          status: "active",
+                                          activatedAt: activatedAt,
+                                          expiresAt: newExpiresAt
+                                        });
+                                        toast.success("Subscription activated successfully!");
+                                      } catch (err) {
+                                        console.error("Error activating subscription:", err);
+                                        toast.error("Failed to activate.");
+                                      }
+                                    }}
+                                    className="bg-green-600 hover:bg-green-700 text-white font-extrabold text-xs px-3.5 py-2 rounded-lg transition shadow-sm cursor-pointer whitespace-nowrap flex-1 sm:flex-none text-center"
+                                  >
+                                    ✅ Mark as Active
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setConfirmModal({
+                                        show: true,
+                                        message: `Are you sure you want to cancel this subscription for ${sub.userName} (${sub.geminiEmail}) and refund $${sub.priceUSD.toFixed(2)} USD back to their wallet balance?`,
+                                        onConfirm: async () => {
+                                          try {
+                                            // 1. Close confirm modal
+                                            setConfirmModal(prev => ({ ...prev, show: false }));
+
+                                            // 2. Refund the user's wallet
+                                            await updateDoc(doc(db, "users", sub.userId), {
+                                              balanceUSD: increment(sub.priceUSD),
+                                              total_spent: increment(-sub.priceUSD),
+                                              last_update: Date.now()
+                                            });
+
+                                            // 3. Create a refund transaction
+                                            const txRef = doc(collection(db, "transactions"));
+                                            await setDoc(txRef, {
+                                              userId: sub.userId,
+                                              type: "refund_gemini",
+                                              txType: "Credit",
+                                              amountUSD: sub.priceUSD,
+                                              status: "success",
+                                              details: { 
+                                                title: `Refund: Google Gemini Subscription Cancelled (${sub.plan})`,
+                                                category: "AI Subscription Refund", 
+                                                country: sub.country, 
+                                                plan: sub.plan, 
+                                                email: sub.geminiEmail,
+                                                reason: "Admin Cancelled / Refunded"
+                                              },
+                                              createdAt: Date.now(),
+                                            });
+
+                                            // 4. Mark subscription as canceled
+                                            await updateDoc(doc(db, "gemini_subscriptions", sub.id), {
+                                              status: "canceled"
+                                            });
+
+                                            toast.success("Subscription cancelled and user refunded successfully!");
+                                          } catch (err) {
+                                            console.error("Error cancelling subscription:", err);
+                                            toast.error("Failed to cancel subscription.");
+                                          }
+                                        }
                                       });
-                                      toast.success("Subscription activated successfully!");
-                                    } catch (err) {
-                                      console.error("Error activating subscription:", err);
-                                      toast.error("Failed to activate.");
-                                    }
-                                  }}
-                                  className="bg-green-600 hover:bg-green-700 text-white font-extrabold text-xs px-3.5 py-2 rounded-lg transition shadow-sm cursor-pointer whitespace-nowrap"
-                                >
-                                  ✅ Mark as Active
-                                </button>
+                                    }}
+                                    className="bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs px-3.5 py-2 rounded-lg transition shadow-sm cursor-pointer whitespace-nowrap flex-1 sm:flex-none text-center"
+                                  >
+                                    ❌ Cancel & Refund
+                                  </button>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -8595,7 +8604,7 @@ export default function App() {
                   onClick={() => { (window as any).triggerAdClick?.(); setIsMobileMenuOpen(false); setCurrentView("courses"); }}
                   className={`flex items-center gap-3 p-3 rounded-xl transition font-medium w-full text-left ${currentView === "courses" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
                 >
-                  <BookOpen className={`w-5 h-5 ${currentView === "courses" ? "text-blue-600" : "text-gray-400"}`} /> {lang === "bn" ? "কোর্স ও রিল বান্ডেল" : "Courses & Reel Bundles"}
+                  <Hash className={`w-5 h-5 ${currentView === "courses" ? "text-blue-600" : "text-gray-400"}`} /> {lang === "bn" ? "ভার্চুয়াল নাম্বার" : "Virtual Numbers"}
                 </button>
                 <button
                   onClick={() => { (window as any).triggerAdClick?.(); setIsMobileMenuOpen(false); setCurrentView("tools"); }}
@@ -8616,7 +8625,7 @@ export default function App() {
                   onClick={() => requireAuth(() => { (window as any).triggerAdClick?.(); setIsMobileMenuOpen(false); setCurrentView("child-panel"); })}
                   className={`flex items-center gap-3 p-3 rounded-xl transition font-medium w-full text-left ${currentView === "child-panel" ? "bg-rose-50 text-rose-700" : "hover:bg-rose-50 text-gray-700"}`}
                 >
-                  <Globe className={`w-5 h-5 ${currentView === "child-panel" ? "text-rose-500" : "text-rose-400"}`} /> Child Panel
+                  <Globe className={`w-5 h-5 ${currentView === "child-panel" ? "text-rose-500" : "text-rose-400"}`} /> {lang === "bn" ? "সাব পেইজ" : "Sub Page (Child Panel)"}
                 </button>
                 <button
                   onClick={() => { setIsMobileMenuOpen(false); setCurrentView("api"); }}

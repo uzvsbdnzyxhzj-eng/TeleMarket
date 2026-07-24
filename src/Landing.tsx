@@ -3,6 +3,7 @@ import { Bot, ArrowRight, CheckCircle, Globe, Shield, Zap } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Language, t } from './i18n';
 import TopTicker from './TopTicker';
+import { formatValueWithCurrency } from './currencies';
 import { Youtube, Facebook, Instagram, Twitter, Linkedin, Send } from 'lucide-react';
 import { getFlag } from './utils';
 import { TelemarketLogo } from './TelemarketLogo';
@@ -33,10 +34,16 @@ interface LandingProps {
   countries?: any[];
   markupPercent?: number;
   onBack?: () => void;
+  displayCurrency?: string;
 }
 
-export default function Landing({ onGetStarted, lang, setLang, countries = [], markupPercent = 0, onBack }: LandingProps) {
+export default function Landing({ onGetStarted, lang, setLang, countries = [], markupPercent = 0, onBack, displayCurrency = "USD" }: LandingProps) {
   const i18n = t[lang];
+
+  const handleLinkClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    onGetStarted('login');
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
@@ -149,7 +156,8 @@ export default function Landing({ onGetStarted, lang, setLang, countries = [], m
                 <div className="p-6">
                   <div className="space-y-4">
                     {countries.slice(0, 3).map((c, idx) => {
-                       const price = (c.basePrice + (c.basePrice * markupPercent / 100)).toFixed(2);
+                       const priceNum = c.basePrice + (c.basePrice * markupPercent / 100);
+                       const displayPrice = formatValueWithCurrency(priceNum, displayCurrency);
                        const opacity = idx === 0 ? 'opacity-100' : idx === 1 ? 'opacity-80' : 'opacity-60';
                        const flag = getFlag(c.country, c.code);
                        return (
@@ -161,15 +169,18 @@ export default function Landing({ onGetStarted, lang, setLang, countries = [], m
                                 <p className="text-xs text-gray-500">Stock: {c.stock} pcs</p>
                               </div>
                            </div>
-                           <span className="font-bold text-green-600 bg-green-50 px-2 py-1 rounded">${price}</span>
+                           <span className="font-bold text-green-600 bg-green-50 px-2 py-1 rounded">{displayPrice}</span>
                          </div>
                        )
                     })}
                     {countries.length === 0 && (
-                      <div className="text-center text-gray-500 p-4">Loading real-time prices...</div>
+                       <div className="text-center text-gray-500 p-4">Loading real-time prices...</div>
                     )}
                     <div className="mt-4">
-                       <div className="w-full bg-[#2AABEE] text-white text-center py-2 rounded-lg font-bold opacity-50 cursor-pointer">
+                       <div 
+                         onClick={() => onGetStarted('login')}
+                         className="w-full bg-[#2AABEE] text-white text-center py-2 rounded-lg font-bold hover:bg-blue-500 transition cursor-pointer"
+                       >
                          {i18n.landingBuyAcc || 'Buy Account'}
                        </div>
                     </div>
@@ -287,19 +298,19 @@ export default function Landing({ onGetStarted, lang, setLang, countries = [], m
                 Founded in 2018, {i18n.appName || 'TeleMarket'} is a leading provider of affordable and effective automated accounts services and neighboring regions. We offer diverse digital solutions across platforms like Telegram, Discord, Facebook, and more.
               </p>
               <div className="flex items-center gap-4">
-                <a href="#" className="w-11 h-11 bg-[#111827] border border-gray-800 rounded-2xl flex items-center justify-center text-gray-400 hover:text-blue-500 hover:border-blue-500 hover:shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:-translate-y-1 transition-all duration-300">
+                <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="w-11 h-11 bg-[#111827] border border-gray-800 rounded-2xl flex items-center justify-center text-gray-400 hover:text-blue-500 hover:border-blue-500 hover:shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:-translate-y-1 transition-all duration-300">
                   <Facebook className="w-5 h-5 fill-current" />
                 </a>
-                <a href="#" className="w-11 h-11 bg-[#111827] border border-gray-800 rounded-2xl flex items-center justify-center text-gray-400 hover:text-white hover:border-white hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:-translate-y-1 transition-all duration-300">
+                <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="w-11 h-11 bg-[#111827] border border-gray-800 rounded-2xl flex items-center justify-center text-gray-400 hover:text-white hover:border-white hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:-translate-y-1 transition-all duration-300">
                   <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/></svg>
                 </a>
-                <a href="#" className="w-11 h-11 bg-[#111827] border border-gray-800 rounded-2xl flex items-center justify-center text-gray-400 hover:text-red-500 hover:border-red-500 hover:shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:-translate-y-1 transition-all duration-300">
+                <a href="https://youtube.com" target="_blank" rel="noopener noreferrer" className="w-11 h-11 bg-[#111827] border border-gray-800 rounded-2xl flex items-center justify-center text-gray-400 hover:text-red-500 hover:border-red-500 hover:shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:-translate-y-1 transition-all duration-300">
                   <Youtube className="w-5 h-5 fill-current" />
                 </a>
-                <a href="#" className="w-11 h-11 bg-[#111827] border border-gray-800 rounded-2xl flex items-center justify-center text-gray-400 hover:text-blue-400 hover:border-blue-400 hover:shadow-[0_0_20px_rgba(96,165,250,0.3)] hover:-translate-y-1 transition-all duration-300">
+                <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="w-11 h-11 bg-[#111827] border border-gray-800 rounded-2xl flex items-center justify-center text-gray-400 hover:text-blue-400 hover:border-blue-400 hover:shadow-[0_0_20px_rgba(96,165,250,0.3)] hover:-translate-y-1 transition-all duration-300">
                   <Linkedin className="w-5 h-5 fill-current" />
                 </a>
-                <a href="#" className="w-11 h-11 bg-[#111827] border border-gray-800 rounded-2xl flex items-center justify-center text-gray-400 hover:text-[#2AABEE] hover:border-[#2AABEE] hover:shadow-[0_0_20px_rgba(42,171,238,0.3)] hover:-translate-y-1 transition-all duration-300">
+                <a href="https://t.me/TeleMarket_official_bot" target="_blank" rel="noopener noreferrer" className="w-11 h-11 bg-[#111827] border border-gray-800 rounded-2xl flex items-center justify-center text-gray-400 hover:text-[#2AABEE] hover:border-[#2AABEE] hover:shadow-[0_0_20px_rgba(42,171,238,0.3)] hover:-translate-y-1 transition-all duration-300">
                   <Send className="w-5 h-5 fill-current ml-[-2px] mt-[1px]" />
                 </a>
               </div>
@@ -309,34 +320,34 @@ export default function Landing({ onGetStarted, lang, setLang, countries = [], m
             <motion.div variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }} className="lg:col-span-2 flex flex-col items-center md:items-start lg:ml-8">
               <h3 className="text-sm font-bold mb-8 text-white tracking-widest uppercase">Company</h3>
               <ul className="space-y-4 text-gray-400 font-medium text-[15px]">
-                <li><a href="#" className="hover:text-[#16a34a] hover:translate-x-1 inline-block transition-all duration-300">Home</a></li>
-                <li><a href="#" className="hover:text-[#16a34a] hover:translate-x-1 inline-block transition-all duration-300">Blog</a></li>
-                <li><a href="#" className="hover:text-[#16a34a] hover:translate-x-1 inline-block transition-all duration-300">Services</a></li>
-                <li><a href="#" className="hover:text-[#16a34a] hover:translate-x-1 inline-block transition-all duration-300">About Us</a></li>
-                <li><a href="#" className="hover:text-[#16a34a] hover:translate-x-1 inline-block transition-all duration-300">Contact Us</a></li>
-                <li><a href="#" className="hover:text-[#16a34a] hover:translate-x-1 inline-block transition-all duration-300">FAQ's</a></li>
+                <li><a href="#" onClick={handleLinkClick} className="hover:text-[#16a34a] hover:translate-x-1 inline-block transition-all duration-300">Home</a></li>
+                <li><a href="#" onClick={handleLinkClick} className="hover:text-[#16a34a] hover:translate-x-1 inline-block transition-all duration-300">Blog</a></li>
+                <li><a href="#" onClick={handleLinkClick} className="hover:text-[#16a34a] hover:translate-x-1 inline-block transition-all duration-300">Services</a></li>
+                <li><a href="#" onClick={handleLinkClick} className="hover:text-[#16a34a] hover:translate-x-1 inline-block transition-all duration-300">About Us</a></li>
+                <li><a href="#" onClick={handleLinkClick} className="hover:text-[#16a34a] hover:translate-x-1 inline-block transition-all duration-300">Contact Us</a></li>
+                <li><a href="#" onClick={handleLinkClick} className="hover:text-[#16a34a] hover:translate-x-1 inline-block transition-all duration-300">FAQ's</a></li>
               </ul>
             </motion.div>
 
             <motion.div variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }} className="lg:col-span-3 flex flex-col items-center md:items-start lg:ml-8">
               <h3 className="text-sm font-bold mb-8 text-white tracking-widest uppercase">Support</h3>
               <ul className="space-y-4 text-gray-400 font-medium text-[15px]">
-                <li><a href="#" className="text-[#16a34a] hover:text-emerald-400 hover:translate-x-1 inline-block transition-all duration-300">Tickets Support</a></li>
-                <li><a href="#" className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300">Contact Us</a></li>
-                <li><a href="#" className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> WhatsApp Community</a></li>
-                <li><a href="#" className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div> Telegram Channel</a></li>
+                <li><a href="#" onClick={handleLinkClick} className="text-[#16a34a] hover:text-emerald-400 hover:translate-x-1 inline-block transition-all duration-300">Tickets Support</a></li>
+                <li><a href="#" onClick={handleLinkClick} className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300">Contact Us</a></li>
+                <li><a href="https://wa.me/8801644627304" target="_blank" rel="noopener noreferrer" className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> WhatsApp Community</a></li>
+                <li><a href="https://t.me/TeleMarket_official_bot" target="_blank" rel="noopener noreferrer" className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div> Telegram Channel</a></li>
               </ul>
             </motion.div>
 
             <motion.div variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }} className="lg:col-span-3 flex flex-col items-center md:items-start">
               <h3 className="text-sm font-bold mb-8 text-white tracking-widest uppercase">Our Services</h3>
               <ul className="space-y-4 text-gray-400 font-medium text-[15px]">
-                <li><a href="#" className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300">Facebook Services</a></li>
-                <li><a href="#" className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300">Instagram Services</a></li>
-                <li><a href="#" className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300">Twitter Services</a></li>
-                <li><a href="#" className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300">Telegram Services</a></li>
-                <li><a href="#" className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300">YouTube Services</a></li>
-                <li><a href="#" className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300">TikTok Services</a></li>
+                <li><a href="#" onClick={handleLinkClick} className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300">Facebook Services</a></li>
+                <li><a href="#" onClick={handleLinkClick} className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300">Instagram Services</a></li>
+                <li><a href="#" onClick={handleLinkClick} className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300">Twitter Services</a></li>
+                <li><a href="#" onClick={handleLinkClick} className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300">Telegram Services</a></li>
+                <li><a href="#" onClick={handleLinkClick} className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300">YouTube Services</a></li>
+                <li><a href="#" onClick={handleLinkClick} className="hover:text-white hover:translate-x-1 inline-block transition-all duration-300">TikTok Services</a></li>
               </ul>
             </motion.div>
           </motion.div>

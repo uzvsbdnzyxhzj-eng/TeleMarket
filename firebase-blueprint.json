@@ -136,14 +136,42 @@
         "priceUSD": { "type": "number" },
         "country": { "type": "string" },
         "createdAt": { "type": "number" },
+        "durationDays": { "type": "number" },
+        "activatedAt": { "type": "number" },
         "expiresAt": { "type": "number" },
-        "status": { "type": "string", "enum": ["active", "expired", "pending"] },
+        "status": { "type": "string", "enum": ["active", "expired", "pending", "canceled", "cancelled"] },
         "familyManagerEmail": { "type": "string" }
       },
       "required": ["userId", "geminiEmail", "geminiPassword", "geminiBackupCodes", "plan", "priceUSD", "country", "createdAt", "expiresAt", "status", "familyManagerEmail"]
+    },
+    "VirtualOrder": {
+      "title": "VirtualOrder",
+      "description": "Virtual phone number purchase order from Telekos",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "activationId": { "type": "string" },
+        "phone": { "type": "string" },
+        "serviceCode": { "type": "string" },
+        "serviceName": { "type": "string" },
+        "countryId": { "type": "string" },
+        "countryName": { "type": "string" },
+        "priceIDR": { "type": "number" },
+        "priceUSD": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "last_checked": { "type": "number" },
+        "otp": { "type": "string" }
+      },
+      "required": ["userId", "activationId", "phone", "serviceCode", "status", "createdAt"]
     }
   },
   "firestore": {
+    "virtual_orders/{orderId}": {
+      "schema": { "$ref": "#/entities/VirtualOrder" },
+      "description": "Telekos virtual numbers purchase orders"
+    },
     "gemini_subscriptions/{subscriptionId}": {
       "schema": { "$ref": "#/entities/GeminiSubscription" },
       "description": "Google Gemini Pro subscriptions mapping with Family Manager email"

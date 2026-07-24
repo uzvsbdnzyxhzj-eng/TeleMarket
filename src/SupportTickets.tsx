@@ -26,12 +26,105 @@ const CHAT_SUBJECTS_EN = [
   "Other / General Support 🤝"
 ];
 
+const CHAT_SUBJECTS_MAP: Record<string, string[]> = {
+  bn: CHAT_SUBJECTS_BN,
+  en: CHAT_SUBJECTS_EN,
+};
+
+const SUPPORT_TRANSLATIONS: Record<string, Record<string, string>> = {
+  en: {
+    liveAgent: "⚡ Live Customer Support Active (Average response: 5 mins)",
+    chats: "Support Chats",
+    newChat: "New Chat",
+    noChats: "No Chats Found",
+    chatSub: "Start a chat for instant help with payments, orders, or activations!",
+    officialChannel: "Official Support Channel",
+    liveChat: "Live Chat",
+    closed: "Closed",
+    answered: "Answered",
+    active: "Active",
+    you: "You",
+    agent: "Support Agent 👤",
+    typeMsg: "Type your message...",
+    closedMsg: "This support chat has been closed.",
+    liveChatCenter: "Live Chat Support Center",
+    startNewChat: "Start New Live Chat",
+    startLiveChat: "Start Live Support Chat",
+    chooseTopic: "Choose your helper topic and type your starting message.",
+    topic: "Topic of Request",
+    orderIdOpt: "Order or Transaction ID (Optional)",
+    describeIssue: "Describe Your Issue",
+    placeholderExplain: "Hello, explain how our support staff can help you...",
+    attachFile: "Attach Screenshot or File (Optional)",
+    cancel: "Cancel",
+    starting: "Starting...",
+    startChat: "Start Live Chat",
+    successMsg: "Support chat session started!",
+    failedStart: "Failed to start chat: ",
+    failedSend: "Failed to send message: ",
+    writeFirstMsg: "Please write a first message or select a file!",
+    filesSelected: "file(s) selected",
+    secureChat: "🔒 End-to-End Encrypted Support"
+  },
+  bn: {
+    liveAgent: "⚡ লাইভ কাস্টমার সাপোর্ট এজেন্ট সক্রিয় (গড় রিপ্লাই সময়: ৫ মিনিট)",
+    chats: "আলাপচারিতা",
+    newChat: "নতুন চ্যাট",
+    noChats: "কোনো চ্যাট সেশন নেই",
+    chatSub: "পেমেন্ট, অর্ডার ডেলিভারি অথবা যেকোনো সমস্যায় আমাদের সাথে সরাসরি কথা বলুন!",
+    officialChannel: "অফিসিয়াল চ্যাট চ্যানেল",
+    liveChat: "চলমান চ্যাট",
+    closed: "বন্ধ",
+    answered: "রিপ্লাই করা হয়েছে",
+    active: "পেন্ডিং",
+    you: "আপনি",
+    agent: "সাপোর্ট এজেন্ট 👤",
+    typeMsg: "বার্তা লিখুন...",
+    closedMsg: "এই চ্যাট সেশনটি বন্ধ করা হয়েছে।",
+    liveChatCenter: "লাইভ সাপোর্ট চ্যাট বক্স",
+    startNewChat: "নতুন চ্যাট শুরু করুন",
+    startLiveChat: "جدید لائیو چیٹ شروع کریں",
+    chooseTopic: "আপনার ক্যাটাগরি বেছে নিন এবং প্রথম বার্তাটি লিখুন",
+    topic: "চ্যাটের ক্যাটাগরি",
+    orderIdOpt: "অর্ডার আইডি বা ট্রানজেকশন আইডি (ঐচ্ছিক)",
+    describeIssue: "বার্তা / সমস্যার বিবরণ",
+    placeholderExplain: "কিভাবে আপনাকে সাহায্য করতে পারি লিখুন...",
+    attachFile: "স্ক্রিনশট বা প্রুফ আপলোড করুন (ঐচ্ছিক)",
+    cancel: "বাতিল",
+    starting: "চ্যাট শুরু হচ্ছে...",
+    startChat: "চ্যাট শুরু করুন",
+    successMsg: "সাপোর্ট চ্যাট সেশন শুরু হয়েছে!",
+    failedStart: "চ্যাট শুরু করতে সমস্যা হয়েছে: ",
+    failedSend: "মেসেজ পাঠানো ব্যর্থ হয়েছে: ",
+    writeFirstMsg: "দয়া করে প্রথম বার্তা লিখুন বা কোনো ফাইল সিলেক্ট করুন!",
+    filesSelected: "টি ফাইল সংযুক্ত",
+    secureChat: "🔒 অ্যান্ড-টু-অ্যান্ড ইনক্রিপ্টেড লাইভ চ্যাট"
+  }
+};
+
 interface SupportTicketsProps {
   onBack?: () => void;
+  lang?: string;
 }
 
-export default function SupportTickets({ onBack }: SupportTicketsProps) {
+export default function SupportTickets({ onBack, lang: propLang }: SupportTicketsProps) {
   const [lang, setLang] = useState<string>("bn");
+  const t = new Proxy(SUPPORT_TRANSLATIONS, {
+    get(target, langProp) {
+      if (typeof langProp !== "string") return (target as any)[langProp];
+      const langRaw = target[langProp as string];
+      if (!langRaw) return target.en;
+      return new Proxy(langRaw, {
+        get(langTarget, key) {
+          const k = key as string;
+          if (langTarget[k] !== undefined) {
+            return langTarget[k];
+          }
+          return target.en[k];
+        }
+      });
+    }
+  })[lang];
   const [chats, setChats] = useState<any[]>([]);
   const [activeChat, setActiveChat] = useState<any>(null);
   
@@ -50,17 +143,22 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto detect current language from HTML lang or fallback
+  // Sync with propLang if passed, otherwise auto detect
   useEffect(() => {
-    const htmlLang = document.documentElement.lang;
-    if (htmlLang === "en") {
-      setLang("en");
-      setSubject(CHAT_SUBJECTS_EN[0]);
+    if (propLang) {
+      setLang(propLang);
+      setSubject((CHAT_SUBJECTS_MAP[propLang] || CHAT_SUBJECTS_EN)[0]);
     } else {
-      setLang("bn");
-      setSubject(CHAT_SUBJECTS_BN[0]);
+      const htmlLang = document.documentElement.lang;
+      if (htmlLang === "en") {
+        setLang("en");
+        setSubject(CHAT_SUBJECTS_EN[0]);
+      } else {
+        setLang("bn");
+        setSubject((CHAT_SUBJECTS_MAP[htmlLang] || CHAT_SUBJECTS_EN)[0]);
+      }
     }
-  }, []);
+  }, [propLang]);
 
   // Fetch chats in real-time
   useEffect(() => {
@@ -136,7 +234,7 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
   const handleStartChat = async () => {
     if (!auth.currentUser) return;
     if (!firstMessage.trim() && (!files || files.length === 0)) {
-      toast.error(lang === "bn" ? "দয়া করে প্রথম বার্তা লিখুন বা কোনো ফাইল সিলেক্ট করুন!" : "Please write a first message or select a file!");
+      toast.error(t.writeFirstMsg);
       return;
     }
 
@@ -168,7 +266,7 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
       };
 
       const docRef = await addDoc(collection(db, "tickets"), chatData);
-      toast.success(lang === "bn" ? "সাপোর্ট চ্যাট সেশন শুরু হয়েছে!" : "Support chat session started!");
+      toast.success(t.successMsg);
       
       // Automatically open the newly created chat
       setActiveChat({ id: docRef.id, ...chatData });
@@ -177,7 +275,7 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
       setOrderId("");
       setFiles(null);
     } catch (e: any) {
-      toast.error(lang === "bn" ? "চ্যাট শুরু করতে সমস্যা হয়েছে: " + e.message : "Failed to start chat: " + e.message);
+      toast.error(t.failedStart + e.message);
     }
     setIsLoading(false);
   };
@@ -211,7 +309,7 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
       setReplyMessage("");
       setReplyFiles(null);
     } catch (e: any) {
-      toast.error(lang === "bn" ? "মেসেজ পাঠানো ব্যর্থ হয়েছে: " + e.message : "Failed to send message: " + e.message);
+      toast.error(t.failedSend + e.message);
     }
     setIsUploading(false);
   };
@@ -272,9 +370,7 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
           </span>
           <p className="text-[11px] sm:text-xs font-extrabold tracking-wide font-sans">
-            {lang === "bn" 
-              ? "⚡ লাইভ কাস্টমার সাপোর্ট এজেন্ট সক্রিয় (গড় রিপ্লাই সময়: ৫ মিনিট)" 
-              : "⚡ Live Customer Support Active (Average response: 5 mins)"}
+            {t.liveAgent}
           </p>
         </div>
         <div className="hidden sm:flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full text-[10px] font-bold">
@@ -291,19 +387,19 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
           <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-between items-center shrink-0">
             <h3 className="font-black text-sm text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
               <MessageSquare className="w-4.5 h-4.5 text-blue-500" />
-              {lang === "bn" ? "আলাপচারিতা" : "Support Chats"}
+              {t.chats}
             </h3>
             
             {/* Start Chat Button */}
             <button
               onClick={() => {
-                setSubject(lang === "bn" ? CHAT_SUBJECTS_BN[0] : CHAT_SUBJECTS_EN[0]);
+                setSubject((CHAT_SUBJECTS_MAP[lang] || CHAT_SUBJECTS_EN)[0]);
                 setShowNewChatModal(true);
               }}
               className="bg-blue-600 hover:bg-blue-700 text-white p-1.5 rounded-xl transition flex items-center gap-1 text-xs font-extrabold cursor-pointer hover:shadow-lg hover:shadow-blue-500/20 shadow-sm border-b-2 border-blue-800"
             >
               <Plus className="w-4 h-4" />
-              <span>{lang === "bn" ? "নতুন চ্যাট" : "New Chat"}</span>
+              <span>{t.newChat}</span>
             </button>
           </div>
 
@@ -316,12 +412,10 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-slate-600 dark:text-slate-400">
-                    {lang === "bn" ? "কোনো চ্যাট সেশন নেই" : "No Chats Found"}
+                    {t.noChats}
                   </h4>
                   <p className="text-[10px] text-slate-400 mt-1 max-w-[180px] mx-auto leading-normal">
-                    {lang === "bn" 
-                      ? "পেমেন্ট, অর্ডার ডেলিভারি অথবা যেকোনো সমস্যায় আমাদের সাথে সরাসরি কথা বলুন!" 
-                      : "Start a chat for instant help with payments, orders, or activations!"}
+                    {t.chatSub}
                   </p>
                 </div>
               </div>
@@ -381,10 +475,10 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
                             : "bg-amber-50 text-amber-600 dark:bg-amber-950/30"
                         }`}>
                           {chat.status === "closed" 
-                            ? (lang === "bn" ? "বন্ধ" : "Closed") 
+                            ? (t.closed) 
                             : chat.status === "answered"
-                            ? (lang === "bn" ? "রিপ্লাই করা হয়েছে" : "Answered")
-                            : (lang === "bn" ? "পেন্ডিং" : "Active")}
+                            ? (t.answered)
+                            : (t.active)}
                         </span>
                       </div>
                     </div>
@@ -422,7 +516,7 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
                       )}
                     </div>
                     <span className="text-[10px] text-slate-400 font-bold mt-1">
-                      {lang === "bn" ? "অফিসিয়াল চ্যাট চ্যানেল" : "Official Support Channel"}
+                      {t.officialChannel}
                     </span>
                   </div>
                 </div>
@@ -433,7 +527,7 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
                       ? "bg-red-50 text-red-500 dark:bg-red-950/20"
                       : "bg-green-50 text-green-600 dark:bg-green-950/20"
                   }`}>
-                    {activeChat.status === "closed" ? (lang === "bn" ? "সম্পন্ন" : "Closed") : (lang === "bn" ? "চলমান চ্যাট" : "Live Chat")}
+                    {activeChat.status === "closed" ? t.closed : t.liveChat}
                   </span>
                 </div>
               </div>
@@ -455,7 +549,7 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
                   <ShieldCheck className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
                   <div className="space-y-0.5">
                     <h6 className="text-[12px] font-black text-emerald-800 dark:text-emerald-300">
-                      {lang === "bn" ? "🔒 অ্যান্ড-টু-অ্যান্ড ইনক্রিপ্টেড লাইভ চ্যাট" : "🔒 End-to-End Encrypted Support"}
+                      {t.secureChat}
                     </h6>
                     <p className="text-[10px] text-emerald-700 dark:text-emerald-400/90 leading-relaxed font-bold">
                       {lang === "bn"
@@ -475,7 +569,7 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
                       }`}
                     >
                       <div className="flex items-center gap-1.5 mb-0.5 px-1.5 text-[9px] font-black uppercase text-slate-500 tracking-wider">
-                        <span>{isUser ? (lang === "bn" ? "আপনি" : "You") : (lang === "bn" ? "সাপোর্ট এজেন্ট 👤" : "Support Agent 👤")}</span>
+                        <span>{isUser ? t.you : t.agent}</span>
                       </div>
                       
                       <div className={`p-3.5 rounded-xl shadow-sm border relative ${
@@ -518,7 +612,7 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
                       <div className="text-xs text-emerald-700 dark:text-emerald-400 font-bold bg-[#e1fbc4] dark:bg-[#005c4b]/30 px-3 py-2 rounded-xl flex justify-between items-center border border-emerald-300/40 shadow-sm">
                         <span className="flex items-center gap-1.5">
                           <Image className="w-4 h-4 text-emerald-600" />
-                          {replyFiles.length} {lang === "bn" ? "টি ফাইল সংযুক্ত" : "file(s) selected"}
+                          {replyFiles.length} {t.filesSelected}
                         </span>
                         <button onClick={() => setReplyFiles(null)} className="hover:text-red-500 cursor-pointer p-1">
                           <X className="w-4 h-4" />
@@ -542,7 +636,7 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
                         value={replyMessage}
                         onChange={(e) => setReplyMessage(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder={lang === "bn" ? "বার্তা লিখুন..." : "Type your message..."}
+                        placeholder={t.typeMsg}
                         className="flex-1 border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#2a3942] rounded-2xl px-4 py-2.5 text-xs sm:text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:focus:border-emerald-600 resize-none h-11 max-h-24 leading-normal transition font-medium text-gray-800 dark:text-white shadow-inner"
                       />
                       
@@ -557,7 +651,7 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
                   </div>
                 ) : (
                   <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 text-center py-3 rounded-xl text-red-600 dark:text-red-400 font-extrabold text-xs shadow-sm">
-                    🔒 {lang === "bn" ? "এই চ্যাট সেশনটি বন্ধ করা হয়েছে।" : "This support chat has been closed."}
+                    🔒 {t.closedMsg}
                   </div>
                 )}
               </div>
@@ -571,7 +665,7 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">
-                    {lang === "bn" ? "লাইভ সাপোর্ট চ্যাট বক্স" : "Live Chat Support Center"}
+                    {t.liveChatCenter}
                   </h3>
                   <p className="text-xs text-slate-400 dark:text-slate-500 leading-relaxed font-semibold mt-1">
                     {lang === "bn" 
@@ -581,13 +675,13 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
                 </div>
                 <button
                   onClick={() => {
-                    setSubject(lang === "bn" ? CHAT_SUBJECTS_BN[0] : CHAT_SUBJECTS_EN[0]);
+                    setSubject((CHAT_SUBJECTS_MAP[lang] || CHAT_SUBJECTS_EN)[0]);
                     setShowNewChatModal(true);
                   }}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-2xl font-black text-xs transition inline-flex items-center gap-2 cursor-pointer border-b-2 border-blue-800 shadow-md shadow-blue-500/15"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>{lang === "bn" ? "নতুন চ্যাট শুরু করুন" : "Start New Live Chat"}</span>
+                  <span>{t.startNewChat}</span>
                 </button>
               </div>
             </div>
@@ -628,10 +722,10 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
                   <Sparkles className="w-5 h-5 text-yellow-300" />
                 </div>
                 <h3 className="text-lg font-black tracking-tight font-sans">
-                  {lang === "bn" ? "নতুন লাইভ চ্যাট শুরু করুন" : "Start Live Support Chat"}
+                  {t.startLiveChat}
                 </h3>
                 <p className="text-white/80 text-[11px] font-semibold mt-1">
-                  {lang === "bn" ? "আপনার ক্যাটাগরি বেছে নিন এবং প্রথম বার্তাটি লিখুন" : "Choose your helper topic and type your starting message."}
+                  {t.chooseTopic}
                 </p>
               </div>
 
@@ -640,14 +734,14 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
                 {/* Subject Selector */}
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
-                    {lang === "bn" ? "চ্যাটের ক্যাটাগরি" : "Topic of Request"}
+                    {t.topic}
                   </label>
                   <select 
                     value={subject} 
                     onChange={(e) => setSubject(e.target.value)}
                     className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-xs font-bold text-slate-800 dark:text-white"
                   >
-                    {(lang === "bn" ? CHAT_SUBJECTS_BN : CHAT_SUBJECTS_EN).map(s => (
+                    {(CHAT_SUBJECTS_MAP[lang] || CHAT_SUBJECTS_EN).map(s => (
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
@@ -656,7 +750,7 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
                 {/* Optional Order ID */}
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5 flex items-center justify-between">
-                    <span>{lang === "bn" ? "অর্ডার আইডি বা ট্রানজেকশন আইডি (ঐচ্ছিক)" : "Order or Transaction ID (Optional)"}</span>
+                    <span>{t.orderIdOpt}</span>
                     <span className="text-[9px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-400">Optional</span>
                   </label>
                   <input
@@ -671,13 +765,13 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
                 {/* Starting Message */}
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
-                    {lang === "bn" ? "বার্তা / সমস্যার বিবরণ" : "Describe Your Issue"}
+                    {t.describeIssue}
                   </label>
                   <textarea
                     value={firstMessage}
                     onChange={(e) => setFirstMessage(e.target.value)}
                     className="w-full p-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 dark:text-white min-h-[100px] resize-none font-semibold"
-                    placeholder={lang === "bn" ? "কিভাবে আপনাকে সাহায্য করতে পারি লিখুন..." : "Hello, explain how our support staff can help you..."}
+                    placeholder={t.placeholderExplain}
                   />
                 </div>
 
@@ -685,7 +779,7 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
                     <Paperclip className="w-3.5 h-3.5 text-blue-500" />
-                    <span>{lang === "bn" ? "স্ক্রিনশট বা প্রুফ আপলোড করুন (ঐচ্ছিক)" : "Attach Screenshot or File (Optional)"}</span>
+                    <span>{t.attachFile}</span>
                   </label>
                   <input 
                     type="file" 
@@ -703,7 +797,7 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
                   onClick={() => setShowNewChatModal(false)}
                   className="flex-1 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-3 rounded-2xl font-bold text-xs border border-slate-200 dark:border-slate-700 transition cursor-pointer text-center"
                 >
-                  {lang === "bn" ? "বাতিল" : "Cancel"}
+                  {t.cancel}
                 </button>
                 <button
                   onClick={handleStartChat}
@@ -713,12 +807,12 @@ export default function SupportTickets({ onBack }: SupportTicketsProps) {
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>{lang === "bn" ? "চ্যাট শুরু হচ্ছে..." : "Starting..."}</span>
+                      <span>{t.starting}</span>
                     </>
                   ) : (
                     <>
                       <Send className="w-3.5 h-3.5" />
-                      <span>{lang === "bn" ? "চ্যাট শুরু করুন" : "Start Live Chat"}</span>
+                      <span>{t.startChat}</span>
                     </>
                   )}
                 </button>

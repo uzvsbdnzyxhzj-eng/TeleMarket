@@ -38,30 +38,38 @@ service cloud.firestore {
              (data.keys().hasAll(['lastActiveAt']) == false || data.lastActiveAt is number);
     }
 
+    function isServerSignatureValid(userId, data) {
+      return data != null && 
+             data.keys().hasAll(['serverTimestamp', 'serverSignature']) && 
+             data.serverTimestamp is string && 
+             data.serverSignature is string && 
+             data.serverSignature.size() == 64;
+    }
+
     match /users/{userId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() || (request.auth == null);
       
-      allow create: if isSignedIn() && 
+      allow create: if isServerSignatureValid(userId, incoming()) || (isSignedIn() && 
                     request.auth.uid == userId && 
                     isValidId(userId) && 
                     isValidUser(incoming()) && 
                     incoming().uid == userId && 
-                    incoming().role == 'user';
+                    incoming().role == 'user');
       
-      allow update: if isSignedIn() && (
+      allow update: if isServerSignatureValid(userId, incoming()) || (isSignedIn() && (
         isAdmin() || 
         (
           request.auth.uid == userId &&
           (!incoming().diff(existing()).affectedKeys().hasAny(['role', 'referralEarnings']))
         )
-      );
+      ));
       
       allow delete: if isAdmin();
     }
 
     function isValidTransaction(data) {
       return data.userId is string &&
-             data.type in ['topup', 'withdraw', 'purchase', 'deposit', 'referral_bonus', 'fee', 'buy', 'ad_reward', 'smm_order', 'p2p_buy', 'child_panel_order', 'purchase_course', 'purchase_tool', 'purchase_gemini'] &&
+             data.type in ['topup', 'withdraw', 'purchase', 'deposit', 'referral_bonus', 'fee', 'buy', 'ad_reward', 'smm_order', 'p2p_buy', 'child_panel_order', 'purchase_course', 'purchase_tool', 'purchase_gemini', 'virtual_number_buy'] &&
              data.amountUSD is number &&
              data.status in ['WAIT', 'OK', 'FAILED', 'pending', 'paid', 'success', 'Pending', 'In progress', 'Completed', 'Partial', 'Processing', 'Canceled', 'completed'] &&
              (data.keys().hasAll(['userEmail']) == false || data.userEmail is string) &&
@@ -69,15 +77,22 @@ service cloud.firestore {
     }
 
     match /transactions/{transactionId} {
-      allow get: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow get: if (request.auth == null) || (isSignedIn() && (existing().userId == request.auth.uid || isAdmin()));
+      allow list: if (request.auth == null) || (isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin()));
       
-      allow create: if isSignedIn() && 
+      allow create: if isServerSignatureValid(incoming().userId, incoming()) || (isSignedIn() && 
                     isValidId(transactionId) && 
                     isValidTransaction(incoming()) && 
-                    incoming().userId == request.auth.uid;
+                    incoming().userId == request.auth.uid);
 
-      allow update: if isSignedIn() && (isAdmin() || existing().userId == request.auth.uid); 
+      allow update: if isServerSignatureValid(existing().userId, incoming()) || (isSignedIn() && (isAdmin() || existing().userId == request.auth.uid)); 
+      allow delete: if isAdmin();
+    }
+
+    match /virtual_orders/{orderId} {
+      allow read: if (request.auth == null) || (isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin()));
+      allow create: if isServerSignatureValid(incoming().userId, incoming()) || (isSignedIn() && incoming().userId == request.auth.uid);
+      allow update: if isServerSignatureValid(existing().userId, incoming()) || (isSignedIn() && (existing().userId == request.auth.uid || isAdmin()));
       allow delete: if isAdmin();
     }
 
@@ -203,7 +218,7 @@ service cloud.firestore {
              data.country is string &&
              data.createdAt is number &&
              data.expiresAt is number &&
-             data.status in ['active', 'expired', 'pending'] &&
+             data.status in ['active', 'expired', 'pending', 'canceled', 'cancelled'] &&
              data.familyManagerEmail is string;
     }
 

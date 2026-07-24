@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { collection, query, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
+import { collection, query, getDocs } from "firebase/firestore";
 import { db } from "./firebase";
-import toast from "react-hot-toast";
-import { DollarSign, Activity, Calendar, Award, TrendingUp } from "lucide-react";
+import { DollarSign, Activity, TrendingUp, Award } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 export default function AdminDataOverview() {
@@ -21,6 +20,15 @@ export default function AdminDataOverview() {
     const [customEnd, setCustomEnd] = useState(getTodayDateString());
     const [stats, setStats] = useState({ netProfit: 0, details: [] as any[], chartData: [] as any[] });
     const [loading, setLoading] = useState(true);
+
+    const getTimestampNumber = (val: any): number => {
+        if (!val) return 0;
+        if (typeof val === "number") return val;
+        if (val.toMillis && typeof val.toMillis === "function") return val.toMillis();
+        if (val.seconds !== undefined) return val.seconds * 1000;
+        const parsed = Date.parse(val);
+        return isNaN(parsed) ? 0 : parsed;
+    };
 
     const fetchStats = async () => {
         setLoading(true);
@@ -46,6 +54,7 @@ export default function AdminDataOverview() {
                         date: `${d.getHours()}:00`,
                         topups: 0,
                         withdrawals: 0,
+                        sales: 0,
                         tsStart: new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), 0, 0).getTime(),
                         tsEnd: new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours() + 1, 0, 0).getTime()
                     });
@@ -57,6 +66,7 @@ export default function AdminDataOverview() {
                         date: `${d.getMonth() + 1}/${d.getDate()}`,
                         topups: 0,
                         withdrawals: 0,
+                        sales: 0,
                         tsStart: new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(),
                         tsEnd: new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime()
                     });
@@ -64,7 +74,7 @@ export default function AdminDataOverview() {
             } else if (period === "all") {
                 let minCreatedAt = now;
                 txSnap.docs.forEach(docSnap => {
-                    const c = docSnap.data().createdAt || 0;
+                    const c = getTimestampNumber(docSnap.data().createdAt);
                     if (c > 0 && c < minCreatedAt) {
                         minCreatedAt = c;
                     }
@@ -89,6 +99,7 @@ export default function AdminDataOverview() {
                         date: current.toLocaleString('default', { month: 'short', year: '2-digit' }),
                         topups: 0,
                         withdrawals: 0,
+                        sales: 0,
                         tsStart: current.getTime(),
                         tsEnd: nextMonth.getTime()
                     });
@@ -103,6 +114,7 @@ export default function AdminDataOverview() {
                         date: d.toLocaleString('default', { month: 'short', year: '2-digit' }),
                         topups: 0,
                         withdrawals: 0,
+                        sales: 0,
                         tsStart: new Date(d.getFullYear(), d.getMonth(), 1).getTime(),
                         tsEnd: new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime()
                     });
@@ -118,6 +130,7 @@ export default function AdminDataOverview() {
                             date: `${d.getHours()}:00`,
                             topups: 0,
                             withdrawals: 0,
+                            sales: 0,
                             tsStart: d.getTime(),
                             tsEnd: d.getTime() + 3600000
                         });
@@ -131,6 +144,7 @@ export default function AdminDataOverview() {
                             date: current.toLocaleString('default', { month: 'short', year: '2-digit' }),
                             topups: 0,
                             withdrawals: 0,
+                            sales: 0,
                             tsStart: current.getTime(),
                             tsEnd: nextMonth.getTime()
                         });
@@ -144,6 +158,7 @@ export default function AdminDataOverview() {
                             date: `${d.getMonth() + 1}/${d.getDate()}`,
                             topups: 0,
                             withdrawals: 0,
+                            sales: 0,
                             tsStart: new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(),
                             tsEnd: new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime()
                         });
@@ -156,6 +171,7 @@ export default function AdminDataOverview() {
                         date: `${d.getMonth() + 1}/${d.getDate()}`,
                         topups: 0,
                         withdrawals: 0,
+                        sales: 0,
                         tsStart: new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(),
                         tsEnd: new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime()
                     });
@@ -164,7 +180,7 @@ export default function AdminDataOverview() {
             
             txSnap.docs.forEach(doc => {
                const data = doc.data();
-               const createdAt = data.createdAt || 0;
+               const createdAt = getTimestampNumber(data.createdAt);
                let profit = 0;
                let serviceType = "";
                
@@ -172,15 +188,20 @@ export default function AdminDataOverview() {
                const type = data.type || "";
                
                const isPending = status === "pending" || status === "wait" || status === "in progress" || status === "processing";
-               const isCanceled = status === "canceled" || status === "cancelled" || status === "refunded" || status === "partial" || status === "failed" || status === "error";
+               const isCanceled = status === "canceled" || status === "cancelled" || status === "refunded" || status === "partial" || status === "failed" || status === "error" || status === "rejected";
 
-               // Populate 30-day Chart
-               if (!isPending && !isCanceled && (status === "paid" || status === "ok" || status === "success" || status === "completed")) {
-                   if (type === "topup" || type === "deposit" || type === "withdraw") {
-                       const entry = chartData.find(day => createdAt >= day.tsStart && createdAt < day.tsEnd);
-                       if (entry) {
-                           if (type === "topup" || type === "deposit") entry.topups += parseFloat(data.amountUSD || 0);
-                           if (type === "withdraw") entry.withdrawals += parseFloat(data.amountUSD || 0);
+               const isSuccess = status === "paid" || status === "ok" || status === "success" || status === "completed";
+
+               // Populate Cash Flow and Sales Trend
+               if (!isPending && !isCanceled && isSuccess) {
+                   const entry = chartData.find(day => createdAt >= day.tsStart && createdAt < day.tsEnd);
+                   if (entry) {
+                       if (type === "topup" || type === "deposit") {
+                           entry.topups += parseFloat(data.amountUSD || 0);
+                       } else if (type === "withdraw") {
+                           entry.withdrawals += parseFloat(data.amountUSD || 0);
+                       } else {
+                           entry.sales += parseFloat(data.amountUSD || 0);
                        }
                    }
                }
@@ -195,26 +216,42 @@ export default function AdminDataOverview() {
                }
 
                // Profit calculations based on service type.
-               if (!isPending && !isCanceled && (status === "paid" || status === "ok" || status === "success" || status === "completed")) {
-                   if (type === "buy_telegram" || type === "p2p_buy") {
-                       profit = parseFloat(data.amountUSD || 0) * 0.15; // Assumption 15% margin
-                       serviceType = "Telegram Account";
-                   } else if (type === "purchase") {
-                       profit = parseFloat(data.amountUSD || 0) * 0.20; // Assumption 20% margin
-                       serviceType = "SMM / Number";
-                   }
-                   
-                   if (profit > 0) {
-                       totalProfit += profit;
-                       tempDetails.push({
-                           id: doc.id,
-                           user: data.userEmail || data.userNumericId || data.userId || "Unknown User",
-                           service: serviceType,
-                           cost: data.amountUSD,
-                           profit: profit,
-                           date: new Date(createdAt).toLocaleString()
-                       });
-                   }
+               if (!isPending && !isCanceled && isSuccess) {
+                    const amount = parseFloat(data.amountUSD || 0);
+                    if (type === "buy_telegram" || type === "p2p_buy") {
+                        profit = amount * 0.15; // 15% profit
+                        serviceType = "Telegram Account 👤";
+                    } else if (type === "smm_order") {
+                        profit = amount * 0.25; // 25% profit
+                        serviceType = data.serviceName ? `SMM: ${data.serviceName}` : "SMM Order 🚀";
+                    } else if (type === "child_panel_order") {
+                        profit = amount * 0.80; // 80% profit
+                        serviceType = "SMM Child Panel 🖥️";
+                    } else if (type === "purchase_course") {
+                        profit = amount * 0.90; // 90% profit
+                        serviceType = data.details?.title ? `Course: ${data.details.title}` : "Premium Course 📂";
+                    } else if (type === "purchase_tool") {
+                        profit = amount * 0.90; // 90% profit
+                        serviceType = data.details?.title ? `Tool: ${data.details.title}` : "Premium Tool 🛠️";
+                    } else if (type === "purchase_gemini") {
+                        profit = amount * 0.85; // 85% profit
+                        serviceType = "Gemini AI Subscription 🤖";
+                    } else if (type === "purchase") {
+                        profit = amount * 0.20; // 20% profit
+                        serviceType = "General Purchase 🛒";
+                    }
+                    
+                    if (profit > 0) {
+                        totalProfit += profit;
+                        tempDetails.push({
+                            id: doc.id,
+                            user: data.userEmail || data.userNumericId || data.userId || "Unknown User",
+                            service: serviceType,
+                            cost: amount,
+                            profit: profit,
+                            date: new Date(createdAt).toLocaleString()
+                        });
+                    }
                }
             });
             
@@ -314,9 +351,13 @@ export default function AdminDataOverview() {
                             <Tooltip 
                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                itemStyle={{ fontWeight: 'bold' }}
-                               formatter={(value: number, name: string) => [`$${value.toFixed(2)}`, name === 'topups' ? 'Top Ups ($)' : 'Withdrawals ($)']}
+                               formatter={(value: number, name: string) => [
+                                 `$${value.toFixed(2)}`, 
+                                 name === 'topups' ? 'Top Ups ($)' : name === 'withdrawals' ? 'Withdrawals ($)' : 'Sales/Purchases ($)'
+                               ]}
                             />
                             <Area type="monotone" dataKey="topups" name="topups" stroke="#10b981" strokeWidth={3} fill="#10b981" fillOpacity={0.15} />
+                            <Area type="monotone" dataKey="sales" name="sales" stroke="#8b5cf6" strokeWidth={3} fill="#8b5cf6" fillOpacity={0.15} />
                             <Area type="monotone" dataKey="withdrawals" name="withdrawals" stroke="#ef4444" strokeWidth={3} fill="#ef4444" fillOpacity={0.15} />
                         </AreaChart>
                     </ResponsiveContainer>
@@ -325,7 +366,7 @@ export default function AdminDataOverview() {
             
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                 <div className="p-6 border-b border-gray-100">
-                    <h3 className="font-bold text-gray-800 flex items-center gap-2"><Award className="w-5 h-5 text-emerald-500"/> Profit Detalils & Activity</h3>
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2"><Award className="w-5 h-5 text-emerald-500"/> Profit Details & Activity</h3>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm whitespace-nowrap">
@@ -359,3 +400,4 @@ export default function AdminDataOverview() {
         </div>
     );
 }
+
